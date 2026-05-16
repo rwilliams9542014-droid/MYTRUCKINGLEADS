@@ -19,6 +19,7 @@ import cookieParser from "cookie-parser";
 
 import authRoutes from "./routes/authRoutes.js";
 import billingRoutes from "./routes/billingRoutes.js";
+import { handleStripeWebhook } from "./controllers/billingController.js";
 import carrierRoutes from "./routes/carrierRoutes.js";
 import leadRoutes from "./routes/leadRoutes.js";
 import insuranceRoutes from "./routes/insuranceRoutes.js";
@@ -147,6 +148,15 @@ app.use("/api/", limiter);
 
 // Cookie parsing for JWT authentication
 app.use(cookieParser());
+
+// Stripe webhook must be registered BEFORE the global body parsers so that
+// express.raw() can capture the raw Buffer. Once express.json() runs, the
+// body stream is consumed and Stripe's signature verification will fail.
+app.post(
+  "/api/billing/webhook",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
 
 // Body parsing with size limits
 app.use(express.json({ limit: "10mb" }));
