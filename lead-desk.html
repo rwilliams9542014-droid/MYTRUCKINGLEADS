@@ -757,8 +757,10 @@
       --muted: #a8b7ca;
       --line: rgba(226, 232, 240, 0.14);
       width: min(1360px, 100%);
-      max-height: min(940px, calc(100vh - 22px));
+      max-height: min(940px, calc(100vh - 28px));
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
       border: 1px solid rgba(91, 156, 255, 0.24);
       border-radius: 18px;
       background:
@@ -792,8 +794,10 @@
 
     .profile-content {
       padding: 22px 26px 26px;
-      overflow: auto;
-      max-height: calc(100vh - 190px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex: 1;
+      min-height: 0;
     }
 
     .profile-tabs {
