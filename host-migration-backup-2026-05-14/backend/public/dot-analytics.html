@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DOT Analytics - MyTruckingLeads</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <style>
+    .modern-workspace {
+      background:
+        radial-gradient(circle at 10% 0%, rgba(21, 101, 255, 0.14), transparent 28%),
+        linear-gradient(180deg, #eef4ff 0%, #f8fafc 42%, #eef2f7 100%);
+      color: #172033;
+      min-height: 100vh;
+    }
+
+    .app-topbar {
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .topbar {
+      align-items: center;
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      margin: 0 auto;
+      max-width: 1480px;
+      padding: 16px 18px;
+      width: min(100% - 28px, 1480px);
+    }
+
+    .brand {
+      align-items: center;
+      color: #0f172a;
+      display: flex;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .brand .mark {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 10px 26px rgba(21, 101, 255, 0.18);
+      height: 44px;
+      object-fit: contain;
+      padding: 5px;
+      width: 44px;
+    }
+
+    .brand h1 {
+      font-size: 1.08rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin: 0;
+    }
+
+    .user-line {
+      color: #64748b;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .home-link,
+    button.ghost {
+      background: #1565ff;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.86rem;
+      font-weight: 800;
+      padding: 0.58rem 0.92rem;
+      text-decoration: none;
+    }
+
+    .home-link.ghost,
+    button.ghost {
+      background: #fff;
+      border-color: rgba(148, 163, 184, 0.35);
+      color: #0f172a;
+    }
+
+    .home-link:hover,
+    button.ghost:hover {
+      background: #0b1320;
+      color: #fff;
+    }
+
+    .dashboard-main {
+      display: block;
+      margin: 0 auto;
+      max-width: 1480px;
+      padding: 16px 18px 28px;
+      width: min(100% - 28px, 1480px);
+    }
+
+    .dashboard-header {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 22px;
+      margin-bottom: 16px;
+      position: static;
+    }
+
+    .dashboard-content {
+      padding: 0;
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .header-actions {
+        justify-content: flex-start;
+        width: 100%;
+      }
+    }
+  </style>
+  <script defer src="/assets/js/meta-pixel.js?v=meta-pixel-1"></script>
+</head>
+<body class="modern-workspace analytics-body">
+  <header class="app-topbar">
+    <div class="topbar">
+      <a class="brand" href="/user-dashboard.html">
+        <img class="mark" src="/assets/mytruckingleads-logo-icon.png" alt="" aria-hidden="true" />
+        <div>
+          <h1>MyTruckingLeads</h1>
+          <div class="user-line" id="currentUserName">DOT Analytics</div>
+        </div>
+      </a>
+      <div class="header-actions">
+        <a class="home-link ghost" href="/user-dashboard.html">Dashboard</a>
+        <a class="home-link ghost" href="/lead-desk.html">Lead Desk</a>
+        <a class="home-link ghost" href="/crm.html">CRM</a>
+        <a class="home-link" href="/dot-analytics.html">DOT Analytics</a>
+        <button class="ghost" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </div>
+  </header>
+
+    <main class="dashboard-main">
+      <header class="dashboard-header compact-dashboard-header">
+        <div>
+          <span class="workspace-kicker">Carrier profile</span>
+          <h4 class="mb-0">FMCSA Carrier Lookup</h4>
+        </div>
+      </header>
+
+      <div class="dashboard-content container-fluid">
+        <section class="analytics-search-panel">
+          <div class="analytics-search-copy">
+            <span class="workspace-kicker">FMCSA lookup</span>
+            <h5 class="mb-1">Search Live Carrier Records</h5>
+            <p class="mb-0">Search by DOT, MC, or carrier name to review safety, authority, contact, and CRM-ready prospect details.</p>
+          </div>
+          <form id="searchForm" class="analytics-search-form">
+            <div class="analytics-search-input">
+              <label class="form-label small" for="searchInput">DOT, MC, or Carrier Name</label>
+              <input type="text" class="form-control" id="searchInput" placeholder="Enter DOT, MC, or carrier name" />
+            </div>
+            <button type="submit" class="btn btn-primary icon-button">
+              <i class="bi bi-search"></i> Search Carrier
+            </button>
+          </form>
+        </section>
+
+        <section class="analytics-workspace">
+          <div class="analytics-profile-card carrier-lookup-card">
+            <div class="analytics-card-header">
+              <div>
+                <span class="workspace-kicker">Lead profile carrier dossier</span>
+                <h5 id="analyticsCarrierName" class="mb-0">Search a carrier</h5>
+              </div>
+              <button id="saveLeadBtn" class="btn btn-accent btn-sm icon-button" disabled>
+                <i class="bi bi-bookmark-plus"></i> Save to CRM
+              </button>
+            </div>
+            <div id="carrierDetails" class="analytics-details">
+              Enter a DOT, MC, or carrier name to view safety, fleet, contact, and source analytics.
+            </div>
+          </div>
+
+          <div id="contactInfoPanel" class="analytics-profile-card" style="display:none;">
+            <div class="analytics-card-header">
+              <div>
+                <span class="workspace-kicker">Agent action</span>
+                <h5 class="mb-0">Contact & Outreach</h5>
+              </div>
+            </div>
+            <div class="analytics-contact-grid">
+              <div><span>Email</span><strong id="contactEmail">-</strong></div>
+              <div><span>Phone</span><strong id="contactPhone">-</strong></div>
+              <div><span>Address</span><strong id="contactAddress">-</strong></div>
+              <div><span>Website</span><strong id="contactWebsite">-</strong></div>
+            </div>
+            <div class="contact-completeness-row mt-3">
+              <span>Data completeness</span>
+              <strong id="dataCompleteness">0%</strong>
+            </div>
+            <div class="mt-2">
+              <div class="progress compact-progress">
+                <div id="completenessBar" class="progress-bar bg-success" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="carrierIntelligencePanel" class="analytics-profile-card premium-intelligence-panel">
+            <div class="analytics-card-header intelligence-card-header">
+              <div>
+                <span class="workspace-kicker">Agency Unlimited</span>
+                <h5 class="mb-0">AI Carrier Intelligence Copilot</h5>
+              </div>
+            </div>
+            <div class="intelligence-overview">
+              <div>
+                <span class="workspace-kicker">Instant readout</span>
+                <h6 id="intelligenceHeadline" class="mb-1">Search a carrier to generate a prospecting brief.</h6>
+                <p id="intelligenceSummary" class="mb-0">The assistant will read safety, cargo, authority, fleet, contact, and renewal signals here.</p>
+              </div>
+              <div class="intelligence-scoreboard">
+                <div><span>Signal Score</span><strong id="intelligenceSignalScore">--</strong></div>
+                <div><span>Risk Heat</span><strong id="intelligenceRiskHeat">Waiting</strong></div>
+                <div><span>Timing</span><strong id="intelligenceTiming">Waiting</strong></div>
+              </div>
+            </div>
+            <div id="intelligenceTags" class="intelligence-tag-row" aria-live="polite">
+              <span class="intelligence-tag neutral">Awaiting carrier data</span>
+            </div>
+            <div class="intelligence-grid modern">
+              <div class="intelligence-card">
+                <span>Prospect Fit</span>
+                <strong id="intelligenceProspectFit">Search a carrier to review fit.</strong>
+              </div>
+              <div class="intelligence-card">
+                <span>Risk Snapshot</span>
+                <strong id="intelligenceSafetyIssues">Safety score context will appear here.</strong>
+              </div>
+              <div class="intelligence-card">
+                <span>Coverage Concerns</span>
+                <strong id="intelligenceCoverage">Coverage concerns will appear here.</strong>
+              </div>
+              <div class="intelligence-card">
+                <span>Questions To Ask</span>
+                <strong id="intelligenceQuestions">Suggested discovery questions will appear here.</strong>
+              </div>
+              <div class="intelligence-card">
+                <span>Timing & Urgency</span>
+                <strong id="intelligenceUrgency">Renewal timing guidance will appear here.</strong>
+              </div>
+              <div class="intelligence-card">
+                <span>Best Outreach Angle</span>
+                <strong id="intelligenceAngle">The strongest angle for your first touch will appear here.</strong>
+              </div>
+              <div class="intelligence-card">
+                <span>Data Confidence</span>
+                <strong id="intelligenceConfidence">Signal confidence will appear here.</strong>
+              </div>
+              <div class="intelligence-card">
+                <span>Call / Email Opener</span>
+                <strong id="intelligenceOpener">A suggested opener will appear here.</strong>
+              </div>
+            </div>
+            <div id="intelligenceFootnote" class="intelligence-footnote">This brief updates from live and cached carrier signals as data becomes available.</div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+  <div class="modal fade" id="contactInfoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Complete Contact Information</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <h6 class="mb-3" id="modalCarrierName">Carrier Name</h6>
+          <div class="row g-3">
+            <div class="col-md-6"><strong>Email Address</strong><p id="modalEmail" class="text-muted mb-0">-</p></div>
+            <div class="col-md-6"><strong>Phone Number</strong><p id="modalPhone" class="text-muted mb-0">-</p></div>
+            <div class="col-12"><strong>Mailing Address</strong><p id="modalAddress" class="text-muted mb-0">-</p></div>
+            <div class="col-md-6"><strong>Website</strong><p id="modalWebsite" class="text-muted mb-0">-</p></div>
+            <div class="col-md-6"><strong>Data Quality</strong><p id="modalQuality" class="text-muted mb-0">-</p></div>
+          </div>
+          <div class="row g-3 mt-1 small">
+            <div class="col-md-6" id="businessDBSource"></div>
+            <div class="col-md-6" id="publicRecordsSource"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-primary btn-sm" onclick="copyToClipboard()">Copy All</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/dashboard-auth.js?v=subscription-sync-1"></script>
+  <script type="module" src="assets/js/app.js?v=workflow-copilot-1"></script>
+</body>
+</html>

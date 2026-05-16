@@ -1,0 +1,9 @@
+{
+  "name": "railway-apex-redirect",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Redirect apex traffic to the canonical www domain",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

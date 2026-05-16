@@ -1,0 +1,378 @@
+/**
+ * Email Service
+ * 
+ * Handles sending subscription confirmation and failure emails
+ * Uses Nodemailer to send emails via SMTP
+ * 
+ * Environment variables required:
+ * - SMTP_HOST: SMTP server hostname (e.g., smtp.gmail.com)
+ * - SMTP_PORT: SMTP port (e.g., 587)
+ * - SMTP_USER: Email address for authentication
+ * - SMTP_PASS: Email password or app-specific password
+ * - SMTP_FROM: Email address to show as sender
+ * - APP_NAME: Application name (for email templates)
+ * - APP_URL: Base URL for email links
+ * 
+ * Example .env for Gmail:
+ * SMTP_HOST=smtp.gmail.com
+ * SMTP_PORT=587
+ * SMTP_USER=your-email@gmail.com
+ * SMTP_PASS=your-app-specific-password
+ * SMTP_FROM=noreply@mytruckingleads.com
+ * APP_NAME=MyTruckingLeads
+ * APP_URL=https://yourdomain.com
+ */
+
+import nodemailer from "nodemailer";
+
+// Create transporter once at startup
+let transporter = null;
+
+function initializeTransporter() {
+  if (transporter) return transporter;
+
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
+    console.warn("⚠️  Email service not configured. Emails will not be sent.");
+    console.warn("Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS environment variables to enable emails.");
+    return null;
+  }
+
+  try {
+    transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: parseInt(smtpPort),
+      secure: parseInt(smtpPort) === 465, // Use TLS for port 465, STARTTLS for others
+      auth: {
+        user: smtpUser,
+        pass: smtpPass
+      }
+    });
+
+    // Verify connection
+    transporter.verify((err, success) => {
+      if (err) {
+        console.error("❌ Email configuration error:", err.message);
+        transporter = null;
+      } else if (success) {
+        console.log("✅ Email service ready");
+      }
+    });
+
+    return transporter;
+  } catch (err) {
+    console.error("❌ Failed to initialize email transporter:", err.message);
+    return null;
+  }
+}
+
+// HTML Email Templates
+const emailTemplates = {
+  subscriptionConfirmation: (userName, plan, renewalDate, appName, appUrl) => {
+    const planDetails = {
+      basic: { price: "$79/month after a 3-day trial", features: ["1 user", "1 state", "New DOT leads", "Basic renewal access", "Carrier profile and FMCSA data", "Basic CRM", "Limited exports", "30-day lead history"] },
+      pro: { price: "$199/month after a 3-day trial", features: ["1 state", "Unlimited lead searches", "Renewal intelligence", "FMCSA/SMS", "Licensing and insurance", "CRM pipeline", "Exports", "Advanced and cargo filters", "Follow-up tracking", "90-day lead history"] },
+      premium: { price: "$499/month after a 3-day trial", features: ["Everything in Pro", "Multiple users", "Team CRM", "Shared pipeline", "Unlimited exports", "Future API access", "Future alerts and integrations", "Premium support"] }
+    };
+
+    const details = planDetails[plan] || planDetails.basic;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .plan-box { background: white; padding: 20px; margin: 20px 0; border-left: 4px solid #667eea; border-radius: 4px; }
+            .plan-name { font-size: 24px; font-weight: bold; color: #667eea; text-transform: capitalize; }
+            .plan-price { font-size: 18px; color: #666; margin: 10px 0; }
+            .features { list-style: none; padding: 0; }
+            .features li { padding: 8px 0; color: #666; }
+            .features li:before { content: "✓ "; color: #667eea; font-weight: bold; margin-right: 8px; }
+            .renewal-info { background: #e8f4f8; padding: 15px; border-radius: 4px; margin: 20px 0; color: #0066cc; }
+            .button { background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 20px 0; }
+            .footer { text-align: center; color: #999; font-size: 12px; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Welcome to ${appName}!</h1>
+              <p>Your subscription is active</p>
+            </div>
+            <div class="content">
+              <p>Hi ${userName},</p>
+              
+              <p>Thank you for subscribing to ${appName}! Your ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan is now active and ready to use.</p>
+              
+              <div class="plan-box">
+                <div class="plan-name">${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan</div>
+                <div class="plan-price">${details.price}</div>
+                <ul class="features">
+                  ${details.features.map(f => `<li>${f}</li>`).join("")}
+                </ul>
+              </div>
+              
+              <div class="renewal-info">
+                <strong>Next billing date:</strong> ${renewalDate}
+              </div>
+              
+              <p>You can now access all features of your plan immediately.</p>
+              
+              <a href="${appUrl}/app-dashboard.html" class="button">Go to Dashboard</a>
+              
+              <p>If you have any questions, reply to this email or visit our support center.</p>
+              
+              <p>Best regards,<br><strong>${appName} Team</strong></p>
+            </div>
+            <div class="footer">
+              <p>&copy; ${new Date().getFullYear()} ${appName}. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  },
+
+  paymentFailed: (userName, plan, reason, appName, appUrl) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #ff6b6b; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+            .alert-box { background: #ffe0e0; padding: 15px; border-left: 4px solid #ff6b6b; border-radius: 4px; margin: 20px 0; color: #c92a2a; }
+            .button { background: #ff6b6b; color: white; padding: 12px 30px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 20px 0; }
+            .button-secondary { background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 0 10px 0 0; }
+            .footer { text-align: center; color: #999; font-size: 12px; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Payment Failed</h1>
+              <p>We need your attention</p>
+            </div>
+            <div class="content">
+              <p>Hi ${userName},</p>
+              
+              <div class="alert-box">
+                <strong>⚠️ Payment Declined</strong><br>
+                Your payment for the ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan could not be processed.
+              </div>
+              
+              <p><strong>Reason:</strong> ${reason || "Please check your payment details and try again."}</p>
+              
+              <p>To keep your ${plan} plan active, please update your payment method:</p>
+              
+              <a href="${appUrl}/app-dashboard.html" class="button">Update Payment Method</a>
+              
+              <p>If you continue to experience issues, please <a href="mailto:support@${appName.toLowerCase().replace(/\\s/g, "")}.com">contact support</a>.</p>
+              
+              <p><strong>Note:</strong> Your access may be limited until payment is resolved.</p>
+              
+              <p>Best regards,<br><strong>${appName} Team</strong></p>
+            </div>
+            <div class="footer">
+              <p>&copy; ${new Date().getFullYear()} ${appName}. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  }
+};
+
+/**
+ * Send subscription confirmation email
+ */
+export async function sendSubscriptionConfirmation({ email, userName, plan, renewalDate }) {
+  const transport = initializeTransporter();
+  if (!transport) {
+    console.warn(`⚠️  Email not sent to ${email} (service not configured)`);
+    return false;
+  }
+
+  try {
+    const appName = process.env.APP_NAME || "MyTruckingLeads";
+    const appUrl = process.env.APP_URL || "https://mytruckingleads.com";
+    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+    const htmlContent = emailTemplates.subscriptionConfirmation(
+      userName,
+      plan,
+      renewalDate,
+      appName,
+      appUrl
+    );
+
+    const result = await transport.sendMail({
+      from: fromEmail,
+      to: email,
+      subject: `Welcome! Your ${plan} subscription is active - ${appName}`,
+      html: htmlContent,
+      text: `Welcome! Your ${plan} subscription is active. Next billing date: ${renewalDate}`
+    });
+
+    console.log(`✅ Subscription confirmation sent to ${email} (Message ID: ${result.messageId})`);
+    return true;
+  } catch (err) {
+    console.error(`❌ Error sending confirmation to ${email}:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Send payment failed email
+ */
+export async function sendPaymentFailedNotification({ email, userName, plan, reason }) {
+  const transport = initializeTransporter();
+  if (!transport) {
+    console.warn(`⚠️  Email not sent to ${email} (service not configured)`);
+    return false;
+  }
+
+  try {
+    const appName = process.env.APP_NAME || "MyTruckingLeads";
+    const appUrl = process.env.APP_URL || "https://mytruckingleads.com";
+    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+    const htmlContent = emailTemplates.paymentFailed(
+      userName,
+      plan,
+      reason,
+      appName,
+      appUrl
+    );
+
+    const result = await transport.sendMail({
+      from: fromEmail,
+      to: email,
+      subject: `Payment Failed - Action Required - ${appName}`,
+      html: htmlContent,
+      text: `Your payment for the ${plan} plan failed. Reason: ${reason || "Unknown"}. Please update your payment method.`
+    });
+
+    console.log(`✅ Payment failure notification sent to ${email} (Message ID: ${result.messageId})`);
+    return true;
+  } catch (err) {
+    console.error(`❌ Error sending payment failed notification to ${email}:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Send test email (for verification)
+ */
+export async function sendTestEmail(testEmail) {
+  const transport = initializeTransporter();
+  if (!transport) {
+    return { success: false, message: "Email service not configured" };
+  }
+
+  try {
+    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const appName = process.env.APP_NAME || "MyTruckingLeads";
+
+    const result = await transport.sendMail({
+      from: fromEmail,
+      to: testEmail,
+      subject: `Test Email - ${appName}`,
+      html: `<h2>This is a test email from ${appName}</h2><p>If you received this, your email configuration is working correctly!</p>`
+    });
+
+    return { 
+      success: true, 
+      message: `Test email sent successfully (ID: ${result.messageId})` 
+    };
+  } catch (err) {
+    return { 
+      success: false, 
+      message: `Error: ${err.message}` 
+    };
+  }
+}
+
+export async function sendContactRequestEmail({
+  toEmail,
+  name,
+  email,
+  phone = "",
+  agency = "",
+  message,
+  submittedAt,
+  sourcePage = ""
+}) {
+  const transport = initializeTransporter();
+  if (!transport) {
+    return { success: false, message: "Email service not configured" };
+  }
+
+  try {
+    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const appName = process.env.APP_NAME || "MyTruckingLeads";
+    const submittedLabel = submittedAt ? new Date(submittedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "Unknown";
+    const escapedMessage = String(message || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+
+    const html = `
+      <div style="font-family: Arial, Helvetica, sans-serif; color: #172033; line-height: 1.6;">
+        <h2 style="margin-bottom: 12px;">New Contact Request</h2>
+        <p style="margin-top: 0;">A new website contact request was submitted on ${appName}.</p>
+        <table style="border-collapse: collapse; width: 100%; max-width: 720px; margin: 18px 0;">
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Name</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${name}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Email</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;"><a href="mailto:${email}">${email}</a></td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Phone</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${phone || "Not provided"}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Agency</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${agency || "Not provided"}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Submitted</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${submittedLabel}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Source</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${sourcePage || "Website contact form"}</td></tr>
+        </table>
+        <div style="padding: 16px; border: 1px solid #dbe4f0; border-radius: 12px; background: #f8fbff;">
+          <div style="font-weight: 700; margin-bottom: 8px;">Message</div>
+          <div>${escapedMessage}</div>
+        </div>
+      </div>
+    `;
+
+    const text = [
+      "New Contact Request",
+      `Name: ${name}`,
+      `Email: ${email}`,
+      `Phone: ${phone || "Not provided"}`,
+      `Agency: ${agency || "Not provided"}`,
+      `Submitted: ${submittedLabel}`,
+      `Source: ${sourcePage || "Website contact form"}`,
+      "",
+      "Message:",
+      message
+    ].join("\n");
+
+    const result = await transport.sendMail({
+      from: fromEmail,
+      to: toEmail,
+      replyTo: email,
+      subject: `New contact request from ${name} - ${appName}`,
+      html,
+      text
+    });
+
+    return {
+      success: true,
+      message: `Contact request sent successfully (ID: ${result.messageId})`
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: `Error: ${err.message}`
+    };
+  }
+}

@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTrucking Integration - Test Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(21, 101, 255, 0.24), transparent 34%),
+                linear-gradient(135deg, #0B1320 0%, #101f33 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .panels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .panel h2 {
+            color: #1565FF;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #1565FF;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #1565FF;
+            box-shadow: 0 0 5px rgba(21, 101, 255, 0.3);
+        }
+
+        button {
+            background: #1565FF;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #0b49c9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .results {
+            background: #f5f5f5;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            background: white;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #1565FF;
+        }
+
+        .result-item strong {
+            color: #1565FF;
+        }
+
+        .email {
+            color: #27ae60;
+            font-weight: 600;
+        }
+
+        .email a {
+            color: inherit;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .phone {
+            color: #3498db;
+        }
+
+        .loading {
+            text-align: center;
+            color: #1565FF;
+            padding: 15px;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border-left: 4px solid #c33;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border-left: 4px solid #3c3;
+        }
+
+        .stat {
+            color: #1565FF;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .panels {
+                grid-template-columns: 1fr;
+            }
+
+            .row {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+  <script defer src="/assets/js/meta-pixel.js?v=meta-pixel-1"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OTrucking Integration Test Panel</h1>
+            <p class="subtitle">Search for carriers and find their email addresses</p>
+        </header>
+
+        <div class="panels">
+            <!-- Panel 1: Search & Enrich -->
+            <div class="panel">
+                <h2>Search Carriers & Get Emails</h2>
+                <div class="form-group">
+                    <label>Company Name or DOT Number</label>
+                    <input type="text" id="searchQuery" placeholder="e.g., 'ABC Trucking' or '1234567'">
+                </div>
+                <div class="form-group">
+                    <label>State (optional)</label>
+                    <input type="text" id="searchState" placeholder="e.g., CA, TX, FL" maxlength="2">
+                </div>
+                <button onclick="searchAndEnrich()">Search Carriers</button>
+                <div id="searchResults" class="results" style="display:none;"></div>
+            </div>
+
+            <!-- Panel 2: Browse by State -->
+            <div class="panel">
+                <h2>Browse Carriers by State</h2>
+                <div class="form-group">
+                    <label>State Code</label>
+                    <input type="text" id="browseState" placeholder="e.g., TX, CA, FL" maxlength="2" value="TX">
+                </div>
+                <div class="form-group">
+                    <label>Number of Results</label>
+                    <input type="number" id="browseLimit" value="20" min="1" max="200">
+                </div>
+                <button onclick="browseState()">Browse State</button>
+                <div id="browseResults" class="results" style="display:none;"></div>
+            </div>
+
+            <!-- Panel 3: Get Carrier Details -->
+            <div class="panel">
+                <h2>Get Carrier Details</h2>
+                <div class="form-group">
+                    <label>DOT Number</label>
+                    <input type="text" id="detailDot" placeholder="e.g., 1234567">
+                </div>
+                <button onclick="getDetail()">Get Details</button>
+                <div id="detailResults" class="results" style="display:none;"></div>
+            </div>
+
+            <!-- Panel 4: Batch Search -->
+            <div class="panel">
+                <h2>⚡ Batch Search Multiple</h2>
+                <div class="form-group">
+                    <label>Queries (one per line)</label>
+                    <textarea id="batchQueries" rows="4" placeholder="ABC Trucking&#10;1234567&#10;XYZ Transport&#10;9876543"></textarea>
+                </div>
+                <button onclick="batchSearch()">Batch Search</button>
+                <div id="batchResults" class="results" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Full Width Panel: Instructions -->
+        <div class="panel">
+            <h2>How to Use</h2>
+            <p style="margin-bottom: 15px;">
+                <strong>1. Search & Enrich:</strong> Search for a company name or DOT number to find carriers on otrucking.com and get their email addresses (requires Hunter.io/Apollo API keys configured in .env)<br><br>
+                <strong>2. Browse by State:</strong> See all carriers in a specific state<br><br>
+                <strong>3. Get Details:</strong> Get full information for a specific carrier by DOT number.<br><br>
+                <strong>4. Batch Search:</strong> Search multiple carriers at once
+            </p>
+
+            <p style="color: #c33; background: #fee; padding: 15px; border-radius: 5px; border-left: 4px solid #c33;">
+                <strong>Note:</strong> Make sure your backend server is running (npm run dev) and you're logged in for authentication to work.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE =
+            window.MY_TRUCKING_LEADS_API_BASE ||
+            document.documentElement.dataset.apiBase ||
+            (["localhost", "127.0.0.1"].includes(window.location.hostname)
+                ? "http://localhost:4000/api"
+                : `${window.location.origin}/api`);
+
+        // Get JWT token from localStorage (you may need to adjust based on your auth system)
+        function getAuthToken() {
+            return localStorage.getItem('authToken') || 'YOUR_JWT_TOKEN_HERE';
+        }
+
+        // Display loading state
+        function showLoading(element) {
+            element.innerHTML = '<div class="loading">⏳ Loading...</div>';
+            element.style.display = 'block';
+        }
+
+        // Display error
+        function showError(element, message) {
+            element.innerHTML = `<div class="error">❌ ${message}</div>`;
+            element.style.display = 'block';
+        }
+
+        // Display success message
+        function showSuccess(element, message) {
+            element.innerHTML = `<div class="success">✅ ${message}</div>`;
+            element.style.display = 'block';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderEmailLink(value) {
+            const email = String(value || '').trim();
+            if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) return escapeHtml(value || '');
+
+            return `<a class="email-link" href="mailto:${escapeHtml(email)}" title="Send email to ${escapeHtml(email)}">${escapeHtml(email)}</a>`;
+        }
+
+        // Format carrier result
+        function formatCarrier(carrier) {
+            const email = carrier.enrichedData?.email || carrier.email || 'Not found';
+            const phone = carrier.enrichedData?.phone || carrier.phone || 'Not found';
+            const address = carrier.enrichedData?.address || carrier.address || 'Not found';
+
+            return `
+                <div class="result-item">
+                    <strong>${carrier.companyName || carrier.name}</strong><br>
+                    DOT: ${carrier.dotNumber || carrier.dot || 'N/A'}<br>
+                    Location: ${carrier.location || 'N/A'}<br>
+                    <span class="email">Email: ${renderEmailLink(email)}</span><br>
+                    <span class="phone">Phone: ${phone}</span><br>
+                    Status: ${carrier.status || 'N/A'}
+                </div>
+            `;
+        }
+
+        // 1. Search and Enrich
+        async function searchAndEnrich() {
+            const query = document.getElementById('searchQuery').value.trim();
+            const state = document.getElementById('searchState').value.trim();
+            const resultsDiv = document.getElementById('searchResults');
+
+            if (!query) {
+                showError(resultsDiv, 'Please enter a company name or DOT number');
+                return;
+            }
+
+            showLoading(resultsDiv);
+
+            try {
+                const url = `${API_BASE}/carrier/otrucking/search?query=${encodeURIComponent(query)}&state=${state}&enrichEmail=true`;
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.results.length === 0) {
+                    showSuccess(resultsDiv, 'No carriers found');
+                    resultsDiv.innerHTML += '<p>Try searching by DOT number or a different company name.</p>';
+                    return;
+                }
+
+                let html = `<div class="stat">Found ${data.results.length} carriers</div>`;
+                data.results.forEach(carrier => {
+                    html += formatCarrier(carrier);
+                });
+
+                resultsDiv.innerHTML = html;
+                resultsDiv.style.display = 'block';
+            } catch (err) {
+                showError(resultsDiv, `Error: ${err.message}`);
+            }
+        }
+
+        // 2. Browse by State
+        async function browseState() {
+            const state = document.getElementById('browseState').value.trim().toUpperCase();
+            const limit = document.getElementById('browseLimit').value;
+            const resultsDiv = document.getElementById('browseResults');
+
+            if (!state || state.length !== 2) {
+                showError(resultsDiv, 'Please enter a 2-letter state code (e.g., TX)');
+                return;
+            }
+
+            showLoading(resultsDiv);
+
+            try {
+                const response = await fetch(`${API_BASE}/carrier/otrucking/state/${state}?limit=${limit}`, {
+                    headers: {
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.results.length === 0) {
+                    showSuccess(resultsDiv, `No carriers found in ${state}`);
+                    return;
+                }
+
+                let html = `<div class="stat">Found ${data.results.length} carriers in ${state}</div>`;
+                data.results.forEach(carrier => {
+                    html += formatCarrier(carrier);
+                });
+
+                resultsDiv.innerHTML = html;
+                resultsDiv.style.display = 'block';
+            } catch (err) {
+                showError(resultsDiv, `Error: ${err.message}`);
+            }
+        }
+
+        // 3. Get Carrier Detail
+        async function getDetail() {
+            const dot = document.getElementById('detailDot').value.trim();
+            const resultsDiv = document.getElementById('detailResults');
+
+            if (!dot) {
+                showError(resultsDiv, 'Please enter a DOT number');
+                return;
+            }
+
+            showLoading(resultsDiv);
+
+            try {
+                const response = await fetch(`${API_BASE}/carrier/otrucking/detail/${dot}`, {
+                    headers: {
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                const carrier = data.carrier;
+
+                let html = `
+                    <div class="result-item">
+                        <strong>${carrier.companyName}</strong><br>
+                        DOT: ${carrier.dotNumber}<br>
+                        Location: ${carrier.location}<br>
+                        Power Units: ${carrier.powerUnits || 'N/A'}<br>
+                        Equipment: ${carrier.equipment?.join(', ') || 'N/A'}<br>
+                        Status: ${carrier.status}<br>
+                        Detail URL: <a href="${carrier.detailUrl}" target="_blank">View on otrucking.com</a>
+                    </div>
+                `;
+
+                resultsDiv.innerHTML = html;
+                resultsDiv.style.display = 'block';
+            } catch (err) {
+                showError(resultsDiv, `Error: ${err.message}`);
+            }
+        }
+
+        // 4. Batch Search
+        async function batchSearch() {
+            const queriesText = document.getElementById('batchQueries').value.trim();
+            const resultsDiv = document.getElementById('batchResults');
+
+            if (!queriesText) {
+                showError(resultsDiv, 'Please enter at least one query');
+                return;
+            }
+
+            const queries = queriesText.split('\n').map(q => q.trim()).filter(q => q);
+
+            if (queries.length > 50) {
+                showError(resultsDiv, 'Maximum 50 queries per batch');
+                return;
+            }
+
+            showLoading(resultsDiv);
+
+            try {
+                const response = await fetch(`${API_BASE}/carrier/otrucking/batch-search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    },
+                    body: JSON.stringify({ queries })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.results.length === 0) {
+                    showSuccess(resultsDiv, 'No carriers found');
+                    return;
+                }
+
+                let html = `<div class="stat">Found ${data.results.length} carriers from ${data.queriesSubmitted} queries</div>`;
+                data.results.forEach(carrier => {
+                    html += formatCarrier(carrier);
+                });
+
+                resultsDiv.innerHTML = html;
+                resultsDiv.style.display = 'block';
+            } catch (err) {
+                showError(resultsDiv, `Error: ${err.message}`);
+            }
+        }
+
+        // Auto-focus on first input
+        document.getElementById('searchQuery').focus();
+    </script>
+</body>
+</html>

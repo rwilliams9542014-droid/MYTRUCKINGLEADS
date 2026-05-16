@@ -1,0 +1,569 @@
+import axios from "axios";
+import { withFmcsaCache } from "./fmcsaCacheService.js";
+const FMCSA_WEBKEY = process.env.FMCSA_WEBKEY;
+const FMCSA_BASE_URL = "https://mobile.fmcsa.dot.gov/qc/services";
+const FMCSA_CENSUS_URL = "https://data.transportation.gov/resource/az4n-8mr2.json";
+const FMCSA_SMS_BASE_URL = "https://ai.fmcsa.dot.gov/SMS";
+const FMCSA_SAFER_URL = "https://safer.fmcsa.dot.gov/query.asp";
+const FMCSA_SMS_HEADERS = {
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: `${FMCSA_SMS_BASE_URL}/`,
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 MyTruckingLeads/1.0"
+};
+
+function findFirstValue(node, keyPatterns) {
+  if (!node || typeof node !== "object") return "";
+
+  for (const [key, value] of Object.entries(node)) {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const isMatch = keyPatterns.some(pattern => normalizedKey.includes(pattern));
+
+    if (isMatch && value !== null && value !== undefined && typeof value !== "object") {
+      return String(value).trim();
+    }
+
+    if (typeof value === "object") {
+      const nestedValue = findFirstValue(value, keyPatterns);
+      if (nestedValue) return nestedValue;
+    }
+  }
+
+  return "";
+}
+
+function findEmailInPayload(payload) {
+  const directEmail = findFirstValue(payload, ["email", "emailaddress", "emailaddr"]);
+  if (directEmail) return directEmail;
+
+  const payloadText = JSON.stringify(payload);
+  const emailMatch = payloadText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return emailMatch?.[0] || "";
+}
+
+function buildAddress(...parts) {
+  return parts.flat().filter(Boolean).map(part => String(part).trim()).filter(Boolean).join(", ");
+}
+
+function valueOrEmpty(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function mapStatusCode(value) {
+  const status = valueOrEmpty(value).toUpperCase();
+  if (status === "A") return "Active";
+  if (status === "I") return "Inactive";
+  if (status === "P") return "Pending";
+  return valueOrEmpty(value);
+}
+
+function getCarrierPayload(responseData) {
+  return (
+    responseData?.content?.carrier ||
+    responseData?.content ||
+    responseData?.carrier ||
+    responseData ||
+    {}
+  );
+}
+
+function mapCensusCarrier(row) {
+  if (!row) return null;
+
+  const docket =
+    row.docket1 ||
+    row.docket2 ||
+    row.docket3 ||
+    "";
+
+  const docketPrefix =
+    row.docket1prefix ||
+    row.docket2prefix ||
+    row.docket3prefix ||
+    "";
+
+  return {
+    carrierName: valueOrEmpty(row.legal_name || row.dba_name || "Unknown"),
+    dot: valueOrEmpty(row.dot_number),
+    mc: docket ? `${docketPrefix}${docket}` : "",
+    safetyRating: valueOrEmpty(row.safety_rating || "Unknown"),
+    safetyRatingDate: valueOrEmpty(row.safety_rating_date),
+    authorityStatus: mapStatusCode(row.status_code),
+    operatingAuthority: valueOrEmpty(row.classdef),
+    carrierOperation: valueOrEmpty(row.carrier_operation),
+    hazmatAuthorized: valueOrEmpty(row.hm_ind).toUpperCase() === "Y",
+    passengerCarrier: valueOrEmpty(row.pc_flag || row.passenger_flag || row.passenger_carrier),
+    companyOfficer1: valueOrEmpty(row.company_officer_1),
+    companyOfficer2: valueOrEmpty(row.company_officer_2),
+    dateCreated: valueOrEmpty(row.add_date),
+    county: valueOrEmpty(row.phy_county || row.county),
+    insuranceExpiration: "",
+    cargo: "",
+    email: valueOrEmpty(row.email_address),
+    phone: valueOrEmpty(row.phone || row.cell_phone),
+    fax: valueOrEmpty(row.fax),
+    address: buildAddress(row.phy_street, row.phy_city, row.phy_state, row.phy_zip),
+    mailingAddress: buildAddress(
+      row.carrier_mailing_street,
+      row.carrier_mailing_city,
+      row.carrier_mailing_state,
+      row.carrier_mailing_zip
+    ),
+    vehicleCount: row.power_units ? Number(row.power_units) : null,
+    driverCount: row.total_drivers ? Number(row.total_drivers) : null,
+    mcs150Date: valueOrEmpty(row.mcs150_date),
+    mcs150Mileage: valueOrEmpty(row.mcs150_mileage || row.mileage),
+    source: "FMCSA Company Census File / MCS-150 self-reported"
+  };
+}
+
+async function fetchCensusCarrierByDot(dot) {
+  if (!dot) return null;
+
+  return withFmcsaCache(
+    { source: "fmcsa-census-dot", identifier: dot, dotNumber: dot },
+    async () => {
+      const response = await axios.get(FMCSA_CENSUS_URL, {
+        params: {
+          dot_number: dot,
+          $limit: 1
+        },
+        headers: {
+          Accept: "application/json"
+        },
+        timeout: 30000
+      });
+
+      return mapCensusCarrier(response.data?.[0]);
+    }
+  );
+}
+
+async function fetchCensusCarrierByName(name) {
+  if (!name) return null;
+
+  return withFmcsaCache(
+    { source: "fmcsa-census-name", identifier: name },
+    async () => {
+      const response = await axios.get(FMCSA_CENSUS_URL, {
+        params: {
+          $q: name,
+          $limit: 1
+        },
+        headers: {
+          Accept: "application/json"
+        },
+        timeout: 30000
+      });
+
+      return mapCensusCarrier(response.data?.[0]);
+    }
+  );
+}
+
+function textAfter(text, label, maxLength = 220) {
+  const index = text.indexOf(label);
+  if (index === -1) return "";
+  return text.slice(index + label.length, index + label.length + maxLength).replace(/\s+/g, " ").trim();
+}
+
+function htmlToText(html) {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function textMatch(text, pattern) {
+  return text.match(pattern)?.[1]?.trim() || "";
+}
+
+function extractSaferCargoTypes(pageHtml) {
+  const html = String(pageHtml || "");
+  const start = html.search(/summary=["']Cargo Carried["']/i);
+  if (start === -1) return [];
+
+  const endCandidates = [
+    html.indexOf('A name="Inspections"', start),
+    html.indexOf("ID/Operations", start),
+    html.indexOf("US Inspection results", start)
+  ].filter(index => index > start);
+  const end = endCandidates.length ? Math.min(...endCandidates) : Math.min(html.length, start + 12000);
+  const section = html.slice(start, end);
+  const cargoTypes = [];
+  const rowPattern = /<tr\b[\s\S]*?<td\b[^>]*class=["']?queryfield["']?[^>]*>([\s\S]*?)<\/td>\s*<td\b[^>]*>\s*<font\b[^>]*>([\s\S]*?)<\/font>/gi;
+
+  for (const match of section.matchAll(rowPattern)) {
+    const marker = htmlToText(match[1]).toUpperCase();
+    const label = htmlToText(match[2]);
+    if (marker === "X" && label) cargoTypes.push(label);
+  }
+
+  return [...new Set(cargoTypes)];
+}
+
+function parseSmsSafetyPage(pageText) {
+  const ratingSection = textAfter(pageText, "Safety Rating & OOS Rates", 500);
+  const safetyRatingMatch = ratingSection.match(/\b(SATISFACTORY|CONDITIONAL|UNSATISFACTORY|NOT RATED|NONE)\b/i);
+  const ratingDateMatch = ratingSection.match(/Rating Date:\s*([0-9/]+)/i);
+  const vehicleOosMatch = ratingSection.match(/Vehicle\s+([0-9.]+)\s+([0-9.]+)/i);
+  const driverOosMatch = ratingSection.match(/Driver\s+([0-9.]+)\s+([0-9.]+)/i);
+  const hazmatOosMatch = ratingSection.match(/Hazmat\s+([0-9.]+)\s+([0-9.]+)/i);
+  const inspectionsMatch = pageText.match(/Number of Inspections:\s*([0-9,]+)/i);
+
+  if (!safetyRatingMatch && !vehicleOosMatch && !driverOosMatch && !inspectionsMatch) {
+    return null;
+  }
+
+  return {
+    safetyRating: safetyRatingMatch?.[1]?.toUpperCase() || "",
+    safetyRatingDate: ratingDateMatch?.[1] || "",
+    inspections: inspectionsMatch?.[1]?.replace(/,/g, "") || "",
+    oosRates: {
+      vehicle: vehicleOosMatch ? { carrier: vehicleOosMatch[1], nationalAverage: vehicleOosMatch[2] } : null,
+      driver: driverOosMatch ? { carrier: driverOosMatch[1], nationalAverage: driverOosMatch[2] } : null,
+      hazmat: hazmatOosMatch ? { carrier: hazmatOosMatch[1], nationalAverage: hazmatOosMatch[2] } : null
+    },
+    source: "FMCSA SMS public carrier profile"
+  };
+}
+
+function parseSaferSnapshotPage(pageHtml) {
+  const pageText = htmlToText(pageHtml);
+  const cargoTypes = extractSaferCargoTypes(pageHtml);
+
+  if (/Record Inactive/i.test(pageText) || /is INACTIVE in the SAFER database/i.test(pageText)) {
+    return {
+      authorityStatus: "Inactive",
+      operatingStatus: "Inactive",
+      cargo: cargoTypes.join(", "),
+      cargoTypes,
+      source: "FMCSA SAFER Company Snapshot"
+    };
+  }
+
+  const authorityStatus = textMatch(
+    pageText,
+    /Operating Authority Status:\s*(.+?)(?:For Licensing|MC\/MX\/FF|COMPANY INFORMATION|Legal Name:)/i
+  );
+  const operatingStatus = textMatch(
+    pageText,
+    /Operating Status:\s*(.+?)(?:Out of Service Date:|Legal Name:|DBA Name:)/i
+  );
+  const totalInspections = textMatch(pageText, /Total Inspections:\s*([0-9,]+)/i);
+  const crashMatch = pageText.match(/Total Crashes\s+([0-9,]+)\s+([0-9,]+)\s+([0-9,]+)\s+([0-9,]+)/i);
+  const safetyMatch = pageText.match(/Rating Date:\s*([0-9/]+).*?Rating:\s*(Satisfactory|Conditional|Unsatisfactory|Not Rated|None)/i);
+  const powerUnits = textMatch(pageText, /Power Units:\s*([0-9,]+)/i);
+  const drivers = textMatch(pageText, /Drivers:\s*([0-9,]+)/i);
+
+  if (!authorityStatus && !operatingStatus && !totalInspections && !crashMatch && !safetyMatch && !cargoTypes.length) {
+    return null;
+  }
+
+  return {
+    authorityStatus: authorityStatus || operatingStatus || "",
+    operatingStatus,
+    safetyRating: safetyMatch?.[2] || "",
+    safetyRatingDate: safetyMatch?.[1] || "",
+    totalInspections: totalInspections ? totalInspections.replace(/,/g, "") : "",
+    crashTotal: crashMatch?.[4]?.replace(/,/g, "") || "",
+    crashes: crashMatch
+      ? {
+        fatal: crashMatch[1].replace(/,/g, ""),
+        injury: crashMatch[2].replace(/,/g, ""),
+        tow: crashMatch[3].replace(/,/g, ""),
+        total: crashMatch[4].replace(/,/g, "")
+      }
+      : null,
+    vehicleCount: powerUnits ? Number(powerUnits.replace(/,/g, "")) : null,
+    driverCount: drivers ? Number(drivers.replace(/,/g, "")) : null,
+    cargo: cargoTypes.join(", "),
+    cargoTypes,
+    source: "FMCSA SAFER Company Snapshot"
+  };
+}
+
+async function fetchSaferSnapshotByDot(dot) {
+  if (!dot) return null;
+
+  return withFmcsaCache(
+    { source: "fmcsa-safer-snapshot-v2", identifier: dot, dotNumber: dot },
+    async () => {
+      const response = await axios.get(FMCSA_SAFER_URL, {
+        params: {
+          searchtype: "ANY",
+          query_type: "queryCarrierSnapshot",
+          query_param: "USDOT",
+          query_string: dot
+        },
+        headers: {
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "User-Agent": FMCSA_SMS_HEADERS["User-Agent"]
+        },
+        timeout: 20000
+      });
+
+      return parseSaferSnapshotPage(response.data);
+    }
+  );
+}
+
+async function fetchSmsSearchStatusByDot(dot) {
+  return withFmcsaCache(
+    { source: "fmcsa-sms-search-status", identifier: dot, dotNumber: dot },
+    async () => {
+      const response = await axios.post(
+        `${FMCSA_SMS_BASE_URL}/Search/Index.aspx`,
+        new URLSearchParams({ MCSearch: dot, search: "Search" }).toString(),
+        {
+          headers: {
+            ...FMCSA_SMS_HEADERS,
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          timeout: 20000
+        }
+      );
+
+      const pageText = htmlToText(response.data);
+      const inactiveMatch = pageText.match(/U\.S\. DOT#\s*\d+\s+is\s+inactive[^.]*\./i);
+      if (!inactiveMatch) return null;
+
+      return {
+        safetyRating: "INACTIVE",
+        safetyRatingDate: "",
+        inspections: "",
+        oosRates: {
+          vehicle: null,
+          driver: null,
+          hazmat: null
+        },
+        status: "inactive",
+        statusMessage: inactiveMatch[0],
+        source: "FMCSA SMS simple search"
+      };
+    }
+  );
+}
+
+async function fetchSmsSafetyByDot(dot) {
+  if (!dot) return null;
+
+  const smsSafety = await withFmcsaCache(
+    { source: "fmcsa-sms-complete-profile", identifier: dot, dotNumber: dot },
+    async () => {
+      const response = await axios.get(`${FMCSA_SMS_BASE_URL}/Carrier/${encodeURIComponent(dot)}/CompleteProfile.aspx`, {
+        headers: FMCSA_SMS_HEADERS,
+        timeout: 20000
+      });
+
+      return parseSmsSafetyPage(htmlToText(response.data));
+    }
+  );
+
+  return smsSafety || fetchSmsSearchStatusByDot(dot);
+}
+
+function mergeCarrierData(apiCarrier, censusCarrier, smsSafety, saferData) {
+  if (!apiCarrier && !censusCarrier && !smsSafety && !saferData) return null;
+  if (!apiCarrier && !censusCarrier) {
+    return {
+      ...saferData,
+      safetyRating: smsSafety?.safetyRating || saferData?.safetyRating || "Unknown",
+      safetyRatingDate: smsSafety?.safetyRatingDate || saferData?.safetyRatingDate || "",
+      smsSafety,
+      saferData
+    };
+  }
+  if (!apiCarrier) {
+    return {
+      ...censusCarrier,
+      safetyRating: smsSafety?.safetyRating || saferData?.safetyRating || censusCarrier.safetyRating,
+      safetyRatingDate: smsSafety?.safetyRatingDate || saferData?.safetyRatingDate || censusCarrier.safetyRatingDate,
+      authorityStatus: saferData?.authorityStatus || censusCarrier.authorityStatus,
+      operatingStatus: saferData?.operatingStatus || "",
+      totalInspections: saferData?.totalInspections || smsSafety?.inspections || "",
+      crashTotal: saferData?.crashTotal || "",
+      crashes: saferData?.crashes || null,
+      vehicleCount: saferData?.vehicleCount ?? censusCarrier.vehicleCount ?? null,
+      driverCount: saferData?.driverCount ?? censusCarrier.driverCount ?? null,
+      cargo: saferData?.cargo || censusCarrier.cargo || "",
+      cargoTypes: saferData?.cargoTypes || censusCarrier.cargoTypes || [],
+      smsSafety,
+      saferData
+    };
+  }
+  if (!censusCarrier) {
+    return {
+      ...apiCarrier,
+      safetyRating: smsSafety?.safetyRating || saferData?.safetyRating || apiCarrier.safetyRating,
+      safetyRatingDate: smsSafety?.safetyRatingDate || saferData?.safetyRatingDate || apiCarrier.safetyRatingDate,
+      authorityStatus: saferData?.authorityStatus || apiCarrier.authorityStatus || "",
+      operatingStatus: saferData?.operatingStatus || "",
+      totalInspections: saferData?.totalInspections || smsSafety?.inspections || "",
+      crashTotal: saferData?.crashTotal || "",
+      crashes: saferData?.crashes || null,
+      vehicleCount: saferData?.vehicleCount ?? apiCarrier.vehicleCount ?? null,
+      driverCount: saferData?.driverCount ?? apiCarrier.driverCount ?? null,
+      cargo: saferData?.cargo || apiCarrier.cargo || "",
+      cargoTypes: saferData?.cargoTypes || apiCarrier.cargoTypes || [],
+      smsSafety,
+      saferData
+    };
+  }
+
+  return {
+    ...apiCarrier,
+    carrierName: censusCarrier.carrierName || apiCarrier.carrierName,
+    dot: censusCarrier.dot || apiCarrier.dot,
+    mc: censusCarrier.mc || apiCarrier.mc,
+    safetyRating: smsSafety?.safetyRating || saferData?.safetyRating || censusCarrier.safetyRating || apiCarrier.safetyRating,
+    safetyRatingDate: smsSafety?.safetyRatingDate || saferData?.safetyRatingDate || censusCarrier.safetyRatingDate || apiCarrier.safetyRatingDate,
+    authorityStatus: saferData?.authorityStatus || censusCarrier.authorityStatus || apiCarrier.authorityStatus || "",
+    operatingStatus: saferData?.operatingStatus || "",
+    operatingAuthority: censusCarrier.operatingAuthority || "",
+    email: censusCarrier.email || apiCarrier.email,
+    phone: censusCarrier.phone || apiCarrier.phone,
+    fax: censusCarrier.fax || apiCarrier.fax,
+    address: censusCarrier.address || apiCarrier.address,
+    mailingAddress: censusCarrier.mailingAddress || apiCarrier.mailingAddress,
+    vehicleCount: saferData?.vehicleCount ?? censusCarrier.vehicleCount ?? apiCarrier.vehicleCount ?? null,
+    driverCount: saferData?.driverCount ?? censusCarrier.driverCount ?? apiCarrier.driverCount ?? null,
+    cargo: saferData?.cargo || censusCarrier.cargo || apiCarrier.cargo || "",
+    cargoTypes: saferData?.cargoTypes || censusCarrier.cargoTypes || apiCarrier.cargoTypes || [],
+    mcs150Date: censusCarrier.mcs150Date || apiCarrier.mcs150Date,
+    totalInspections: saferData?.totalInspections || smsSafety?.inspections || "",
+    crashTotal: saferData?.crashTotal || "",
+    crashes: saferData?.crashes || null,
+    hazmatAuthorized: censusCarrier.hazmatAuthorized ?? apiCarrier.hazmatAuthorized ?? false,
+    smsSafety,
+    saferData,
+    source: smsSafety
+      ? "FMCSA SMS public carrier overview"
+      : saferData
+        ? "FMCSA SAFER Company Snapshot"
+      : censusCarrier.email
+        ? "FMCSA Company Census File / MCS-150 self-reported"
+        : apiCarrier.source
+  };
+}
+
+async function fetchQcMobileCarrier({ dot, mc }) {
+  if (!FMCSA_WEBKEY) return null;
+
+  const url = dot
+    ? `${FMCSA_BASE_URL}/carriers/${encodeURIComponent(dot)}`
+    : `${FMCSA_BASE_URL}/carriers/docket-number/${encodeURIComponent(mc)}`;
+
+  return withFmcsaCache(
+    { source: "fmcsa-qcmobile", identifier: dot || mc, dotNumber: dot || null },
+    async () => {
+      const response = await axios.get(url, {
+        params: { webKey: FMCSA_WEBKEY },
+        headers: {
+          Accept: "application/json"
+        },
+        timeout: 15000
+      });
+
+      const snapshot = getCarrierPayload(response.data);
+      const carrierNode = snapshot?.Carrier || snapshot?.CARRIER || snapshot;
+      const contactNode = snapshot?.Contact || snapshot?.CONTACT || snapshot;
+      const safetyNode = snapshot?.Safety || snapshot?.SAFETY || snapshot;
+      const insuranceNode = snapshot?.Insurance || snapshot?.INSURANCE || snapshot;
+      const physicalAddress = carrierNode?.PhysicalAddress || carrierNode?.PHYSICAL_ADDRESS || snapshot;
+
+      return {
+        carrierName:
+          carrierNode?.LegalName ||
+          carrierNode?.LEGAL_NAME ||
+          carrierNode?.legalName ||
+          carrierNode?.name ||
+          findFirstValue(snapshot, ["legalname", "dbaname", "name"]) ||
+          "Unknown",
+        dot:
+          carrierNode?.USDOTNumber ||
+          carrierNode?.USDOT_NUMBER ||
+          carrierNode?.dotNumber ||
+          findFirstValue(snapshot, ["usdotnumber", "dotnumber"]) ||
+          dot ||
+          "",
+        mc:
+          carrierNode?.MC_MX_FF_Number ||
+          carrierNode?.MCNumber ||
+          findFirstValue(snapshot, ["mcmxffnumber", "mcnumber", "docketnumber"]) ||
+          mc ||
+          "",
+        safetyRating:
+          safetyNode?.Rating ||
+          safetyNode?.RATING ||
+          findFirstValue(snapshot, ["safetyrating", "rating"]) ||
+          "Unknown",
+        insuranceExpiration:
+          insuranceNode?.PolicyExpirationDate ||
+          findFirstValue(snapshot, ["policyexpirationdate", "insuranceexpiration"]) ||
+          "",
+        cargo: snapshot?.Cargo?.CargoTypes || findFirstValue(snapshot, ["cargotypes"]) || "",
+        email: findEmailInPayload(contactNode || snapshot),
+        phone:
+          contactNode?.Phone ||
+          contactNode?.PHONE ||
+          contactNode?.phone ||
+          findFirstValue(snapshot, ["telephone", "phone", "cellphone"]) ||
+          "",
+        address: buildAddress(
+          physicalAddress?.Street || physicalAddress?.STREET || physicalAddress?.phyStreet || findFirstValue(physicalAddress, ["street"]),
+          physicalAddress?.City || physicalAddress?.CITY || physicalAddress?.phyCity || findFirstValue(physicalAddress, ["city"]),
+          physicalAddress?.State || physicalAddress?.STATE || physicalAddress?.phyState || findFirstValue(physicalAddress, ["state"]),
+          physicalAddress?.Zip || physicalAddress?.ZIP || physicalAddress?.phyZipcode || findFirstValue(physicalAddress, ["zip"])
+        ),
+        source: "FMCSA QCMobile API"
+      };
+    }
+  );
+}
+
+export async function fetchCarrierByDotOrMc({ dot, mc, name }) {
+  if (!dot && !mc && !name) throw new Error("DOT, MC, or carrier name required");
+
+  const apiResult = dot || mc
+    ? await fetchQcMobileCarrier({ dot, mc }).catch(err => {
+      console.warn(`FMCSA QCMobile lookup failed: ${err.response?.status || err.message}`);
+      return null;
+    })
+    : null;
+
+  const nameResult = !dot && !mc && name
+    ? await fetchCensusCarrierByName(name).catch(err => {
+      console.warn(`FMCSA Company Census name lookup failed: ${err.response?.status || err.message}`);
+      return null;
+    })
+    : null;
+
+  const resolvedDot = dot || apiResult?.dot || nameResult?.dot;
+  const censusResult = await fetchCensusCarrierByDot(resolvedDot).catch(err => {
+    console.warn(`FMCSA Company Census lookup failed: ${err.response?.status || err.message}`);
+    return nameResult;
+  }) || nameResult;
+
+  const smsSafety = await fetchSmsSafetyByDot(resolvedDot).catch(err => {
+    console.warn(`FMCSA SMS safety lookup failed: ${err.response?.status || err.message}`);
+    return null;
+  });
+
+  const saferData = await fetchSaferSnapshotByDot(resolvedDot).catch(err => {
+    console.warn(`FMCSA SAFER snapshot lookup failed: ${err.response?.status || err.message}`);
+    return null;
+  });
+
+  const carrier = mergeCarrierData(apiResult, censusResult, smsSafety, saferData);
+  if (!carrier) throw new Error("Carrier not found in FMCSA data sources");
+
+  return carrier;
+}

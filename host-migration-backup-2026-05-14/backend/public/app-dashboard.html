@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lead Search - MyTruckingLeads</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
+  <script defer src="/assets/js/meta-pixel.js?v=meta-pixel-1"></script>
+</head>
+<body class="dashboard-body sheet-body">
+  <div class="dashboard-layout">
+    <aside class="dashboard-sidebar text-light">
+      <div class="dashboard-brand">
+        <img class="brand-mark" src="assets/mytruckingleads-logo-icon.png" alt="" aria-hidden="true" />
+        <div>
+          <h5 class="mb-0 fw-bold">MyTruckingLeads</h5>
+          <small class="text-light-50">Lead Desk</small>
+        </div>
+      </div>
+      <nav class="p-3">
+        <ul class="list-unstyled mb-4">
+          <li class="mb-2"><a href="app-dashboard.html" class="sidebar-link active"><i class="bi bi-table"></i> Lead Search</a></li>
+          <li class="mb-2"><a href="dot-analytics.html" class="sidebar-link"><i class="bi bi-search"></i> DOT Analytics</a></li>
+          <li class="mb-2"><a href="crm.html" class="sidebar-link"><i class="bi bi-kanban"></i> CRM</a></li>
+          <li class="mb-2"><a href="reports.html" class="sidebar-link"><i class="bi bi-bar-chart"></i> Reports</a></li>
+          <li class="mb-2"><a href="settings.html" class="sidebar-link"><i class="bi bi-gear"></i> Settings</a></li>
+        </ul>
+        <hr class="border-secondary" />
+        <button class="btn btn-outline-light w-100 btn-sm" onclick="window.location.href='user-dashboard.html'">
+          Account Dashboard
+        </button>
+      </nav>
+    </aside>
+
+    <main class="dashboard-main">
+      <header class="dashboard-header compact-dashboard-header">
+        <div>
+          <span class="workspace-kicker">Call-ready lead search</span>
+          <h4 class="mb-0">New DOT & Renewal Leads</h4>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <span id="currentUserName" class="small dashboard-user">Your account</span>
+          <button id="logoutBtn" class="btn btn-outline-secondary btn-sm" type="button" title="Logout">
+            <i class="bi bi-box-arrow-right"></i>
+          </button>
+        </div>
+      </header>
+
+      <div class="dashboard-content container-fluid">
+        <section class="sheet-panel">
+          <div class="sheet-topbar">
+            <div class="sheet-title-stack">
+              <h5 class="mb-1">Trucking Leads</h5>
+              <p id="selectedRecordsCount" class="mb-0">Records Selected: 0</p>
+            </div>
+            <div class="sheet-action-strip">
+              <button id="sheetTopExportBtn" class="sheet-action-btn" type="button"><i class="bi bi-filetype-csv"></i> Export Selected</button>
+            </div>
+          </div>
+
+          <div class="sheet-tab-row">
+            <ul class="nav sheet-tabs" id="leadSearchTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="renewal-tab" data-bs-toggle="tab" data-bs-target="#renewalPane" type="button" role="tab">Renewal Leads</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="new-venture-tab" data-bs-toggle="tab" data-bs-target="#newVenturePane" type="button" role="tab">New Ventures</button>
+              </li>
+            </ul>
+          </div>
+
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="renewalPane" role="tabpanel" aria-labelledby="renewal-tab">
+              <form id="prospectFilterForm" class="sheet-filter-bar">
+                <div class="filter-field month-field">
+                  <label class="form-label small">Renewal Month</label>
+                  <input id="renewalMonth" class="form-control form-control-sm" type="month" />
+                </div>
+                <div class="filter-field">
+                  <label class="form-label small">Min Fleet Size</label>
+                  <input id="minFleetSize" class="form-control form-control-sm" type="number" min="0" step="1" placeholder="10" />
+                </div>
+                <div class="filter-field state-field">
+                  <label class="form-label small">State</label>
+                  <select id="prospectState" class="form-select form-select-sm">
+                    <option value="">All states (Agency only)</option>
+                    <option value="AL">Alabama</option>
+                    <option value="AK">Alaska</option>
+                    <option value="AZ">Arizona</option>
+                    <option value="AR">Arkansas</option>
+                    <option value="CA">California</option>
+                    <option value="CO">Colorado</option>
+                    <option value="CT">Connecticut</option>
+                    <option value="DE">Delaware</option>
+                    <option value="FL">Florida</option>
+                    <option value="GA">Georgia</option>
+                    <option value="HI">Hawaii</option>
+                    <option value="ID">Idaho</option>
+                    <option value="IL">Illinois</option>
+                    <option value="IN">Indiana</option>
+                    <option value="IA">Iowa</option>
+                    <option value="KS">Kansas</option>
+                    <option value="KY">Kentucky</option>
+                    <option value="LA">Louisiana</option>
+                    <option value="ME">Maine</option>
+                    <option value="MD">Maryland</option>
+                    <option value="MA">Massachusetts</option>
+                    <option value="MI">Michigan</option>
+                    <option value="MN">Minnesota</option>
+                    <option value="MS">Mississippi</option>
+                    <option value="MO">Missouri</option>
+                    <option value="MT">Montana</option>
+                    <option value="NE">Nebraska</option>
+                    <option value="NV">Nevada</option>
+                    <option value="NH">New Hampshire</option>
+                    <option value="NJ">New Jersey</option>
+                    <option value="NM">New Mexico</option>
+                    <option value="NY">New York</option>
+                    <option value="NC">North Carolina</option>
+                    <option value="ND">North Dakota</option>
+                    <option value="OH">Ohio</option>
+                    <option value="OK">Oklahoma</option>
+                    <option value="OR">Oregon</option>
+                    <option value="PA">Pennsylvania</option>
+                    <option value="RI">Rhode Island</option>
+                    <option value="SC">South Carolina</option>
+                    <option value="SD">South Dakota</option>
+                    <option value="TN">Tennessee</option>
+                    <option value="TX">Texas</option>
+                    <option value="UT">Utah</option>
+                    <option value="VT">Vermont</option>
+                    <option value="VA">Virginia</option>
+                    <option value="WA">Washington</option>
+                    <option value="WV">West Virginia</option>
+                    <option value="WI">Wisconsin</option>
+                    <option value="WY">Wyoming</option>
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="form-label small">Email</label>
+                  <select id="prospectEmailFilter" class="form-select form-select-sm">
+                    <option value="">Any</option>
+                    <option value="hasEmail">Has email</option>
+                    <option value="verified">Verified email</option>
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="form-label small">Order By</label>
+                  <select id="prospectSort" class="form-select form-select-sm">
+                    <option value="insuranceExpirationDate:asc">Soonest policy date</option>
+                    <option value="insuranceExpirationDate:desc">Latest policy date</option>
+                    <option value="fleetSize:desc">Largest fleet first</option>
+                  </select>
+                </div>
+                <input id="renewalFrom" type="hidden" />
+                <input id="renewalTo" type="hidden" />
+                <div class="filter-actions">
+                  <button class="btn btn-primary btn-sm icon-button" type="submit"><i class="bi bi-search"></i> Search</button>
+                  <button id="exportProspectsBtn" class="btn btn-outline-secondary btn-sm icon-button" type="button"><i class="bi bi-filetype-csv"></i> Export</button>
+                </div>
+              </form>
+
+              <div class="sheet-status-row">
+              <div id="prospectReportSummary" class="sheet-summary">Choose a state and renewal month, then search.</div>
+              </div>
+
+              <div class="sheet-table-wrap">
+                <table class="table table-sm sheet-table mb-0" data-resizable-columns>
+                  <colgroup>
+                    <col style="width: 34px" />
+                    <col style="width: 46px" />
+                    <col style="width: 86px" />
+                    <col style="width: 100px" />
+                    <col style="width: 260px" />
+                    <col style="width: 120px" />
+                    <col style="width: 70px" />
+                    <col style="width: 140px" />
+                    <col style="width: 120px" />
+                    <col style="width: 120px" />
+                    <col style="width: 240px" />
+                    <col style="width: 108px" />
+                    <col style="width: 210px" />
+                    <col style="width: 82px" />
+                    <col style="width: 80px" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th class="check-col"><input id="prospectSelectAll" class="form-check-input" type="checkbox" aria-label="Select all renewal leads" /></th>
+                      <th class="icon-col">Info</th>
+                      <th>DOT</th>
+                      <th>Docket No</th>
+                      <th>Legal Name</th>
+                      <th>City</th>
+                      <th>State</th>
+                      <th>Company Rep1</th>
+                      <th>Phone</th>
+                      <th>Cell Phone</th>
+                      <th>Email</th>
+                      <th>Policy Date</th>
+                      <th>Ins. Carrier</th>
+                      <th>No. PU</th>
+                      <th>Alerts</th>
+                    </tr>
+                  </thead>
+                  <tbody id="prospectReportBody">
+                    <tr><td colspan="15" class="text-center small text-muted py-4">No report loaded yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="tab-pane fade" id="newVenturePane" role="tabpanel" aria-labelledby="new-venture-tab">
+              <form id="newVentureFilterForm" class="sheet-filter-bar">
+                <div class="filter-field month-field">
+                  <label class="form-label small">Added Month</label>
+                  <input id="newVentureMonth" class="form-control form-control-sm" type="month" />
+                </div>
+                <div class="filter-field">
+                  <label class="form-label small">Min Power Units</label>
+                  <input id="newVentureMinFleet" class="form-control form-control-sm" type="number" min="0" step="1" placeholder="1" />
+                </div>
+                <div class="filter-field state-field">
+                  <label class="form-label small">State</label>
+                  <select id="newVentureState" class="form-select form-select-sm">
+                    <option value="">All states (Agency only)</option>
+                    <option value="AL">Alabama</option>
+                    <option value="AK">Alaska</option>
+                    <option value="AZ">Arizona</option>
+                    <option value="AR">Arkansas</option>
+                    <option value="CA">California</option>
+                    <option value="CO">Colorado</option>
+                    <option value="CT">Connecticut</option>
+                    <option value="DE">Delaware</option>
+                    <option value="FL">Florida</option>
+                    <option value="GA">Georgia</option>
+                    <option value="HI">Hawaii</option>
+                    <option value="ID">Idaho</option>
+                    <option value="IL">Illinois</option>
+                    <option value="IN">Indiana</option>
+                    <option value="IA">Iowa</option>
+                    <option value="KS">Kansas</option>
+                    <option value="KY">Kentucky</option>
+                    <option value="LA">Louisiana</option>
+                    <option value="ME">Maine</option>
+                    <option value="MD">Maryland</option>
+                    <option value="MA">Massachusetts</option>
+                    <option value="MI">Michigan</option>
+                    <option value="MN">Minnesota</option>
+                    <option value="MS">Mississippi</option>
+                    <option value="MO">Missouri</option>
+                    <option value="MT">Montana</option>
+                    <option value="NE">Nebraska</option>
+                    <option value="NV">Nevada</option>
+                    <option value="NH">New Hampshire</option>
+                    <option value="NJ">New Jersey</option>
+                    <option value="NM">New Mexico</option>
+                    <option value="NY">New York</option>
+                    <option value="NC">North Carolina</option>
+                    <option value="ND">North Dakota</option>
+                    <option value="OH">Ohio</option>
+                    <option value="OK">Oklahoma</option>
+                    <option value="OR">Oregon</option>
+                    <option value="PA">Pennsylvania</option>
+                    <option value="RI">Rhode Island</option>
+                    <option value="SC">South Carolina</option>
+                    <option value="SD">South Dakota</option>
+                    <option value="TN">Tennessee</option>
+                    <option value="TX">Texas</option>
+                    <option value="UT">Utah</option>
+                    <option value="VT">Vermont</option>
+                    <option value="VA">Virginia</option>
+                    <option value="WA">Washington</option>
+                    <option value="WV">West Virginia</option>
+                    <option value="WI">Wisconsin</option>
+                    <option value="WY">Wyoming</option>
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="form-label small">Operation</label>
+                  <select id="newVentureOperation" class="form-select form-select-sm">
+                    <option value="">Any</option>
+                    <option value="A">Interstate</option>
+                    <option value="B">Intrastate Hazmat</option>
+                    <option value="C">Intrastate Non-Hazmat</option>
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="form-label small">Email</label>
+                  <select id="newVentureEmailFilter" class="form-select form-select-sm">
+                    <option value="">Any</option>
+                    <option value="hasEmail">Has email</option>
+                    <option value="verify">Verify emails</option>
+                  </select>
+                </div>
+                <div class="filter-field">
+                  <label class="form-label small">Order By</label>
+                  <select id="newVentureSort" class="form-select form-select-sm">
+                    <option value="raw.census.add_date:desc">Newest added first</option>
+                    <option value="fleetSize:desc">Largest fleet first</option>
+                  </select>
+                </div>
+                <input id="newVentureFrom" type="hidden" />
+                <input id="newVentureTo" type="hidden" />
+                <div class="filter-actions">
+                  <button class="btn btn-primary btn-sm icon-button" type="submit"><i class="bi bi-search"></i> Search</button>
+                  <button id="exportNewVenturesBtn" class="btn btn-outline-secondary btn-sm icon-button" type="button"><i class="bi bi-filetype-csv"></i> Export</button>
+                </div>
+              </form>
+
+              <div class="sheet-status-row">
+                <div id="newVentureSummary" class="sheet-summary">Choose your state, then search new DOT leads.</div>
+              </div>
+
+              <div class="sheet-table-wrap">
+                <table class="table table-sm sheet-table mb-0" data-resizable-columns>
+                  <colgroup>
+                    <col style="width: 34px" />
+                    <col style="width: 46px" />
+                    <col style="width: 86px" />
+                    <col style="width: 100px" />
+                    <col style="width: 260px" />
+                    <col style="width: 120px" />
+                    <col style="width: 70px" />
+                    <col style="width: 140px" />
+                    <col style="width: 120px" />
+                    <col style="width: 120px" />
+                    <col style="width: 240px" />
+                    <col style="width: 108px" />
+                    <col style="width: 140px" />
+                    <col style="width: 82px" />
+                    <col style="width: 84px" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th class="check-col"><input id="newVentureSelectAll" class="form-check-input" type="checkbox" aria-label="Select all new venture leads" /></th>
+                      <th class="icon-col">Info</th>
+                      <th>DOT</th>
+                      <th>Docket No</th>
+                      <th>Legal Name</th>
+                      <th>City</th>
+                      <th>State</th>
+                      <th>Company Rep1</th>
+                      <th>Phone</th>
+                      <th>Cell Phone</th>
+                      <th>Email</th>
+                      <th>Added</th>
+                      <th>Operation</th>
+                      <th>No. PU</th>
+                      <th>Drivers</th>
+                    </tr>
+                  </thead>
+                  <tbody id="newVentureBody">
+                    <tr><td colspan="15" class="text-center small text-muted py-4">No new venture search loaded yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/dashboard-auth.js?v=subscription-sync-1"></script>
+  <script type="module" src="assets/js/app.js?v=workflow-copilot-1"></script>
+</body>
+</html>

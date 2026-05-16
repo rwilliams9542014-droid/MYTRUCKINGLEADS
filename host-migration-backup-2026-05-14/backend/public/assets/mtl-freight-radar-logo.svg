@@ -1,0 +1,25 @@
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">MyTruckingLeads freight radar logo</title>
+  <desc id="desc">A modern freight truck and radar route mark for trucking lead intelligence.</desc>
+  <rect width="96" height="96" rx="22" fill="#06111F"/>
+  <rect x="3" y="3" width="90" height="90" rx="19" fill="url(#paint0_linear)"/>
+  <path d="M17 62.5H73" stroke="#071522" stroke-width="5" stroke-linecap="round"/>
+  <path d="M19 52.5C19 48.642 22.142 45.5 26 45.5H53.5C56.26 45.5 58.5 47.74 58.5 50.5V62.5H19V52.5Z" fill="#071522"/>
+  <path d="M58.5 51.5H68.2C70.126 51.5 71.882 52.604 72.716 54.34L76.6 62.5H58.5V51.5Z" fill="#071522"/>
+  <path d="M28 45.5L32.8 35.5H48.5C51.261 35.5 53.5 37.739 53.5 40.5V45.5H28Z" fill="#071522"/>
+  <circle cx="32" cy="64" r="6.5" fill="#06111F" stroke="#CFFFF9" stroke-width="4"/>
+  <circle cx="65" cy="64" r="6.5" fill="#06111F" stroke="#CFFFF9" stroke-width="4"/>
+  <path d="M72 25C78.351 30.34 82.2 38.03 82.2 46.5" stroke="#071522" stroke-width="4" stroke-linecap="round"/>
+  <path d="M65.7 31.6C69.977 35.172 72.6 40.491 72.6 46.5" stroke="#071522" stroke-width="4" stroke-linecap="round"/>
+  <path d="M59.2 38.1C61.566 40.111 63 43.104 63 46.5" stroke="#071522" stroke-width="4" stroke-linecap="round"/>
+  <path d="M20 29.5H37" stroke="#CFFFF9" stroke-width="4" stroke-linecap="round"/>
+  <path d="M18 37.5H29" stroke="#CFFFF9" stroke-width="4" stroke-linecap="round"/>
+  <path d="M77 22L80 17L83 22L88 25L83 28L80 33L77 28L72 25L77 22Z" fill="#FFE39A"/>
+  <defs>
+    <linearGradient id="paint0_linear" x1="8" y1="9" x2="88" y2="87" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#24E2D0"/>
+      <stop offset="0.52" stop-color="#5AA7FF"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+  </defs>
+</svg>
