@@ -1,5 +1,5 @@
-import express, { Router } from "express";
-import { cancelBillingSubscription, createCheckout, getCheckoutStatus, handleStripeWebhook, testEmail } from "../controllers/billingController.js";
+import { Router } from "express";
+import { cancelBillingSubscription, createCheckout, getCheckoutStatus, testEmail } from "../controllers/billingController.js";
 import { authRequired } from "../middleware/authMiddleware.js";
 
 const router = Router();
@@ -13,10 +13,11 @@ router.get("/checkout-status", authRequired, getCheckoutStatus);
 // Cancel current subscription through Stripe.
 router.post("/cancel", authRequired, cancelBillingSubscription);
 
-// Stripe webhook endpoint (no auth — Stripe signs requests with a secret).
-// express.raw() is required so stripe.webhooks.constructEvent receives the
-// raw Buffer needed for signature verification, not a parsed JSON object.
-router.post("/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+// NOTE: The /webhook route is intentionally absent here. It is registered
+// directly on the app in server.js, BEFORE the global body parsers, so that
+// express.raw() can capture the raw Buffer that Stripe requires for signature
+// verification. Mounting it on this router would be too late — express.json()
+// would have already consumed and parsed the body stream.
 
 // Test email endpoint (for verifying email configuration)
 router.post("/test-email", testEmail);
