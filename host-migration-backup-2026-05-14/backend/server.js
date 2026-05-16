@@ -29,7 +29,6 @@ import adminRoutes from "./routes/adminRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import publicCarrierRoutes from "./routes/publicCarrierRoutes.js";
 import publicLeadRoutes from "./routes/publicLeadRoutes.js";
-import { handleStripeWebhook } from "./controllers/billingController.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requireAuth } from "./middleware/authMiddleware.js";
 import { query } from "./config/db.js";
@@ -145,9 +144,6 @@ const limiter = rateLimit({
   legacyHeaders: false
 });
 app.use("/api/", limiter);
-
-// Stripe requires the raw request body for webhook signature verification.
-app.post("/api/billing/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
 
 // Cookie parsing for JWT authentication
 app.use(cookieParser());
