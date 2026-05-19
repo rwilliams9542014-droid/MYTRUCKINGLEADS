@@ -5,8 +5,10 @@ import { query as dbQuery } from "../config/db.js";
 import { fetchCarrierByDotOrMc } from "../services/fmcsaService.js";
 import { enrichLeadRowsForResponse } from "../services/carrierFullEnrichmentService.js";
 import { getPlanAccessSummary, requirePaidPlan } from "../utils/planAccess.js";
-import { getTrialUsage, maskTrialLeadContacts } from "../utils/trialAccess.js";
+import { getTrialUsage, maskTrialCarrierContacts, maskTrialLeadContacts } from "../utils/trialAccess.js";
 import { normalizeUSStateCode } from "../utils/usStates.js";
+
+const PUBLIC_CONTACT_LOCK_MESSAGE = "Create an account to reveal carrier phone and email.";
 
 function parseInteger(value, fallback) {
   const parsed = parseInt(value, 10);
@@ -78,6 +80,18 @@ function applyLeadDateWindowForPlan(req, leadType) {
 
 function trialAccessForRequest(req, res) {
   return res.locals.trialAccess || getTrialUsage(req.user);
+}
+
+function shouldMaskPublicCarrierContacts(req) {
+  return req.baseUrl?.includes("/public/carriers") && !req.user;
+}
+
+function maskPublicCarrierContacts(carrier) {
+  const masked = maskTrialCarrierContacts(carrier, {
+    hiddenLabel: "Create an account to reveal"
+  });
+  masked.contactLockedReason = PUBLIC_CONTACT_LOCK_MESSAGE;
+  return masked;
 }
 
 function maskTrialResults(items, trialAccess) {
@@ -1102,14 +1116,20 @@ export async function listLocalCarriers(req, res) {
       Carrier.find(filter).sort(sort).skip(skip).limit(limit).lean()
     ]);
 
+    const shouldMaskContacts = shouldMaskPublicCarrierContacts(req);
+    const apiCarriers = carriers.map((carrier) => {
+      const mapped = carrierToApi(carrier);
+      return shouldMaskContacts ? maskPublicCarrierContacts(mapped) : mapped;
+    });
+
     res.json({
       total,
       page,
       limit,
       pages: Math.ceil(total / limit),
       filters: req.query,
-      carriers: carriers.map(carrier => carrierToApi(carrier)),
-      results: carriers.map(carrier => carrierToApi(carrier))
+      carriers: apiCarriers,
+      results: apiCarriers
     });
   } catch (err) {
     console.error("Local carrier search error:", err);
@@ -1121,6 +1141,7 @@ export async function getLocalCarrierByDot(req, res) {
   try {
     const dotNumber = String(req.params.dot || req.params.dotNumber || "").trim();
     let carrier = null;
+    const shouldMaskContacts = shouldMaskPublicCarrierContacts(req);
 
     if (isMongoConnected()) {
       carrier = await Carrier.findOne({ dotNumber }).lean();
@@ -1134,7 +1155,9 @@ export async function getLocalCarrierByDot(req, res) {
 
       return res.json({
         carrier: {
-          ...carrierToApi(carrier, { includeRaw: req.query.includeRaw === "true" }),
+          ...(shouldMaskContacts
+            ? maskPublicCarrierContacts(carrierToApi(carrier, { includeRaw: req.query.includeRaw === "true" }))
+            : carrierToApi(carrier, { includeRaw: req.query.includeRaw === "true" })),
           changes
         }
       });
@@ -1147,8 +1170,9 @@ export async function getLocalCarrierByDot(req, res) {
       );
 
       if (pgCarrier.rows.length) {
+        const mappedCarrier = postgresCarrierToApi(pgCarrier.rows[0]);
         return res.json({
-          carrier: postgresCarrierToApi(pgCarrier.rows[0]),
+          carrier: shouldMaskContacts ? maskPublicCarrierContacts(mappedCarrier) : mappedCarrier,
           source: "postgres-fallback",
           message: "MongoDB is not connected. Showing the most recent Postgres carrier record."
         });
@@ -1157,7 +1181,7 @@ export async function getLocalCarrierByDot(req, res) {
 
     const liveCarrier = await fetchCarrierByDotOrMc({ dot: dotNumber });
     res.json({
-      carrier: liveCarrier,
+      carrier: shouldMaskContacts ? maskPublicCarrierContacts(liveCarrier) : liveCarrier,
       source: "live-fallback",
       message: isMongoConnected()
         ? "Carrier was not found in MongoDB, so live FMCSA lookup was used."

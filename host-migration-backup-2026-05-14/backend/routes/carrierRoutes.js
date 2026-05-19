@@ -81,11 +81,11 @@ router.get("/otrucking/state/:stateCode", authRequired, browseOTruckingByState);
 // POST /api/carriers/otrucking/batch-search
 router.post("/otrucking/batch-search", authRequired, batchSearchOTruckingCarriers);
 
-// Authenticated legacy aliases retained for older internal views.
-router.get("/:dotNumber/safety", authRequired, getCarrierIntelligenceSafety);
-router.get("/:dotNumber/sms", authRequired, getCarrierIntelligenceSafety);
-router.get("/:dotNumber/licensing-insurance", authRequired, getCarrierIntelligenceLicensingInsurance);
+// Public homepage lookup can read non-contact carrier details without auth.
+router.get("/:dotNumber/safety", authOptional, getCarrierIntelligenceSafety);
+router.get("/:dotNumber/sms", authOptional, getCarrierIntelligenceSafety);
+router.get("/:dotNumber/licensing-insurance", authOptional, getCarrierIntelligenceLicensingInsurance);
 router.get("/:dotNumber/insurance", authRequired, getCarrierInsuranceByDot);
-router.get("/:dotNumber", authRequired, enforceTrialProfileLimit, getCarrierIntelligenceProfile);
+router.get("/:dotNumber", authOptional, enforceTrialProfileLimit, getCarrierIntelligenceProfile);
 
 export default router;

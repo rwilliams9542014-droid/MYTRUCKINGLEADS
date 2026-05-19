@@ -14,6 +14,8 @@ import {
   maskTrialCarrierContacts
 } from "../utils/trialAccess.js";
 
+const PUBLIC_CONTACT_LOCK_MESSAGE = "Create an account to reveal carrier phone and email.";
+
 function clean(value, fallback = "") {
   if (value === undefined || value === null) return fallback;
   const stringValue = String(value).trim();
@@ -527,12 +529,16 @@ function mapSearchResult(carrier = {}) {
   };
 }
 
-function maskSearchResultContact(result = {}) {
+function maskSearchResultContact(
+  result = {},
+  { reason = TRIAL_LIMIT_MESSAGE, label = "Upgrade to reveal" } = {}
+) {
   return {
     ...result,
     phoneNumber: "",
     contactMasked: true,
-    contactLockedReason: TRIAL_LIMIT_MESSAGE
+    contactLockedReason: reason,
+    contactRevealLabel: label
   };
 }
 
@@ -542,6 +548,23 @@ function trialAccessForRequest(req, res) {
 
 async function finalizeTrialProfileResponse(req, res, carrier) {
   const trialAccess = trialAccessForRequest(req, res);
+  if (!req.user) {
+    if (!hasContactFields(carrier)) {
+      return { carrier, trialAccess };
+    }
+
+    const maskedCarrier = maskTrialCarrierContacts(carrier, {
+      hiddenLabel: "Create an account to reveal"
+    });
+    maskedCarrier.contactLockedReason = PUBLIC_CONTACT_LOCK_MESSAGE;
+    maskedCarrier.message = [carrier.message, PUBLIC_CONTACT_LOCK_MESSAGE].filter(Boolean).join(" ");
+
+    return {
+      carrier: maskedCarrier,
+      trialAccess
+    };
+  }
+
   if (!trialAccess.active) {
     return { carrier, trialAccess };
   }
@@ -761,12 +784,18 @@ export async function searchCarrierIntelligence(req, res) {
   const hardLimit = trialAccess.active ? 25 : 12;
   const limit = Math.min(Math.max(Number(req.query.limit) || defaultLimit, 1), hardLimit);
   const shouldMaskContacts = !req.user || trialAccess.active;
+  const maskReason = !req.user ? PUBLIC_CONTACT_LOCK_MESSAGE : TRIAL_LIMIT_MESSAGE;
+  const maskLabel = !req.user ? "Create an account to reveal" : "Upgrade to reveal";
 
   try {
     const cached = await searchCachedCarriers(query, limit, state);
     if (cached.length > 0) {
       const hydratedCached = await enrichSearchResults(cached, /^\d+$/.test(query) ? 1 : Math.min(limit, 3));
-      const results = hydratedCached.map(mapSearchResult).map((result) => shouldMaskContacts ? maskSearchResultContact(result) : result);
+      const results = hydratedCached
+        .map(mapSearchResult)
+        .map((result) => shouldMaskContacts
+          ? maskSearchResultContact(result, { reason: maskReason, label: maskLabel })
+          : result);
 
       return res.json({
         total: results.length,
@@ -794,7 +823,9 @@ export async function searchCarrierIntelligence(req, res) {
 
     try {
       const liveCarrier = await fetchAndCacheLiveCarrier(query);
-      const results = [mapSearchResult(liveCarrier)].map((result) => shouldMaskContacts ? maskSearchResultContact(result) : result);
+      const results = [mapSearchResult(liveCarrier)].map((result) => shouldMaskContacts
+        ? maskSearchResultContact(result, { reason: maskReason, label: maskLabel })
+        : result);
       return res.json({
         total: 1,
         query,
@@ -809,7 +840,9 @@ export async function searchCarrierIntelligence(req, res) {
       if (/^\d+$/.test(query)) {
         const postgresCarrier = await findPostgresCarrier(query);
         if (postgresCarrier) {
-          const results = [mapSearchResult(postgresCarrier)].map((result) => shouldMaskContacts ? maskSearchResultContact(result) : result);
+          const results = [mapSearchResult(postgresCarrier)].map((result) => shouldMaskContacts
+            ? maskSearchResultContact(result, { reason: maskReason, label: maskLabel })
+            : result);
           return res.json({
             total: 1,
             query,

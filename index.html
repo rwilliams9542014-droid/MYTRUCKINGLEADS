@@ -2553,17 +2553,28 @@
       return `<div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`;
     }
 
+    function contactLockMessage(carrier = {}) {
+      return carrier.contactLockedReason || "Create an account to reveal carrier phone and email.";
+    }
+
+    function contactRevealLabel(carrier = {}) {
+      return carrier.contactRevealLabel || "Create an account to reveal";
+    }
+
     function contactActionLinks(carrier = {}) {
+      const contactLocked = Boolean(carrier.contactMasked);
       const phone = carrier.phoneNumber || carrier.cellPhone || "";
       const email = carrier.email || "";
       const address = carrier.physicalAddress || carrier.mailingAddress || "";
       const links = [
-        phone ? ["Call Carrier", `tel:${String(phone).replace(/[^\d+]/g, "")}`] : null,
-        email ? ["Email Carrier", `mailto:${String(email).trim()}`] : null,
+        !contactLocked && phone ? ["Call Carrier", `tel:${String(phone).replace(/[^\d+]/g, "")}`] : null,
+        !contactLocked && email ? ["Email Carrier", `mailto:${String(email).trim()}`] : null,
         address ? ["Open Map", `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`] : null
       ].filter(Boolean);
-      if (!links.length) return "";
-      return `<div class="contact-action-row">${links.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`;
+      const actionsHtml = links.length
+        ? `<div class="contact-action-row">${links.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`
+        : "";
+      return actionsHtml;
     }
 
     function oosRateRows(oosRates = {}) {
@@ -2686,6 +2697,11 @@
       const safety = carrier.safety || {};
       const categories = safety.categories || {};
       const oosRates = safety.oosRates || {};
+      const contactLocked = Boolean(carrier.contactMasked);
+      const lockedLabel = contactRevealLabel(carrier);
+      const lockedMessage = contactLocked
+        ? `<div class="status warn">${escapeHtml(contactLockMessage(carrier))} <a href="/signup.html">Start free trial</a> or <a href="/login.html">log in</a>.</div>`
+        : "";
 
       carrierEls.title.textContent = carrier.legalName || "Carrier profile";
       carrierEls.subtitle.textContent = `DOT ${safeText(carrier.dotNumber)} - Last updated ${safeText(carrier.lastUpdated)}`;
@@ -2788,10 +2804,11 @@
       `;
 
       carrierEls.tabContact.innerHTML = `
+        ${lockedMessage}
         <div class="profile-fields">
-          ${field("Phone number", carrier.phoneNumber)}
-          ${field("Cell phone", carrier.cellPhone)}
-          ${field("Email", carrier.email)}
+          ${field("Phone number", contactLocked ? lockedLabel : carrier.phoneNumber)}
+          ${field("Cell phone", contactLocked ? lockedLabel : carrier.cellPhone)}
+          ${field("Email", contactLocked ? lockedLabel : carrier.email)}
           ${field("Physical address", carrier.physicalAddress, "full")}
           ${field("Mailing address", carrier.mailingAddress, "full")}
         </div>
