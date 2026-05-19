@@ -757,8 +757,10 @@
       --muted: #a8b7ca;
       --line: rgba(226, 232, 240, 0.14);
       width: min(1360px, 100%);
-      max-height: min(940px, calc(100vh - 22px));
+      max-height: calc(100vh - 28px);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
       border: 1px solid rgba(91, 156, 255, 0.24);
       border-radius: 18px;
       background:
@@ -791,16 +793,24 @@
     }
 
     .profile-content {
-      padding: 22px 26px 26px;
-      overflow: auto;
-      max-height: calc(100vh - 190px);
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
     }
 
     .profile-tabs {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 14px;
+      padding: 22px 26px 14px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background:
+        linear-gradient(180deg, rgba(7, 16, 29, 0.98) 80%, transparent 100%);
     }
 
     .profile-tabs button {
@@ -821,7 +831,14 @@
     }
 
     .profile-tab { display: none; }
-    .profile-tab.active { display: block; }
+    .profile-tab.active {
+      display: block;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0 26px 26px;
+    }
 
     .profile-fields {
       display: grid;
@@ -1132,7 +1149,8 @@
 
     .profile-alert {
       display: none;
-      margin-bottom: 13px;
+      flex-shrink: 0;
+      margin: 14px 26px 0;
       border-radius: 8px;
       border: 1px solid rgba(91, 156, 255, 0.28);
       background: var(--blue-soft);
