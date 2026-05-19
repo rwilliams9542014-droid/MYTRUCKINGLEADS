@@ -1211,6 +1211,7 @@
       const type = leadType(lead);
       const urgent = priority(lead);
       const phone = leadPhone(lead);
+      const phoneHref = phone ? String(phone).replace(/[^\d+]/g, "") : "";
       const email = leadEmail(lead);
       return `
         <article class="prospect-card" draggable="true" data-card-id="${escapeHtml(lead.id)}">
@@ -1235,7 +1236,8 @@
           <div class="quick-actions">
             <button type="button" data-open-id="${escapeHtml(lead.id)}">Open Profile</button>
             <button type="button" data-note-id="${escapeHtml(lead.id)}">Add Note</button>
-            ${phone ? `<a href="tel:${escapeHtml(phone)}" onclick="event.stopPropagation()">Call</a>` : `<button type="button" disabled>Call</button>`}
+            ${phoneHref ? `<a href="tel:${escapeHtml(phoneHref)}" onclick="event.stopPropagation()">Call</a>` : `<button type="button" disabled>Call</button>`}
+            ${phoneHref ? `<a href="sms:${escapeHtml(phoneHref)}" onclick="event.stopPropagation()">Text</a>` : `<button type="button" disabled>Text</button>`}
             ${email ? `<a href="mailto:${escapeHtml(email)}" onclick="event.stopPropagation()">Email</a>` : `<button type="button" disabled>Email</button>`}
           </div>
           <select class="stage-select" data-stage-id="${escapeHtml(lead.id)}" aria-label="Move ${escapeHtml(lead.carrier_name || "prospect")}">

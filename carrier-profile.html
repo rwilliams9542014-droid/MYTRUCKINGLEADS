@@ -648,10 +648,12 @@
         return `<div class="status warn">Free trial limit reached. <a class="upgrade-link" href="/pricing.html">Upgrade now</a> to reveal phone and email.</div>`;
       }
       const phone = carrier.phoneNumber || carrier.cellPhone || "";
+      const textPhone = carrier.cellPhone || carrier.phoneNumber || "";
       const email = carrier.email || "";
       const address = carrier.physicalAddress || carrier.mailingAddress || "";
       const links = [
         phone ? ["Call Carrier", `tel:${String(phone).replace(/[^\d+]/g, "")}`] : null,
+        textPhone ? ["Text Carrier", `sms:${String(textPhone).replace(/[^\d+]/g, "")}`] : null,
         email ? ["Email Carrier", `mailto:${String(email).trim()}`] : null,
         address ? ["Open Map", `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`] : null
       ].filter(Boolean);

@@ -2564,10 +2564,12 @@
     function contactActionLinks(carrier = {}) {
       const contactLocked = Boolean(carrier.contactMasked);
       const phone = carrier.phoneNumber || carrier.cellPhone || "";
+      const textPhone = carrier.cellPhone || carrier.phoneNumber || "";
       const email = carrier.email || "";
       const address = carrier.physicalAddress || carrier.mailingAddress || "";
       const links = [
         !contactLocked && phone ? ["Call Carrier", `tel:${String(phone).replace(/[^\d+]/g, "")}`] : null,
+        !contactLocked && textPhone ? ["Text Carrier", `sms:${String(textPhone).replace(/[^\d+]/g, "")}`] : null,
         !contactLocked && email ? ["Email Carrier", `mailto:${String(email).trim()}`] : null,
         address ? ["Open Map", `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`] : null
       ].filter(Boolean);
