@@ -289,6 +289,8 @@ async function ensureUserAccountSchema() {
       ADD COLUMN IF NOT EXISTS daily_profile_views INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS daily_contact_views INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS daily_saved_prospects INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS monthly_export_rows INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS monthly_export_reset_at TIMESTAMPTZ DEFAULT NOW(),
       ADD COLUMN IF NOT EXISTS last_usage_reset_at TIMESTAMPTZ DEFAULT NOW()
   `);
 

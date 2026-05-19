@@ -227,6 +227,27 @@ function getPlanLeadLabel() {
   return "Starter";
 }
 
+function getCurrentExportQuota() {
+  const user = API.getCurrentUser();
+  const limit = user?.monthlyExportLimit;
+  const remaining = user?.monthlyExportsRemaining;
+  return {
+    limit: Number.isFinite(limit) ? limit : null,
+    remaining: Number.isFinite(remaining) ? remaining : null
+  };
+}
+
+function exportQuotaMessage() {
+  const { limit, remaining } = getCurrentExportQuota();
+  if (limit === null) {
+    return "Agency Unlimited includes unlimited exports.";
+  }
+  if (remaining === null) {
+    return `${getPlanLeadLabel()} includes up to ${limit.toLocaleString()} exported records per month.`;
+  }
+  return `${getPlanLeadLabel()} includes up to ${limit.toLocaleString()} exported records per month. ${remaining.toLocaleString()} left this month.`;
+}
+
 function canUseCrm() {
   const status = String(API.getCurrentUser()?.subscription_status || "").toLowerCase();
   return ["basic", "pro", "premium"].includes(getCurrentPlan()) && (IS_LOCAL_DEV || ["active", "trialing"].includes(status));
@@ -1011,7 +1032,8 @@ async function exportProspectReport() {
   showLoading(exportButton);
 
   try {
-    exportCheckedProspectLeads(exportButton);
+    await exportCheckedProspectLeads(exportButton);
+    applySubscriptionUiControls();
   } catch (err) {
     if (err.status === 403) {
       showUpgradePrompt(err.message, exportButton);
@@ -1095,7 +1117,8 @@ async function exportNewVentureReport() {
   showLoading(exportButton);
 
   try {
-    exportCheckedNewVentureLeads(exportButton);
+    await exportCheckedNewVentureLeads(exportButton);
+    applySubscriptionUiControls();
   } catch (err) {
     if (err.status === 403) {
       showUpgradePrompt(err.message, exportButton);
@@ -1214,11 +1237,16 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
-function exportCheckedProspectLeads(exportButton) {
+async function exportCheckedProspectLeads(exportButton) {
   const selected = getCheckedRows(".prospect-row-checkbox", state.prospectLeads);
   if (!selected.length) {
     throw new Error("Check at least one renewal carrier before exporting.");
   }
+
+  await API.claimExportQuota({
+    exportType: "renewal-selected",
+    recordCount: selected.length
+  });
 
   const headers = [
     "DOT",
@@ -1252,14 +1280,19 @@ function exportCheckedProspectLeads(exportButton) {
   }));
 
   downloadCsv(`renewal-leads-selected-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
-  showSuccess(`Exported ${selected.length} selected renewal lead${selected.length === 1 ? "" : "s"}.`, exportButton);
+  showSuccess(`Exported ${selected.length} selected renewal lead${selected.length === 1 ? "" : "s"}. ${exportQuotaMessage()}`, exportButton);
 }
 
-function exportCheckedNewVentureLeads(exportButton) {
+async function exportCheckedNewVentureLeads(exportButton) {
   const selected = getCheckedRows(".new-venture-row-checkbox", state.newVentureLeads);
   if (!selected.length) {
     throw new Error("Check at least one new venture carrier before exporting.");
   }
+
+  await API.claimExportQuota({
+    exportType: "new-venture-selected",
+    recordCount: selected.length
+  });
 
   const headers = [
     "DOT",
@@ -1293,7 +1326,7 @@ function exportCheckedNewVentureLeads(exportButton) {
   }));
 
   downloadCsv(`new-venture-leads-selected-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
-  showSuccess(`Exported ${selected.length} selected new venture lead${selected.length === 1 ? "" : "s"}.`, exportButton);
+  showSuccess(`Exported ${selected.length} selected new venture lead${selected.length === 1 ? "" : "s"}. ${exportQuotaMessage()}`, exportButton);
 }
 
 function initResizableLeadTables() {
@@ -1357,6 +1390,11 @@ function applySubscriptionUiControls() {
   const summary = document.getElementById("prospectReportSummary");
   const newVentureSummary = document.getElementById("newVentureSummary");
   const renewalTabButton = document.getElementById("renewal-tab");
+  const exportButtons = [
+    document.getElementById("exportProspectsBtn"),
+    document.getElementById("exportNewVenturesBtn"),
+    document.getElementById("sheetTopExportBtn")
+  ].filter(Boolean);
 
   if (summary) {
     summary.textContent = plan === "premium"
@@ -1402,6 +1440,15 @@ function applySubscriptionUiControls() {
       ? "Starter includes renewal leads in the next 30 days."
       : "Choose the renewal month you want to call.";
   }
+
+  const { limit, remaining } = getCurrentExportQuota();
+  const exportLimitReached = limit !== null && remaining !== null && remaining <= 0;
+  exportButtons.forEach((button) => {
+    button.disabled = exportLimitReached;
+    button.title = exportLimitReached
+      ? `${getPlanLeadLabel()} monthly export limit reached. Upgrade or wait until next month to export more records.`
+      : exportQuotaMessage();
+  });
 }
 
 function formatDateOnly(value) {

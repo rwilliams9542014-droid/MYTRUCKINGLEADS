@@ -11,6 +11,7 @@ import {
   requirePremiumPlan
 } from "../utils/planAccess.js";
 import { getTrialUsage, maskTrialLeadContacts } from "../utils/trialAccess.js";
+import { claimMonthlyExportRows } from "../utils/exportUsage.js";
 import {
   searchOTrucking,
   getOTruckingCarrierDetail,
@@ -47,6 +48,14 @@ function maskTrialRows(rows, trialAccess) {
 function buildTrialMessage(trialAccess) {
   if (!trialAccess.active) return "";
   return `Trial access shows up to ${trialAccess.limits.searchResults} results per search. Profile views left today: ${trialAccess.remaining.profileViews}. Contact views left today: ${trialAccess.remaining.contactViews}. CRM saves left today: ${trialAccess.remaining.savedProspects}.`;
+}
+
+function applyExportUsageToUser(user, exportUsage) {
+  if (!user || !exportUsage) return;
+  user.monthly_export_rows = exportUsage.used;
+  if (exportUsage.resetAt) {
+    user.monthly_export_reset_at = exportUsage.resetAt;
+  }
 }
 
 function enforceRenewalFiltersForPlan(filters = {}, user) {
@@ -552,6 +561,11 @@ export async function exportProspectLeads(req, res) {
       row.data_completeness_percent
     ]);
 
+    if (rows.length > 0) {
+      const exportUsage = await claimMonthlyExportRows(req.user, rows.length);
+      applyExportUsageToUser(req.user, exportUsage);
+    }
+
     const csv = [headers, ...rows]
       .map(row => row.map(csvCell).join(","))
       .join("\n");
@@ -593,6 +607,10 @@ export async function exportNewVentures(req, res) {
     if (!requirePaidPlan(req, res)) return;
 
     const leads = await searchNewVentureLeads({ ...req.query, limit: req.query.limit || 500 });
+    if (leads.length > 0) {
+      const exportUsage = await claimMonthlyExportRows(req.user, leads.length);
+      applyExportUsageToUser(req.user, exportUsage);
+    }
     const csv = newVentureRowsToCsv(leads);
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -600,7 +618,47 @@ export async function exportNewVentures(req, res) {
     res.send(csv);
   } catch (err) {
     console.error("New venture export error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Failed to export new venture leads" });
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode === 403 ? err.message : "Failed to export new venture leads",
+      access: err.access
+    });
+  }
+}
+
+export async function claimExportQuota(req, res) {
+  try {
+    if (!requirePaidPlan(req, res)) return;
+
+    const access = getPlanAccessSummary(req.user);
+    if (!access.canExportCsv) {
+      return res.status(403).json({
+        error: "Choose a lead plan to unlock CSV exports.",
+        access
+      });
+    }
+
+    const recordCount = Number.parseInt(req.body?.recordCount, 10);
+    if (!Number.isInteger(recordCount) || recordCount <= 0) {
+      return res.status(400).json({ error: "Select at least one record to export." });
+    }
+
+    const exportUsage = await claimMonthlyExportRows(req.user, recordCount);
+    applyExportUsageToUser(req.user, exportUsage);
+
+    res.json({
+      ok: true,
+      recordCount,
+      exportType: String(req.body?.exportType || "").trim() || "lead-export",
+      exportUsage,
+      access: getPlanAccessSummary(req.user)
+    });
+  } catch (err) {
+    console.error("Export quota claim error:", err);
+    res.status(err.statusCode || 500).json({
+      error: err.statusCode === 403 ? err.message : "Failed to reserve export quota.",
+      access: err.access,
+      exportUsage: err.exportUsage
+    });
   }
 }
 

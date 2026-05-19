@@ -958,6 +958,20 @@
       }
     }
 
+    function normalizePlan(plan) {
+      if (plan === "trial") return "trial";
+      if (plan === "starter") return "basic";
+      if (plan === "agency") return "premium";
+      return String(plan || "basic").toLowerCase();
+    }
+
+    function canUseTextMessagingPlan(user = currentUser) {
+      if (user?.canUseTextMessaging === true) return true;
+      const plan = normalizePlan(user?.plan);
+      const status = String(user?.subscription_status || user?.subscriptionStatus || "").toLowerCase();
+      return ["pro", "premium"].includes(plan) && ["active", "trialing"].includes(status);
+    }
+
     function updateTrialAccess(trialAccess) {
       if (!trialAccess) return;
       currentTrialAccess = trialAccess;
@@ -1237,7 +1251,7 @@
             <button type="button" data-open-id="${escapeHtml(lead.id)}">Open Profile</button>
             <button type="button" data-note-id="${escapeHtml(lead.id)}">Add Note</button>
             ${phoneHref ? `<a href="tel:${escapeHtml(phoneHref)}" onclick="event.stopPropagation()">Call</a>` : `<button type="button" disabled>Call</button>`}
-            ${phoneHref ? `<a href="sms:${escapeHtml(phoneHref)}" onclick="event.stopPropagation()">Text</a>` : `<button type="button" disabled>Text</button>`}
+            ${canUseTextMessagingPlan() ? (phoneHref ? `<a href="sms:${escapeHtml(phoneHref)}" onclick="event.stopPropagation()">Text</a>` : `<button type="button" disabled>Text</button>`) : ""}
             ${email ? `<a href="mailto:${escapeHtml(email)}" onclick="event.stopPropagation()">Email</a>` : `<button type="button" disabled>Email</button>`}
           </div>
           <select class="stage-select" data-stage-id="${escapeHtml(lead.id)}" aria-label="Move ${escapeHtml(lead.carrier_name || "prospect")}">

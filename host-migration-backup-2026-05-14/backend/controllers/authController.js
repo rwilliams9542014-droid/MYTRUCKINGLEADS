@@ -5,6 +5,7 @@ import { createCheckoutSession, syncUserSubscriptionFromStripe } from "../servic
 import { validateEmail, validateLeadState, validatePassword, validatePhone, validatePlan, validateString, validateUsername } from "../utils/validators.js";
 import { ValidationError, ConflictError, AuthenticationError } from "../middleware/errorHandler.js";
 import { getTrialUsage } from "../utils/trialAccess.js";
+import { getPlanAccessSummary } from "../utils/planAccess.js";
 
 function effectiveSubscriptionStatus(user) {
   if (process.env.LOCAL_DEV_FREE_ACCESS === "true" && process.env.NODE_ENV !== "production") {
@@ -47,6 +48,10 @@ function publicPlan(plan, subscriptionStatus) {
 function publicUser(user) {
   const trialAccess = getTrialUsage(user);
   const subscriptionStatus = effectiveSubscriptionStatus(user);
+  const access = getPlanAccessSummary({
+    ...user,
+    subscription_status: subscriptionStatus
+  });
   return {
     id: user.id,
     name: user.name,
@@ -68,8 +73,14 @@ function publicUser(user) {
     dailyProfileViews: user.daily_profile_views || 0,
     dailyContactViews: user.daily_contact_views || 0,
     dailySavedProspects: user.daily_saved_prospects || 0,
+    monthlyExportRows: access.monthlyExportsUsed,
+    monthlyExportResetAt: user.monthly_export_reset_at || null,
+    monthlyExportLimit: access.monthlyExportLimit,
+    monthlyExportsRemaining: access.monthlyExportRemaining,
+    canUseTextMessaging: access.canUseTextMessaging,
     lastUsageResetAt: user.last_usage_reset_at || null,
-    trialAccess
+    trialAccess,
+    access
   };
 }
 
@@ -152,11 +163,13 @@ export async function signup(req, res, next) {
          billing_postal_code, billing_country, password_hash, plan,
          lead_state, subscription_status, subscription_expires_at,
          trial_ends_at, daily_profile_views, daily_contact_views,
-         daily_saved_prospects, last_usage_reset_at
+         daily_saved_prospects, last_usage_reset_at,
+         monthly_export_rows, monthly_export_reset_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'incomplete', NULL, NULL, 0, 0, 0, NOW())
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'incomplete', NULL, NULL, 0, 0, 0, NOW(), 0, NOW())
        RETURNING id, name, first_name, last_name, username, email, phone, business_name, lead_state, role, plan, subscription_status, subscription_expires_at,
-                 trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at, created_at`,
+                 trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
+                 monthly_export_rows, monthly_export_reset_at, created_at`,
       [
         validatedName,
         validatedFirstName,
@@ -221,7 +234,8 @@ export async function login(req, res, next) {
     const result = await query(
       `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, role, password_hash,
               plan, stripe_subscription_id, subscription_status, subscription_expires_at,
-              trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at
+              trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
+              monthly_export_rows, monthly_export_reset_at
        FROM users
        WHERE ${isEmailLogin ? "email = $1" : "lower(username) = $1"}`,
       [loginLookup]
@@ -273,7 +287,8 @@ export async function getCurrentUser(req, res, next) {
 
     const userResult = await query(
       `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, role, plan, stripe_subscription_id, subscription_status, subscription_expires_at,
-              trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at
+              trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
+              monthly_export_rows, monthly_export_reset_at
        FROM users
        WHERE id = $1`,
       [req.user.id]

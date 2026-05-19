@@ -23,7 +23,8 @@ async function loadUserForRequest(userId) {
   const userResult = await query(
     `SELECT id, plan, lead_state, role, subscription_status, subscription_expires_at,
             trial_ends_at, daily_profile_views, daily_contact_views,
-            daily_saved_prospects, last_usage_reset_at
+            daily_saved_prospects, last_usage_reset_at,
+            monthly_export_rows, monthly_export_reset_at
      FROM users
      WHERE id = $1`,
     [userId]
@@ -62,7 +63,9 @@ function assignRequestUser(req, res, user) {
     daily_profile_views: user.daily_profile_views,
     daily_contact_views: user.daily_contact_views,
     daily_saved_prospects: user.daily_saved_prospects,
-    last_usage_reset_at: user.last_usage_reset_at
+    last_usage_reset_at: user.last_usage_reset_at,
+    monthly_export_rows: user.monthly_export_rows,
+    monthly_export_reset_at: user.monthly_export_reset_at
   };
   applyTrialResponse(res, req.user);
 }

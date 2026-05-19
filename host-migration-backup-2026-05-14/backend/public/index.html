@@ -2278,7 +2278,7 @@
               <li>Basic renewal access</li>
               <li>Carrier profile and FMCSA data</li>
               <li>Basic CRM</li>
-              <li>Limited exports</li>
+              <li>300 exports per month</li>
               <li>30-day lead history</li>
             </ul>
             <a class="btn secondary" href="signup.html?plan=basic">Get Started</a>
@@ -2296,7 +2296,8 @@
               <li>Renewal intelligence</li>
               <li>FMCSA/SMS plus licensing and insurance</li>
               <li>CRM pipeline and saved prospects</li>
-              <li>Exports and advanced filters</li>
+              <li>1,000 exports per month</li>
+              <li>Text, call, and email contact actions</li>
               <li>Cargo hauled filters</li>
               <li>Follow-up tracking and lead freshness</li>
               <li>90-day lead history</li>
@@ -2316,6 +2317,7 @@
               <li>Multiple users</li>
               <li>Team CRM and shared pipeline</li>
               <li>Unlimited exports</li>
+              <li>Text, call, and email contact actions</li>
               <li>Future API access</li>
               <li>Future alerts and integrations</li>
               <li>Premium support</li>
@@ -2561,6 +2563,23 @@
       return carrier.contactRevealLabel || "Create an account to reveal";
     }
 
+    function normalizeUserPlan(plan) {
+      if (plan === "starter") return "basic";
+      if (plan === "agency") return "premium";
+      return String(plan || "basic").toLowerCase();
+    }
+
+    function canUseTextMessaging() {
+      try {
+        const cachedUser = JSON.parse(localStorage.getItem("user") || "null");
+        const plan = normalizeUserPlan(cachedUser?.plan);
+        const status = String(cachedUser?.subscription_status || cachedUser?.subscriptionStatus || "").toLowerCase();
+        return ["pro", "premium"].includes(plan) && ["active", "trialing"].includes(status);
+      } catch (err) {
+        return false;
+      }
+    }
+
     function contactActionLinks(carrier = {}) {
       const contactLocked = Boolean(carrier.contactMasked);
       const phone = carrier.phoneNumber || carrier.cellPhone || "";
@@ -2569,7 +2588,7 @@
       const address = carrier.physicalAddress || carrier.mailingAddress || "";
       const links = [
         !contactLocked && phone ? ["Call Carrier", `tel:${String(phone).replace(/[^\d+]/g, "")}`] : null,
-        !contactLocked && textPhone ? ["Text Carrier", `sms:${String(textPhone).replace(/[^\d+]/g, "")}`] : null,
+        !contactLocked && canUseTextMessaging() && textPhone ? ["Text Carrier", `sms:${String(textPhone).replace(/[^\d+]/g, "")}`] : null,
         !contactLocked && email ? ["Email Carrier", `mailto:${String(email).trim()}`] : null,
         address ? ["Open Map", `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`] : null
       ].filter(Boolean);

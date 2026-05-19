@@ -26,6 +26,8 @@ CREATE TABLE users (
   daily_profile_views INTEGER NOT NULL DEFAULT 0,
   daily_contact_views INTEGER NOT NULL DEFAULT 0,
   daily_saved_prospects INTEGER NOT NULL DEFAULT 0,
+  monthly_export_rows INTEGER NOT NULL DEFAULT 0,
+  monthly_export_reset_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   last_usage_reset_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   role TEXT NOT NULL DEFAULT 'owner',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

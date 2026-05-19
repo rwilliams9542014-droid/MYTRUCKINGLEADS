@@ -305,3 +305,23 @@ export async function exportNewVentureLeads(filters = {}) {
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+export async function claimExportQuota({ exportType, recordCount }) {
+  const data = await apiCall("/carrier/exports/claim", {
+    method: "POST",
+    body: {
+      exportType,
+      recordCount
+    }
+  });
+
+  const user = getCurrentUser();
+  if (user && data?.access) {
+    user.monthlyExportRows = data.access.monthlyExportsUsed;
+    user.monthlyExportLimit = data.access.monthlyExportLimit;
+    user.monthlyExportsRemaining = data.access.monthlyExportRemaining;
+    localStorage.setItem("user", JSON.stringify(user));
+  }
+
+  return data;
+}

@@ -9,27 +9,33 @@ const RENEWAL_WINDOWS = {
   premium: 365
 };
 
+const MONTHLY_EXPORT_LIMITS = {
+  basic: 300,
+  pro: 1000,
+  premium: null
+};
+
 export const PLAN_DETAILS = {
   basic: {
     name: "Starter",
     price: 79,
     annualPrice: 790,
     trialDays: 3,
-    description: "Solo producer plan with one state, new DOT leads, basic renewals, carrier profiles, FMCSA data, basic CRM, limited exports, and 30-day lead history."
+    description: "Solo producer plan with one state, new DOT leads, basic renewals, carrier profiles, FMCSA data, basic CRM, 300 exported records per month, and 30-day lead history."
   },
   pro: {
     name: "Pro",
     price: 199,
     annualPrice: 1990,
     trialDays: 3,
-    description: "Full one-state SaaS workspace with unlimited lead searches, renewal intelligence, FMCSA/SMS, licensing and insurance, CRM pipeline, exports, advanced filters, cargo filters, follow-up tracking, lead freshness, and 90-day lead history."
+    description: "Full one-state SaaS workspace with unlimited lead searches, renewal intelligence, FMCSA/SMS, licensing and insurance, CRM pipeline, 1,000 exported records per month, text contact actions, advanced filters, cargo filters, follow-up tracking, lead freshness, and 90-day lead history."
   },
   premium: {
     name: "Agency Unlimited",
     price: 499,
     annualPrice: 4990,
     trialDays: 3,
-    description: "Agency plan with every Pro feature plus multiple users, team CRM, shared pipeline, unlimited exports, future API access, alerts, integrations, and premium support."
+    description: "Agency plan with every Pro feature plus multiple users, team CRM, shared pipeline, unlimited exports, text contact actions, future API access, alerts, integrations, and premium support."
   }
 };
 
@@ -60,6 +66,12 @@ export function getUserPlan(user) {
   return normalizePlan(user?.plan);
 }
 
+function monthKey(dateLike) {
+  const parsed = new Date(dateLike || Date.now());
+  if (Number.isNaN(parsed.getTime())) return "";
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 export function hasActiveSubscription(user) {
   const status = String(user?.subscription_status || "").toLowerCase();
   if (process.env.LOCAL_DEV_FREE_ACCESS === "true" && process.env.NODE_ENV !== "production") {
@@ -75,6 +87,34 @@ export function isPaidPlan(user) {
 
 export function isPremiumPlan(user) {
   return getUserPlan(user) === "premium" && hasActiveSubscription(user);
+}
+
+export function canUseTextMessaging(user) {
+  return ["pro", "premium"].includes(getUserPlan(user)) && hasActiveSubscription(user);
+}
+
+export function getMonthlyExportLimit(user) {
+  const plan = getUserPlan(user);
+  return Object.prototype.hasOwnProperty.call(MONTHLY_EXPORT_LIMITS, plan)
+    ? MONTHLY_EXPORT_LIMITS[plan]
+    : 0;
+}
+
+export function getMonthlyExportUsage(user, now = new Date()) {
+  const limit = getMonthlyExportLimit(user);
+  const rawUsed = Number.parseInt(user?.monthly_export_rows ?? user?.monthlyExportRows ?? 0, 10);
+  const rawResetAt = user?.monthly_export_reset_at ?? user?.monthlyExportResetAt ?? null;
+  const usedThisMonth = monthKey(rawResetAt) === monthKey(now)
+    ? Math.max(0, Number.isFinite(rawUsed) ? rawUsed : 0)
+    : 0;
+
+  return {
+    used: usedThisMonth,
+    limit,
+    remaining: limit === null ? null : Math.max(0, limit - usedThisMonth),
+    resetAt: rawResetAt,
+    unlimited: limit === null
+  };
 }
 
 export function getRenewalWindowDays(user) {
@@ -95,6 +135,7 @@ export function getPlanAccessSummary(user) {
   const plan = getUserPlan(user);
   const renewalWindowDays = getRenewalWindowDays(user);
   const leadState = String(user?.lead_state || user?.leadState || "").toUpperCase() || null;
+  const exportUsage = getMonthlyExportUsage(user);
 
   return {
     plan,
@@ -107,10 +148,14 @@ export function getPlanAccessSummary(user) {
     leadHistoryDays: Object.prototype.hasOwnProperty.call(LEAD_HISTORY_DAYS, plan) ? LEAD_HISTORY_DAYS[plan] : 0,
     canUseCrm: isPaidPlan(user),
     canViewContacts: isPaidPlan(user),
+    canUseTextMessaging: canUseTextMessaging(user),
     canUseNewVentures: isPaidPlan(user),
     canUseRenewalLeads: isPaidPlan(user),
     canUseAdvancedFilters: ["pro", "premium"].includes(plan) && hasActiveSubscription(user),
     canExportCsv: isPaidPlan(user),
+    monthlyExportLimit: exportUsage.limit,
+    monthlyExportsUsed: exportUsage.used,
+    monthlyExportRemaining: exportUsage.remaining,
     canUseMarketInsights: isPremiumPlan(user),
     canUseCarrierIntelligenceAssistant: isPremiumPlan(user),
     requiresSingleState: ["basic", "pro"].includes(plan),
