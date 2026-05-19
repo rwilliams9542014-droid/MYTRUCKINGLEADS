@@ -28,6 +28,15 @@ import nodemailer from "nodemailer";
 // Create transporter once at startup
 let transporter = null;
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function initializeTransporter() {
   if (transporter) return transporter;
 
@@ -190,6 +199,55 @@ const emailTemplates = {
         </body>
       </html>
     `;
+  },
+
+  teamInvite: ({ inviteeName, ownerName, agencyName, planName, inviteUrl, expiresLabel, appName }) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #1f2933; }
+            .container { max-width: 620px; margin: 0 auto; padding: 24px; }
+            .header { background: #123f7a; color: white; padding: 28px; border-radius: 10px 10px 0 0; text-align: center; }
+            .content { background: #f6f9fc; padding: 30px; border-radius: 0 0 10px 10px; }
+            .card { background: white; border: 1px solid #d9e2ec; border-radius: 10px; padding: 20px; margin: 20px 0; }
+            .button { background: #1f6feb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; }
+            .meta { color: #52606d; font-size: 14px; }
+            .footer { color: #7b8794; font-size: 12px; margin-top: 20px; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="margin: 0 0 8px;">You were invited to ${escapeHtml(appName)}</h1>
+              <p style="margin: 0;">Create your login to join ${escapeHtml(agencyName || ownerName || appName)}.</p>
+            </div>
+            <div class="content">
+              <p>Hi ${escapeHtml(inviteeName || "there")},</p>
+              <p>${escapeHtml(ownerName || "An account owner")} invited you to join the ${escapeHtml(planName || "Agency Unlimited")} workspace on ${escapeHtml(appName)}.</p>
+
+              <div class="card">
+                <div><strong>Agency:</strong> ${escapeHtml(agencyName || ownerName || appName)}</div>
+                <div><strong>Account owner:</strong> ${escapeHtml(ownerName || "Account owner")}</div>
+                <div><strong>Access:</strong> ${escapeHtml(planName || "Team access")}</div>
+                <div><strong>Invite expires:</strong> ${escapeHtml(expiresLabel)}</div>
+              </div>
+
+              <p>Use the button below to create your username and password:</p>
+              <p><a class="button" href="${escapeHtml(inviteUrl)}">Create team login</a></p>
+              <p class="meta">If the button does not work, copy and paste this link into your browser:</p>
+              <p class="meta"><a href="${escapeHtml(inviteUrl)}">${escapeHtml(inviteUrl)}</a></p>
+
+              <p>If you were not expecting this invite, you can safely ignore this email.</p>
+            </div>
+            <div class="footer">
+              <p>&copy; ${new Date().getFullYear()} ${escapeHtml(appName)}. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
   }
 };
 
@@ -300,6 +358,60 @@ export async function sendTestEmail(testEmail) {
       success: false, 
       message: `Error: ${err.message}` 
     };
+  }
+}
+
+export async function sendTeamInviteEmail({
+  toEmail,
+  inviteeName,
+  ownerName,
+  agencyName,
+  planName,
+  inviteUrl,
+  expiresAt
+}) {
+  const transport = initializeTransporter();
+  if (!transport) {
+    console.warn(`Email not sent to ${toEmail} (service not configured)`);
+    return false;
+  }
+
+  try {
+    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const appName = process.env.APP_NAME || "MyTruckingLeads";
+    const expiresLabel = expiresAt
+      ? new Date(expiresAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+      : "7 days";
+
+    const html = emailTemplates.teamInvite({
+      inviteeName,
+      ownerName,
+      agencyName,
+      planName,
+      inviteUrl,
+      expiresLabel,
+      appName
+    });
+
+    const text = [
+      `${ownerName || "An account owner"} invited you to join ${agencyName || appName} on ${appName}.`,
+      `Create your login here: ${inviteUrl}`,
+      `Invite expires: ${expiresLabel}`
+    ].join("\n");
+
+    const result = await transport.sendMail({
+      from: fromEmail,
+      to: toEmail,
+      subject: `Create your ${appName} team login`,
+      html,
+      text
+    });
+
+    console.log(`Invite email sent to ${toEmail} (Message ID: ${result.messageId})`);
+    return true;
+  } catch (err) {
+    console.error(`Error sending team invite to ${toEmail}:`, err.message);
+    return false;
   }
 }
 

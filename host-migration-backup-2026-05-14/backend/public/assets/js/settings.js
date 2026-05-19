@@ -33,6 +33,21 @@ function setSubscriptionMessage(type, message) {
   element.textContent = message;
 }
 
+function setInviteLink(url = "") {
+  const wrap = document.getElementById("teamInviteLinkWrap");
+  const input = document.getElementById("teamInviteLink");
+  if (!wrap || !input) return;
+
+  if (!url) {
+    input.value = "";
+    wrap.classList.add("d-none");
+    return;
+  }
+
+  input.value = url;
+  wrap.classList.remove("d-none");
+}
+
 function escapeHtml(value) {
   if (value === undefined || value === null) return "";
   return String(value)
@@ -171,12 +186,34 @@ document.addEventListener("DOMContentLoaded", async () => {
           method: "POST",
           body: { name, email }
         });
-        setMessage("success", "Team login invited.");
+        if (data.emailSent === false) {
+          setMessage("warning", data.warning || "Invite created, but the email could not be sent.");
+          setInviteLink(data.inviteUrl || "");
+        } else {
+          setMessage("success", data.message || "Invitation email sent.");
+          setInviteLink("");
+        }
         form.reset();
         renderAccess(data.access, data.usedLogins);
         await loadTeam();
       } catch (err) {
+        setInviteLink("");
         setMessage(err.status === 403 ? "warning" : "danger", err.message || "Unable to invite team member.");
+      }
+    });
+  }
+
+  const inviteCopyButton = document.getElementById("teamInviteCopyBtn");
+  if (inviteCopyButton) {
+    inviteCopyButton.addEventListener("click", async () => {
+      const inviteLink = document.getElementById("teamInviteLink")?.value || "";
+      if (!inviteLink) return;
+
+      try {
+        await navigator.clipboard.writeText(inviteLink);
+        setMessage("success", "Invite link copied.");
+      } catch {
+        setMessage("warning", "Unable to copy automatically. You can still copy the invite link manually.");
       }
     });
   }
@@ -189,6 +226,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       try {
         await apiCall(`/team/${button.dataset.id}`, { method: "DELETE" });
+        setInviteLink("");
         setMessage("success", "Team login removed.");
         await loadTeam();
       } catch (err) {

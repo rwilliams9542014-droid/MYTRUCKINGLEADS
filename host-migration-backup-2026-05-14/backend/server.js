@@ -286,6 +286,8 @@ async function ensureUserAccountSchema() {
       ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'inactive',
       ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS team_owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS team_member_role TEXT,
       ADD COLUMN IF NOT EXISTS daily_profile_views INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS daily_contact_views INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS daily_saved_prospects INTEGER NOT NULL DEFAULT 0,
@@ -322,6 +324,38 @@ async function ensureOperationalTables() {
   await query(`
     CREATE INDEX IF NOT EXISTS idx_stripe_webhook_events_status
       ON stripe_webhook_events (status)
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS team_members (
+      id SERIAL PRIMARY KEY,
+      owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      linked_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      email TEXT NOT NULL,
+      name TEXT,
+      role TEXT NOT NULL DEFAULT 'member',
+      status TEXT NOT NULL DEFAULT 'invited',
+      invite_token TEXT,
+      invite_expires_at TIMESTAMPTZ,
+      accepted_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(owner_user_id, email)
+    )
+  `);
+
+  await query(`
+    ALTER TABLE team_members
+      ADD COLUMN IF NOT EXISTS linked_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS invite_token TEXT,
+      ADD COLUMN IF NOT EXISTS invite_expires_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ
+  `);
+
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_invite_token
+      ON team_members (invite_token)
+      WHERE invite_token IS NOT NULL
   `);
 }
 

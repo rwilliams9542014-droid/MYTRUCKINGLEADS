@@ -6,6 +6,7 @@ import { validateEmail, validateLeadState, validatePassword, validatePhone, vali
 import { ValidationError, ConflictError, AuthenticationError } from "../middleware/errorHandler.js";
 import { getTrialUsage } from "../utils/trialAccess.js";
 import { getPlanAccessSummary } from "../utils/planAccess.js";
+import { loadEffectiveTeamUser } from "../utils/teamAccounts.js";
 
 function effectiveSubscriptionStatus(user) {
   if (process.env.LOCAL_DEV_FREE_ACCESS === "true" && process.env.NODE_ENV !== "production") {
@@ -68,6 +69,11 @@ function publicUser(user) {
     stripe_subscription_id: user.stripe_subscription_id,
     subscription_status: subscriptionStatus,
     subscriptionStatus,
+    isTeamMember: Boolean(user.is_team_member || user.team_owner_user_id),
+    teamOwnerUserId: user.team_owner_user_id || null,
+    teamOwnerName: user.team_owner_name || null,
+    teamOwnerEmail: user.team_owner_email || null,
+    teamMemberRole: user.team_member_role || null,
     subscription_expires_at: user.subscription_expires_at,
     trialEndsAt: user.trial_ends_at || user.subscription_expires_at || null,
     dailyProfileViews: user.daily_profile_views || 0,
@@ -235,7 +241,8 @@ export async function login(req, res, next) {
       `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, role, password_hash,
               plan, stripe_subscription_id, subscription_status, subscription_expires_at,
               trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
-              monthly_export_rows, monthly_export_reset_at
+              monthly_export_rows, monthly_export_reset_at,
+              team_owner_user_id, team_member_role
        FROM users
        WHERE ${isEmailLogin ? "email = $1" : "lower(username) = $1"}`,
       [loginLookup]
@@ -261,8 +268,10 @@ export async function login(req, res, next) {
     // Set httpOnly cookie
     setAuthCookie(res, token);
 
+    const effectiveUser = await loadEffectiveTeamUser(user);
+
     res.json({
-      user: publicUser(user)
+      user: publicUser(effectiveUser)
     });
     } catch (err) {
     next(err);
@@ -282,13 +291,14 @@ export async function getCurrentUser(req, res, next) {
 
     const currentStatus = String(req.user.subscription_status || "").toLowerCase();
     if (!["active", "trialing"].includes(currentStatus)) {
-      await syncUserSubscriptionFromStripe(req.user.id);
+      await syncUserSubscriptionFromStripe(req.user.team_owner_user_id || req.user.id);
     }
 
     const userResult = await query(
       `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, role, plan, stripe_subscription_id, subscription_status, subscription_expires_at,
               trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
-              monthly_export_rows, monthly_export_reset_at
+              monthly_export_rows, monthly_export_reset_at,
+              team_owner_user_id, team_member_role
        FROM users
        WHERE id = $1`,
       [req.user.id]
@@ -298,7 +308,8 @@ export async function getCurrentUser(req, res, next) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json({ user: publicUser(userResult.rows[0]) });
+    const effectiveUser = await loadEffectiveTeamUser(userResult.rows[0]);
+    res.json({ user: publicUser(effectiveUser) });
   } catch (err) {
     next(err);
   }

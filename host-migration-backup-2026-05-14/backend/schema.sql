@@ -23,6 +23,8 @@ CREATE TABLE users (
   subscription_status TEXT DEFAULT NULL,
   subscription_expires_at TIMESTAMP WITH TIME ZONE,
   trial_ends_at TIMESTAMP WITH TIME ZONE,
+  team_owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  team_member_role TEXT,
   daily_profile_views INTEGER NOT NULL DEFAULT 0,
   daily_contact_views INTEGER NOT NULL DEFAULT 0,
   daily_saved_prospects INTEGER NOT NULL DEFAULT 0,
@@ -197,10 +199,14 @@ CREATE INDEX idx_fmcsa_cache_expires ON fmcsa_cache(expires_at);
 CREATE TABLE team_members (
   id SERIAL PRIMARY KEY,
   owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  linked_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   email TEXT NOT NULL,
   name TEXT,
   role TEXT NOT NULL DEFAULT 'member',
   status TEXT NOT NULL DEFAULT 'invited',
+  invite_token TEXT,
+  invite_expires_at TIMESTAMP WITH TIME ZONE,
+  accepted_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(owner_user_id, email)
@@ -208,6 +214,7 @@ CREATE TABLE team_members (
 
 CREATE INDEX idx_team_members_owner ON team_members(owner_user_id);
 CREATE INDEX idx_team_members_status ON team_members(status);
+CREATE UNIQUE INDEX idx_team_members_invite_token ON team_members(invite_token) WHERE invite_token IS NOT NULL;
 
 -- ============================================
 -- NEW_ENTRANT_ALERTS TABLE - Track newly approved carriers

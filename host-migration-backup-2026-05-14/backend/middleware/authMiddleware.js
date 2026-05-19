@@ -4,6 +4,7 @@ import { query } from "../config/db.js";
 import { normalizePlan } from "../utils/planAccess.js";
 import { syncUserSubscriptionFromStripe } from "../services/stripeService.js";
 import { applyTrialResponse, hydrateTrialAccessUser } from "../utils/trialAccess.js";
+import { loadEffectiveTeamUser } from "../utils/teamAccounts.js";
 
 // Extract token from the httpOnly cookie first, then fall back to Authorization.
 function extractToken(req) {
@@ -24,7 +25,8 @@ async function loadUserForRequest(userId) {
     `SELECT id, plan, lead_state, role, subscription_status, subscription_expires_at,
             trial_ends_at, daily_profile_views, daily_contact_views,
             daily_saved_prospects, last_usage_reset_at,
-            monthly_export_rows, monthly_export_reset_at
+            monthly_export_rows, monthly_export_reset_at,
+            team_owner_user_id, team_member_role
      FROM users
      WHERE id = $1`,
     [userId]
@@ -35,9 +37,25 @@ async function loadUserForRequest(userId) {
   }
 
   let user = userResult.rows[0];
+  const syncUserId = user.team_owner_user_id || user.id;
   const status = String(user.subscription_status || "").toLowerCase();
   if (!["active", "trialing"].includes(status)) {
-    user = await syncUserSubscriptionFromStripe(user.id) || user;
+    if (syncUserId === user.id) {
+      user = await syncUserSubscriptionFromStripe(user.id) || user;
+    } else {
+      await syncUserSubscriptionFromStripe(syncUserId).catch(() => null);
+      const refreshedUser = await query(
+        `SELECT id, plan, lead_state, role, subscription_status, subscription_expires_at,
+                trial_ends_at, daily_profile_views, daily_contact_views,
+                daily_saved_prospects, last_usage_reset_at,
+                monthly_export_rows, monthly_export_reset_at,
+                team_owner_user_id, team_member_role
+         FROM users
+         WHERE id = $1`,
+        [userId]
+      );
+      user = refreshedUser.rows[0] || user;
+    }
   }
 
   const normalizedPlan = normalizePlan(user.plan);
@@ -48,7 +66,8 @@ async function loadUserForRequest(userId) {
     user.plan = normalizedPlan;
   }
 
-  return hydrateTrialAccessUser(user);
+  const effectiveUser = await loadEffectiveTeamUser(user);
+  return hydrateTrialAccessUser(effectiveUser);
 }
 
 function assignRequestUser(req, res, user) {
@@ -65,7 +84,10 @@ function assignRequestUser(req, res, user) {
     daily_saved_prospects: user.daily_saved_prospects,
     last_usage_reset_at: user.last_usage_reset_at,
     monthly_export_rows: user.monthly_export_rows,
-    monthly_export_reset_at: user.monthly_export_reset_at
+    monthly_export_reset_at: user.monthly_export_reset_at,
+    team_owner_user_id: user.team_owner_user_id,
+    team_member_role: user.team_member_role,
+    is_team_member: user.is_team_member
   };
   applyTrialResponse(res, req.user);
 }
