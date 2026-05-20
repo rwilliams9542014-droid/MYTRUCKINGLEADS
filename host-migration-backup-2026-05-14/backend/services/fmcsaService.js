@@ -124,6 +124,45 @@ function mapCensusCarrier(row) {
   };
 }
 
+function compactDateToEpochDays(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (!match) return 0;
+  const date = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return 0;
+  return Math.floor(date.getTime() / 86400000);
+}
+
+function censusRowStatusWeight(row = {}) {
+  const status = valueOrEmpty(row.status_code).toUpperCase();
+  if (status === "A") return 3;
+  if (status === "P") return 2;
+  if (status === "I") return 1;
+  return 0;
+}
+
+function numberValue(value) {
+  const parsed = Number(String(value || "").replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function censusRowRankScore(row = {}) {
+  const statusWeight = censusRowStatusWeight(row) * 1000000;
+  const mcs150Score = compactDateToEpochDays(row.mcs150_date);
+  const powerUnitsScore = numberValue(row.power_units) * 120;
+  const driversScore = numberValue(row.total_drivers) * 40;
+  const docketScore = valueOrEmpty(row.docket1 || row.docket2 || row.docket3) ? 25 : 0;
+  return statusWeight + mcs150Score + powerUnitsScore + driversScore + docketScore;
+}
+
+function selectBestCensusCarrierRow(rows = []) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+
+  return [...rows].sort((left, right) => {
+    return censusRowRankScore(right) - censusRowRankScore(left);
+  })[0];
+}
+
 async function fetchCensusCarrierByDot(dot) {
   if (!dot) return null;
 
@@ -180,7 +219,7 @@ async function fetchCensusCarrierByExactName(name) {
       const response = await axios.get(FMCSA_CENSUS_URL, {
         params: {
           $where: `upper(legal_name) = upper('${escapedName}') OR upper(dba_name) = upper('${escapedName}')`,
-          $limit: 1
+          $limit: 25
         },
         headers: {
           Accept: "application/json"
@@ -188,7 +227,7 @@ async function fetchCensusCarrierByExactName(name) {
         timeout: 30000
       });
 
-      return mapCensusCarrier(response.data?.[0]);
+      return mapCensusCarrier(selectBestCensusCarrierRow(response.data));
     }
   );
 }
@@ -205,7 +244,7 @@ async function fetchCensusCarrierByPartialName(name) {
       const response = await axios.get(FMCSA_CENSUS_URL, {
         params: {
           $where: `upper(legal_name) like upper('%${escapedName}%') OR upper(dba_name) like upper('%${escapedName}%')`,
-          $limit: 1
+          $limit: 25
         },
         headers: {
           Accept: "application/json"
@@ -213,7 +252,7 @@ async function fetchCensusCarrierByPartialName(name) {
         timeout: 30000
       });
 
-      return mapCensusCarrier(response.data?.[0]);
+      return mapCensusCarrier(selectBestCensusCarrierRow(response.data));
     }
   );
 }

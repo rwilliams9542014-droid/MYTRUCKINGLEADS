@@ -850,6 +850,7 @@ async function fetchAndCacheLiveCarrier(criteriaOrValue) {
     ...liveCarrier,
     dotNumber: resolvedDot,
     legalName: carrierName(liveCarrier),
+    sourceType: "live",
     lastUpdated: new Date()
   };
 
