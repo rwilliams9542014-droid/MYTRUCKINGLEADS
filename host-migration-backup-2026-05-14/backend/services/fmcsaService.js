@@ -52,6 +52,10 @@ function valueOrEmpty(value) {
   return String(value).trim();
 }
 
+function escapeSocrataString(value) {
+  return String(value || "").replace(/'/g, "''").trim();
+}
+
 function mapStatusCode(value) {
   const status = valueOrEmpty(value).toUpperCase();
   if (status === "A") return "Active";
@@ -151,6 +155,82 @@ async function fetchCensusCarrierByName(name) {
       const response = await axios.get(FMCSA_CENSUS_URL, {
         params: {
           $q: name,
+          $limit: 1
+        },
+        headers: {
+          Accept: "application/json"
+        },
+        timeout: 30000
+      });
+
+      return mapCensusCarrier(response.data?.[0]);
+    }
+  );
+}
+
+async function fetchCensusCarrierByExactName(name) {
+  if (!name) return null;
+
+  const escapedName = escapeSocrataString(name);
+  if (!escapedName) return null;
+
+  return withFmcsaCache(
+    { source: "fmcsa-census-name-exact", identifier: escapedName },
+    async () => {
+      const response = await axios.get(FMCSA_CENSUS_URL, {
+        params: {
+          $where: `upper(legal_name) = upper('${escapedName}') OR upper(dba_name) = upper('${escapedName}')`,
+          $limit: 1
+        },
+        headers: {
+          Accept: "application/json"
+        },
+        timeout: 30000
+      });
+
+      return mapCensusCarrier(response.data?.[0]);
+    }
+  );
+}
+
+async function fetchCensusCarrierByPartialName(name) {
+  if (!name) return null;
+
+  const escapedName = escapeSocrataString(name);
+  if (!escapedName) return null;
+
+  return withFmcsaCache(
+    { source: "fmcsa-census-name-like", identifier: escapedName },
+    async () => {
+      const response = await axios.get(FMCSA_CENSUS_URL, {
+        params: {
+          $where: `upper(legal_name) like upper('%${escapedName}%') OR upper(dba_name) like upper('%${escapedName}%')`,
+          $limit: 1
+        },
+        headers: {
+          Accept: "application/json"
+        },
+        timeout: 30000
+      });
+
+      return mapCensusCarrier(response.data?.[0]);
+    }
+  );
+}
+
+async function fetchCensusCarrierByMc(mc) {
+  if (!mc) return null;
+
+  const docket = valueOrEmpty(mc).replace(/^(MC|MX|FF)\s*-?/i, "");
+  if (!docket) return null;
+  const escapedDocket = escapeSocrataString(docket);
+
+  return withFmcsaCache(
+    { source: "fmcsa-census-mc", identifier: escapedDocket },
+    async () => {
+      const response = await axios.get(FMCSA_CENSUS_URL, {
+        params: {
+          $where: `docket1 = '${escapedDocket}' OR docket2 = '${escapedDocket}' OR docket3 = '${escapedDocket}'`,
           $limit: 1
         },
         headers: {
@@ -560,6 +640,24 @@ const FMCSA_PROVIDER_DEFINITIONS = {
     enabled: ({ dot }) => Boolean(dot),
     resolve: ({ dot }) => fetchCensusCarrierByDot(dot)
   },
+  censusMc: {
+    key: "censusMc",
+    label: "FMCSA Company Census File / MCS-150 self-reported",
+    enabled: ({ mc }) => Boolean(mc),
+    resolve: ({ mc }) => fetchCensusCarrierByMc(mc)
+  },
+  censusNameExact: {
+    key: "censusNameExact",
+    label: "FMCSA Company Census File / MCS-150 self-reported",
+    enabled: ({ name }) => Boolean(name),
+    resolve: ({ name }) => fetchCensusCarrierByExactName(name)
+  },
+  censusNameLike: {
+    key: "censusNameLike",
+    label: "FMCSA Company Census File / MCS-150 self-reported",
+    enabled: ({ name }) => Boolean(name),
+    resolve: ({ name }) => fetchCensusCarrierByPartialName(name)
+  },
   censusName: {
     key: "censusName",
     label: "FMCSA Company Census File / MCS-150 self-reported",
@@ -606,20 +704,42 @@ export async function getCarrierData({ dot, mc, name } = {}) {
     })
     : null;
 
-  const nameResult = !dot && !mc && name
-    ? await runFmcsaProvider("censusName", { name }).catch(err => {
-      logProviderFailure("FMCSA Company Census name lookup", err);
+  const censusMcResult = !dot && mc
+    ? await runFmcsaProvider("censusMc", { mc }).catch(err => {
+      logProviderFailure("FMCSA Company Census MC lookup", err);
       return null;
     })
     : null;
 
-  const resolvedDot = dot || apiResult?.dot || nameResult?.dot;
+  let nameResult = null;
+  if (!dot && !mc && name) {
+    nameResult = await runFmcsaProvider("censusNameExact", { name }).catch(err => {
+      logProviderFailure("FMCSA Company Census exact-name lookup", err);
+      return null;
+    });
+
+    if (!nameResult) {
+      nameResult = await runFmcsaProvider("censusNameLike", { name }).catch(err => {
+        logProviderFailure("FMCSA Company Census partial-name lookup", err);
+        return null;
+      });
+    }
+
+    if (!nameResult) {
+      nameResult = await runFmcsaProvider("censusName", { name }).catch(err => {
+        logProviderFailure("FMCSA Company Census fuzzy-name lookup", err);
+        return null;
+      });
+    }
+  }
+
+  const resolvedDot = dot || apiResult?.dot || censusMcResult?.dot || nameResult?.dot;
   const censusResult = resolvedDot
     ? await runFmcsaProvider("censusDot", { dot: resolvedDot }).catch(err => {
       logProviderFailure("FMCSA Company Census lookup", err);
-      return nameResult;
-    }) || nameResult
-    : nameResult;
+      return censusMcResult || nameResult;
+    }) || censusMcResult || nameResult
+    : (censusMcResult || nameResult);
 
   const smsSafety = resolvedDot
     ? await runFmcsaProvider("sms", { dot: resolvedDot }).catch(err => {
@@ -641,6 +761,7 @@ export async function getCarrierData({ dot, mc, name } = {}) {
   const providerResults = {
     qcmobile: apiResult,
     census: censusResult,
+    censusMc: censusMcResult,
     censusName: nameResult,
     sms: smsSafety,
     safer: saferData,
