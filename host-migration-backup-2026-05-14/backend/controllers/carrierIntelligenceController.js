@@ -4,7 +4,8 @@ import { query as dbQuery } from "../config/db.js";
 import {
   FMCSA_TRANSITION_NOTICE,
   MOTUS_PORTAL_URL,
-  fetchCarrierByDotOrMc
+  fetchCarrierByDotOrMc,
+  searchCarrierCandidatesByName
 } from "../services/fmcsaService.js";
 import {
   enrichCarrierByDot,
@@ -75,11 +76,11 @@ function parseCarrierSearchInput(query = {}) {
   const explicitName = clean(query.name);
   const freeText = clean(query.query || query.q);
   const requestedLimit = Number(query.limit);
-  const singleResultNameLookup = Boolean(freeText && !explicitName && !Number.isNaN(requestedLimit) && requestedLimit === 1);
   const dotMatch = freeText.match(/^(?:DOT|USDOT)?\s*-?\s*(\d{1,8})$/i);
   const mcMatch = freeText.match(/^(?:MC|MX|FF)\s*-?\s*([A-Z0-9-]{1,20})$/i);
   const parsedDot = normalizeDot(dotMatch?.[1]);
   const parsedMc = normalizeMc(mcMatch?.[1]);
+  const freeTextNameLookup = Boolean(freeText && !parsedDot && !parsedMc);
 
   const dot = explicitDot || parsedDot;
   const mc = explicitMc || parsedMc;
@@ -95,7 +96,7 @@ function parseCarrierSearchInput(query = {}) {
     mc,
     name,
     queryText,
-    preferLiveLookup: Boolean(explicitDot || explicitMc || explicitName || parsedDot || parsedMc || singleResultNameLookup)
+    preferLiveLookup: Boolean(explicitDot || explicitMc || explicitName || parsedDot || parsedMc || freeTextNameLookup || (!Number.isNaN(requestedLimit) && requestedLimit === 1 && name))
   };
 }
 
@@ -883,11 +884,188 @@ async function fetchAndCacheLiveCarrier(criteriaOrValue) {
   return searchCarrier;
 }
 
+function candidateState(carrier = {}) {
+  return clean(carrier.address?.state || rawCensus(carrier).phy_state).toUpperCase();
+}
+
+function candidateCity(carrier = {}) {
+  return clean(carrier.address?.city || rawCensus(carrier).phy_city).toUpperCase();
+}
+
+function insuranceStatusBoost(carrier = {}) {
+  const filingStatus = clean(carrier.insuranceFilingStatus || carrier.licensingInsurance?.insuranceFilingStatus).toUpperCase();
+  if (!filingStatus) return 0;
+  if (/ACTIVE|CURRENT|ON FILE|AUTHORIZED|COMMON|CONTRACT/.test(filingStatus)) return 220;
+  if (/PENDING/.test(filingStatus)) return 80;
+  if (/CANCEL|EXPIRE|INACTIVE|REVOK|DENIED/.test(filingStatus)) return -80;
+  return 20;
+}
+
+function scoreNameSearchCandidate(carrier = {}) {
+  const matchMeta = carrier.matchMeta || {};
+  let score = Number(matchMeta.score) || 0;
+  score += insuranceStatusBoost(carrier);
+
+  const authorityStatus = clean(carrier.authorityStatus).toUpperCase();
+  if (authorityStatus === "ACTIVE") score += 180;
+  else if (authorityStatus === "PENDING") score += 90;
+  else if (authorityStatus === "INACTIVE") score -= 120;
+
+  const operatingStatus = clean(carrier.operatingStatus).toUpperCase();
+  if (operatingStatus === "ACTIVE") score += 120;
+  else if (operatingStatus === "INACTIVE") score -= 60;
+
+  return score;
+}
+
+async function hydrateNameSearchCandidate(candidate = {}) {
+  const dot = normalizeDot(candidate.dotNumber || candidate.dot);
+  if (!dot) return candidate;
+
+  const [cachedCarrier, postgresCarrier] = await Promise.all([
+    findCachedCarrier(dot),
+    findPostgresCarrier(dot)
+  ]);
+  const overlay = postgresCarrier || cachedCarrier;
+  if (!overlay) return candidate;
+
+  const overlayAddress = typeof overlay.address === "object" && overlay.address ? overlay.address : {};
+  const candidateAddress = typeof candidate.address === "object" && candidate.address ? candidate.address : {};
+
+  return {
+    ...overlay,
+    ...candidate,
+    dotNumber: clean(candidate.dotNumber || candidate.dot || overlay.dotNumber || overlay.dot),
+    dot: clean(candidate.dot || candidate.dotNumber || overlay.dot || overlay.dotNumber),
+    legalName: clean(candidate.legalName || candidate.carrierName || overlay.legalName || overlay.carrierName, "Unknown Carrier"),
+    carrierName: clean(candidate.carrierName || candidate.legalName || overlay.carrierName || overlay.legalName, "Unknown Carrier"),
+    dbaName: clean(candidate.dbaName || overlay.dbaName),
+    address: {
+      ...overlayAddress,
+      ...candidateAddress,
+      raw: clean(candidateAddress.raw || overlayAddress.raw)
+    },
+    authorityStatus: clean(candidate.authorityStatus || overlay.authorityStatus),
+    operatingStatus: clean(candidate.operatingStatus || overlay.operatingStatus || candidate.authorityStatus || overlay.authorityStatus),
+    insuranceCompany: clean(candidate.insuranceCompany || overlay.insuranceCompany),
+    insurancePolicyNumber: clean(candidate.insurancePolicyNumber || overlay.insurancePolicyNumber),
+    insuranceFilingStatus: clean(candidate.insuranceFilingStatus || overlay.insuranceFilingStatus),
+    insuranceExpirationDate: candidate.insuranceExpirationDate || overlay.insuranceExpirationDate || overlay.insuranceExpiration,
+    lastUpdated: candidate.lastUpdated || overlay.lastUpdated || overlay.sourceLastSeenAt,
+    raw: candidate.raw || overlay.raw,
+    matchMeta: candidate.matchMeta
+  };
+}
+
+function resolveNameSearchCandidates(candidates = [], { state = "", city = "" } = {}) {
+  const ranked = [...candidates]
+    .map((candidate) => ({
+      ...candidate,
+      nameSearchScore: scoreNameSearchCandidate(candidate)
+    }))
+    .sort((left, right) => right.nameSearchScore - left.nameSearchScore);
+
+  if (!ranked.length) {
+    return { multipleMatches: false, selected: null, candidates: [] };
+  }
+
+  const preferredState = clean(state).toUpperCase();
+  const preferredCity = clean(city).toUpperCase();
+  const narrowByLocation = (pool = []) => {
+    let narrowed = pool;
+    if (preferredState) {
+      const stateMatches = narrowed.filter((candidate) => candidateState(candidate) === preferredState);
+      if (stateMatches.length > 0) narrowed = stateMatches;
+    }
+    if (preferredCity) {
+      const cityMatches = narrowed.filter((candidate) => candidateCity(candidate) === preferredCity);
+      if (cityMatches.length > 0) narrowed = cityMatches;
+    }
+    return narrowed;
+  };
+
+  const exactMatches = ranked.filter((candidate) => {
+    const matchMeta = candidate.matchMeta || {};
+    return Boolean(matchMeta.exactLegalMatch || matchMeta.exactDbaMatch);
+  });
+  const narrowedExactMatches = narrowByLocation(exactMatches);
+
+  if (narrowedExactMatches.length > 1) {
+    return {
+      multipleMatches: true,
+      selected: null,
+      candidates: narrowedExactMatches.slice(0, 5)
+    };
+  }
+
+  if (narrowedExactMatches.length === 1) {
+    return {
+      multipleMatches: false,
+      selected: narrowedExactMatches[0],
+      candidates: narrowedExactMatches
+    };
+  }
+
+  const strongMatches = ranked.filter((candidate) => {
+    const matchMeta = candidate.matchMeta || {};
+    return Boolean(
+      matchMeta.fullTokenCoverage ||
+      matchMeta.legalStartsWith ||
+      matchMeta.dbaStartsWith ||
+      matchMeta.legalContains ||
+      matchMeta.dbaContains
+    );
+  });
+  const narrowedStrongMatches = narrowByLocation(strongMatches.length ? strongMatches : ranked);
+  const [topCandidate, secondCandidate] = narrowedStrongMatches;
+
+  if (!topCandidate) {
+    return { multipleMatches: false, selected: null, candidates: [] };
+  }
+
+  if (secondCandidate) {
+    const scoreGap = Number(topCandidate.nameSearchScore || 0) - Number(secondCandidate.nameSearchScore || 0);
+    if (scoreGap < 3500) {
+      return {
+        multipleMatches: true,
+        selected: null,
+        candidates: narrowedStrongMatches.slice(0, 5)
+      };
+    }
+  }
+
+  return {
+    multipleMatches: false,
+    selected: topCandidate,
+    candidates: [topCandidate]
+  };
+}
+
+async function resolveLiveNameSearch({ name, state = "", city = "", limit = 5 } = {}) {
+  const liveCandidates = await searchCarrierCandidatesByName({
+    name,
+    state,
+    city,
+    limit: Math.max(Number(limit) || 5, 5)
+  });
+
+  if (!liveCandidates.length) {
+    throw new Error("Carrier not found in FMCSA data sources");
+  }
+
+  const hydratedCandidates = await Promise.all(
+    liveCandidates.slice(0, Math.max(Number(limit) || 5, 5)).map((candidate) => hydrateNameSearchCandidate(candidate))
+  );
+
+  return resolveNameSearchCandidates(hydratedCandidates, { state, city });
+}
+
 export async function searchCarrierIntelligence(req, res) {
   const searchInput = parseCarrierSearchInput(req.query);
   const { dot, mc, name, queryText, preferLiveLookup } = searchInput;
   const query = queryText;
   const state = clean(req.query.state);
+  const city = clean(req.query.city);
   const leadType = clean(req.query.leadType);
   const trialAccess = trialAccessForRequest(req, res);
   const defaultLimit = trialAccess.active ? 25 : 6;
@@ -912,12 +1090,50 @@ export async function searchCarrierIntelligence(req, res) {
   try {
     if (preferLiveLookup && (dot || mc || name)) {
       try {
+        if (!dot && !mc && name) {
+          const nameResolution = await resolveLiveNameSearch({ name, state, city, limit });
+          if (nameResolution.multipleMatches) {
+            const results = finalizeResults(nameResolution.candidates.map(mapSearchResult));
+            return res.json({
+              total: results.length,
+              query,
+              state,
+              city,
+              leadType,
+              source: "live",
+              multipleMatches: true,
+              selectionRequired: true,
+              results,
+              trialAccess,
+              message: responseMessage("Multiple FMCSA carriers matched that name. Select the correct carrier to continue.")
+            });
+          }
+
+          const selectedDot = normalizeDot(nameResolution.selected?.dotNumber || nameResolution.selected?.dot);
+          const liveCarrier = selectedDot
+            ? await fetchAndCacheLiveCarrier({ dot: selectedDot })
+            : nameResolution.selected;
+          const results = finalizeResults([mapSearchResult(liveCarrier)]);
+          return res.json({
+            total: results.length,
+            query,
+            state,
+            city,
+            leadType,
+            source: "live",
+            results,
+            trialAccess,
+            message: responseMessage()
+          });
+        }
+
         const liveCarrier = await fetchAndCacheLiveCarrier({ dot, mc, name });
         const results = finalizeResults([mapSearchResult(liveCarrier)]);
         return res.json({
           total: results.length,
           query,
           state,
+          city,
           leadType,
           source: "live",
           results,
@@ -933,6 +1149,7 @@ export async function searchCarrierIntelligence(req, res) {
             total: results.length,
             query,
             state,
+            city,
             leadType,
             source: "cached-fallback",
             results,
@@ -949,6 +1166,7 @@ export async function searchCarrierIntelligence(req, res) {
               total: results.length,
               query,
               state,
+              city,
               leadType,
               source: "postgres-fallback",
               results,
@@ -971,6 +1189,7 @@ export async function searchCarrierIntelligence(req, res) {
         total: results.length,
         query,
         state,
+        city,
         leadType,
         source: "cached",
         results,
@@ -984,6 +1203,7 @@ export async function searchCarrierIntelligence(req, res) {
         total: 0,
         query,
         state,
+        city,
         leadType,
         source: "cached",
         results: [],
@@ -998,6 +1218,7 @@ export async function searchCarrierIntelligence(req, res) {
         total: 1,
         query,
         state,
+        city,
         leadType,
         source: "live",
         results,
@@ -1013,6 +1234,7 @@ export async function searchCarrierIntelligence(req, res) {
             total: 1,
             query,
             state,
+            city,
             leadType,
             source: "postgres-fallback",
             results,
@@ -1030,6 +1252,7 @@ export async function searchCarrierIntelligence(req, res) {
       error: LIVE_FMCSA_FALLBACK_MESSAGE,
       query,
       state,
+      city,
       leadType,
       results: [],
       trialAccess

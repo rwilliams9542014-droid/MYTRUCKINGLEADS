@@ -150,6 +150,17 @@ function normalizeCarrierResult(carrier = {}) {
   };
 }
 
+function normalizeCarrierMatchResponse(data = {}) {
+  return {
+    multipleMatches: true,
+    selectionRequired: Boolean(data.selectionRequired),
+    query: String(data.query || "").trim(),
+    source: String(data.source || "").trim(),
+    message: String(data.message || "").trim(),
+    results: Array.isArray(data.results) ? data.results.map(normalizeCarrierResult) : []
+  };
+}
+
 export async function searchCarrier(dot, mc, name) {
   if (!dot && !mc && !name) {
     throw new APIError("DOT, MC, or carrier name required", 400);
@@ -160,10 +171,11 @@ export async function searchCarrier(dot, mc, name) {
     : await apiCall(
       mc
         ? `/carriers/search?mc=${encodeURIComponent(mc)}&limit=1`
-        : `/carriers/search?name=${encodeURIComponent(name)}&limit=1`,
+        : `/carriers/search?name=${encodeURIComponent(name)}&limit=5`,
       { timeout: 75000 }
     );
 
+  if (data.multipleMatches) return normalizeCarrierMatchResponse(data);
   if (data.carrier) return normalizeCarrierResult(data.carrier);
   if (Array.isArray(data.results) && data.results.length > 0) return normalizeCarrierResult(data.results[0]);
   if (Array.isArray(data) && data.length > 0) return normalizeCarrierResult(data[0]);

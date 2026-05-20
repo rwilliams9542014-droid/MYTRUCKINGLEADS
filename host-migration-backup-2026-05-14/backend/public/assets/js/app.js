@@ -16,6 +16,7 @@ const state = {
   prospectLeads: [],
   newVentureLeads: [],
   selectedCarrier: null,
+  carrierCandidateMatches: [],
   activeLeadIndex: null,
   isLoading: false,
   error: null,
@@ -279,6 +280,7 @@ async function searchCarrier(query, options = {}) {
 
   const searchBtn = document.querySelector('#searchForm [type="submit"]');
   const lookupToken = ++state.carrierLookupToken;
+  state.carrierCandidateMatches = [];
   renderCarrierLookupLoading(query);
   showLoading(searchBtn);
   if (searchBtn) {
@@ -293,8 +295,17 @@ async function searchCarrier(query, options = {}) {
     const mcNumber = mcMatch?.[1] || null;
     const carrierName = !dotNumber && !mcNumber ? trimmedQuery : null;
 
-    const carrier = applyCarrierWorkflowContext(await API.searchCarrier(dotNumber, mcNumber, carrierName));
+    const carrierSearchResult = await API.searchCarrier(dotNumber, mcNumber, carrierName);
     if (lookupToken !== state.carrierLookupToken) return;
+
+    if (carrierSearchResult?.multipleMatches) {
+      state.selectedCarrier = null;
+      state.carrierCandidateMatches = carrierSearchResult.results || [];
+      renderCarrierMatchSelection(carrierSearchResult, trimmedQuery);
+      return;
+    }
+
+    const carrier = applyCarrierWorkflowContext(carrierSearchResult);
     state.selectedCarrier = carrier;
     const shouldHydrate = needsCarrierProfileHydration(carrier);
     renderCarrierDetails(carrier, { hydrating: shouldHydrate });
@@ -315,6 +326,7 @@ function renderCarrierLookupLoading(query) {
   if (!container) return;
 
   if (saveBtn) saveBtn.disabled = true;
+  state.carrierCandidateMatches = [];
   renderContactInfo(null);
   renderCarrierAnalytics(null);
   renderCarrierIntelligence(null);
@@ -328,6 +340,79 @@ function renderCarrierLookupLoading(query) {
       </div>
     </div>
   `;
+}
+
+function selectCarrierCandidateMatch(index) {
+  const candidate = state.carrierCandidateMatches[index];
+  if (!candidate) return;
+
+  const lookupToken = ++state.carrierLookupToken;
+  state.carrierCandidateMatches = [];
+  state.selectedCarrier = applyCarrierWorkflowContext(candidate);
+
+  const shouldHydrate = needsCarrierProfileHydration(state.selectedCarrier);
+  renderCarrierDetails(state.selectedCarrier, { hydrating: shouldHydrate });
+
+  if (shouldHydrate) {
+    hydrateCarrierProfile(state.selectedCarrier, lookupToken);
+  }
+}
+
+function renderCarrierMatchSelection(matchResponse = {}, query = "") {
+  const container = document.getElementById("carrierDetails");
+  const saveBtn = document.getElementById("saveLeadBtn");
+  if (!container) return;
+
+  if (saveBtn) saveBtn.disabled = true;
+  renderContactInfo(null);
+  renderCarrierAnalytics(null);
+  renderCarrierIntelligence(null);
+
+  const matches = Array.isArray(matchResponse.results) ? matchResponse.results : [];
+  if (!matches.length) {
+    container.innerHTML = renderCarrierDetailMessage("Multiple matches were reported, but no carrier candidates were returned. Try a DOT or MC number instead.", "warn");
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="carrier-profile-stack analytics-profile-shell">
+      <div class="profile-card">
+        <h3>Select The Correct Carrier</h3>
+        <p class="mb-2">More than one FMCSA carrier matched <strong>${escapeHtml(query || matchResponse.query || "that name")}</strong>. Choose the right record before opening the full profile.</p>
+        ${matchResponse.message ? renderCarrierDetailMessage(matchResponse.message, "warn") : ""}
+        <div class="list-group">
+          ${matches.map((carrier, index) => {
+            const location = [carrier.city, carrier.state].filter(Boolean).join(", ") || "Location not available";
+            const authorityStatus = carrier.authorityStatus || "Not available";
+            const operatingStatus = carrier.operatingStatus || authorityStatus || "Not available";
+            return `
+              <button type="button" class="list-group-item list-group-item-action text-start" data-carrier-match-index="${index}">
+                <div class="d-flex w-100 justify-content-between align-items-start gap-3">
+                  <div>
+                    <div class="fw-semibold">${escapeHtml(carrier.carrierName || carrier.legalName || "Unknown Carrier")}</div>
+                    <div class="small text-muted">DOT ${escapeHtml(carrier.dot || carrier.dotNumber || "Not available")}${carrier.mc ? ` - MC ${escapeHtml(carrier.mc)}` : ""}</div>
+                    <div class="small text-muted">${escapeHtml(location)}</div>
+                    ${carrier.dbaName ? `<div class="small text-muted">DBA ${escapeHtml(carrier.dbaName)}</div>` : ""}
+                  </div>
+                  <div class="text-end small">
+                    <div><strong>${escapeHtml(operatingStatus)}</strong></div>
+                    <div class="text-muted">${escapeHtml(authorityStatus)}</div>
+                  </div>
+                </div>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.querySelectorAll("[data-carrier-match-index]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.getAttribute("data-carrier-match-index"));
+      if (Number.isFinite(index)) selectCarrierCandidateMatch(index);
+    });
+  });
 }
 
 function isMeaningfulValue(value) {

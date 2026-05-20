@@ -146,6 +146,136 @@ function numberValue(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeNameForMatch(value) {
+  return valueOrEmpty(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeName(value) {
+  return normalizeNameForMatch(value).split(" ").filter(Boolean);
+}
+
+function docketFromRow(row = {}) {
+  const docket =
+    valueOrEmpty(row.docket1) ||
+    valueOrEmpty(row.docket2) ||
+    valueOrEmpty(row.docket3);
+  const docketPrefix =
+    valueOrEmpty(row.docket1prefix) ||
+    valueOrEmpty(row.docket2prefix) ||
+    valueOrEmpty(row.docket3prefix);
+  return docket ? `${docketPrefix}${docket}` : "";
+}
+
+function censusAuthoritySignal(row = {}) {
+  const values = [
+    row.common_authority_status,
+    row.contract_authority_status,
+    row.broker_authority_status,
+    row.common_authority_pending,
+    row.contract_authority_pending,
+    row.broker_authority_pending
+  ].map(value => valueOrEmpty(value).toUpperCase()).filter(Boolean);
+
+  if (values.some(value => ["A", "ACTIVE", "GRANTED", "Y", "YES"].includes(value))) return 250;
+  if (values.some(value => ["P", "PENDING"].includes(value))) return 120;
+  if (values.some(value => ["N", "NO", "I", "INACTIVE", "REVOKED"].includes(value))) return -60;
+  return 0;
+}
+
+function censusInsuranceSignal(row = {}) {
+  const values = [
+    row.bipd_required,
+    row.cargo_required,
+    row.bond_required,
+    row.ins_form_code
+  ].map(value => valueOrEmpty(value).toUpperCase()).filter(Boolean);
+
+  if (values.some(value => ["Y", "YES", "ACTIVE", "ON FILE", "CURRENT"].includes(value))) return 120;
+  if (values.some(value => ["N", "NO", "CANCELLED", "EXPIRED", "INACTIVE"].includes(value))) return -40;
+  return 0;
+}
+
+function censusOperatingSignal(row = {}) {
+  const operation = valueOrEmpty(row.carrier_operation).toUpperCase();
+  if (operation === "A") return 220;
+  if (operation === "C") return 140;
+  if (operation === "B") return 100;
+  return operation ? 40 : 0;
+}
+
+function scoreCensusNameCandidate(row = {}, {
+  name = "",
+  state = "",
+  city = "",
+  mc = ""
+} = {}) {
+  const queryName = normalizeNameForMatch(name);
+  const legalName = normalizeNameForMatch(row.legal_name);
+  const dbaName = normalizeNameForMatch(row.dba_name);
+  const queryTokens = tokenizeName(name);
+  const legalTokens = new Set(tokenizeName(row.legal_name));
+  const dbaTokens = new Set(tokenizeName(row.dba_name));
+  const docket = valueOrEmpty(docketFromRow(row)).replace(/\s+/g, "");
+  const preferredMc = valueOrEmpty(mc).replace(/\s+/g, "").toUpperCase();
+  const rowState = valueOrEmpty(row.phy_state).toUpperCase();
+  const rowCity = valueOrEmpty(row.phy_city).toUpperCase();
+  const preferredState = valueOrEmpty(state).toUpperCase();
+  const preferredCity = valueOrEmpty(city).toUpperCase();
+
+  const exactLegalMatch = Boolean(queryName && legalName === queryName);
+  const exactDbaMatch = Boolean(queryName && dbaName === queryName);
+  const legalStartsWith = Boolean(queryName && !exactLegalMatch && legalName.startsWith(queryName));
+  const dbaStartsWith = Boolean(queryName && !exactDbaMatch && dbaName.startsWith(queryName));
+  const legalContains = Boolean(queryName && !exactLegalMatch && legalName.includes(queryName));
+  const dbaContains = Boolean(queryName && !exactDbaMatch && dbaName.includes(queryName));
+  const matchedTokenCount = queryTokens.reduce((count, token) => {
+    if (legalTokens.has(token) || dbaTokens.has(token)) return count + 1;
+    return count;
+  }, 0);
+  const fullTokenCoverage = Boolean(queryTokens.length && matchedTokenCount === queryTokens.length);
+  const mcMatch = Boolean(preferredMc && docket.toUpperCase() === preferredMc);
+  const stateMatch = Boolean(preferredState && rowState === preferredState);
+  const cityMatch = Boolean(preferredCity && rowCity === preferredCity);
+
+  let score = censusRowRankScore(row);
+  if (exactLegalMatch) score += 150000;
+  if (exactDbaMatch) score += 135000;
+  if (legalStartsWith) score += 40000;
+  if (dbaStartsWith) score += 32000;
+  if (legalContains) score += 18000;
+  if (dbaContains) score += 14000;
+  if (matchedTokenCount > 0) score += matchedTokenCount * 1500;
+  if (fullTokenCoverage) score += 6000;
+  if (mcMatch) score += 45000;
+  if (stateMatch) score += 4000;
+  if (cityMatch) score += 2500;
+  score += censusOperatingSignal(row);
+  score += censusAuthoritySignal(row);
+  score += censusInsuranceSignal(row);
+
+  return {
+    score,
+    exactLegalMatch,
+    exactDbaMatch,
+    legalStartsWith,
+    dbaStartsWith,
+    legalContains,
+    dbaContains,
+    fullTokenCoverage,
+    matchedTokenCount,
+    mcMatch,
+    stateMatch,
+    cityMatch,
+    docket,
+    city: rowCity,
+    state: rowState
+  };
+}
+
 function censusRowRankScore(row = {}) {
   const statusWeight = censusRowStatusWeight(row) * 1000000;
   const mcs150Score = compactDateToEpochDays(row.mcs150_date);
@@ -207,14 +337,14 @@ async function fetchCensusCarrierByName(name) {
   );
 }
 
-async function fetchCensusCarrierByExactName(name) {
-  if (!name) return null;
+async function fetchCensusCarrierRowsByExactName(name) {
+  if (!name) return [];
 
   const escapedName = escapeSocrataString(name);
-  if (!escapedName) return null;
+  if (!escapedName) return [];
 
   return withFmcsaCache(
-    { source: "fmcsa-census-name-exact-v2", identifier: escapedName },
+    { source: "fmcsa-census-name-exact-rows-v1", identifier: escapedName },
     async () => {
       const response = await axios.get(FMCSA_CENSUS_URL, {
         params: {
@@ -227,19 +357,24 @@ async function fetchCensusCarrierByExactName(name) {
         timeout: 30000
       });
 
-      return mapCensusCarrier(selectBestCensusCarrierRow(response.data));
+      return Array.isArray(response.data) ? response.data : [];
     }
   );
 }
 
-async function fetchCensusCarrierByPartialName(name) {
-  if (!name) return null;
+async function fetchCensusCarrierByExactName(name) {
+  const rows = await fetchCensusCarrierRowsByExactName(name);
+  return mapCensusCarrier(selectBestCensusCarrierRow(rows));
+}
+
+async function fetchCensusCarrierRowsByPartialName(name) {
+  if (!name) return [];
 
   const escapedName = escapeSocrataString(name);
-  if (!escapedName) return null;
+  if (!escapedName) return [];
 
   return withFmcsaCache(
-    { source: "fmcsa-census-name-like-v2", identifier: escapedName },
+    { source: "fmcsa-census-name-like-rows-v1", identifier: escapedName },
     async () => {
       const response = await axios.get(FMCSA_CENSUS_URL, {
         params: {
@@ -252,9 +387,14 @@ async function fetchCensusCarrierByPartialName(name) {
         timeout: 30000
       });
 
-      return mapCensusCarrier(selectBestCensusCarrierRow(response.data));
+      return Array.isArray(response.data) ? response.data : [];
     }
   );
+}
+
+async function fetchCensusCarrierByPartialName(name) {
+  const rows = await fetchCensusCarrierRowsByPartialName(name);
+  return mapCensusCarrier(selectBestCensusCarrierRow(rows));
 }
 
 async function fetchCensusCarrierByMc(mc) {
@@ -575,6 +715,43 @@ function mergeCarrierData(apiCarrier, censusCarrier, smsSafety, saferData) {
   };
 }
 
+function dedupeCensusRows(rows = []) {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const dot = valueOrEmpty(row?.dot_number);
+    if (!dot || seen.has(dot)) return false;
+    seen.add(dot);
+    return true;
+  });
+}
+
+function mapNameSearchCandidate(row = {}, matchMeta = {}) {
+  const carrier = mapCensusCarrier(row);
+  if (!carrier) return null;
+
+  return {
+    ...carrier,
+    legalName: valueOrEmpty(row.legal_name || carrier.carrierName || row.dba_name || "Unknown"),
+    dbaName: valueOrEmpty(row.dba_name),
+    authorityStatus: mapStatusCode(row.status_code),
+    operatingStatus: mapStatusCode(row.status_code),
+    carrierOperation: valueOrEmpty(row.carrier_operation),
+    address: {
+      street: valueOrEmpty(row.phy_street),
+      city: valueOrEmpty(row.phy_city),
+      state: valueOrEmpty(row.phy_state),
+      zip: valueOrEmpty(row.phy_zip),
+      raw: carrier.address
+    },
+    raw: {
+      census: row
+    },
+    sourceType: "live",
+    lastUpdated: valueOrEmpty(row.mcs150_date || row.add_date),
+    matchMeta
+  };
+}
+
 async function fetchQcMobileCarrier({ dot, mc }) {
   if (!FMCSA_WEBKEY) return null;
 
@@ -824,6 +1001,50 @@ export async function getCarrierData({ dot, mc, name } = {}) {
       legacySystems: ["SAFER", "SMS", "QCMobile"]
     }
   };
+}
+
+export async function searchCarrierCandidatesByName({
+  name,
+  state = "",
+  city = "",
+  mc = "",
+  limit = 5
+} = {}) {
+  if (!name) throw new Error("carrier name required");
+
+  const exactRows = await fetchCensusCarrierRowsByExactName(name).catch(err => {
+    logProviderFailure("FMCSA Company Census exact-name lookup", err);
+    return [];
+  });
+
+  let candidateRows = exactRows;
+  if (candidateRows.length < Math.max(Number(limit) || 5, 5)) {
+    const partialRows = await fetchCensusCarrierRowsByPartialName(name).catch(err => {
+      logProviderFailure("FMCSA Company Census partial-name lookup", err);
+      return [];
+    });
+    candidateRows = dedupeCensusRows([...candidateRows, ...partialRows]);
+  }
+
+  if (candidateRows.length === 0) {
+    const fallback = await runFmcsaProvider("censusName", { name }).catch(err => {
+      logProviderFailure("FMCSA Company Census fuzzy-name lookup", err);
+      return null;
+    });
+    if (!fallback) return [];
+    return [fallback];
+  }
+
+  return candidateRows
+    .map((row) => {
+      const matchMeta = scoreCensusNameCandidate(row, { name, state, city, mc });
+      const carrier = mapNameSearchCandidate(row, matchMeta);
+      return carrier ? { carrier, score: matchMeta.score } : null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, Math.max(Number(limit) || 5, 5))
+    .map((entry) => entry.carrier);
 }
 
 export async function fetchCarrierByDotOrMc({ dot, mc, name }) {
