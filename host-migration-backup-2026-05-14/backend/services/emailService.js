@@ -45,6 +45,45 @@ function parsePositiveInt(value, fallback) {
 function initializeTransporter() {
   if (transporter) return transporter;
 
+  const provider = getEmailProvider();
+  if (provider === "resend") {
+    const resendFrom = getSenderAddress("resend");
+    if (!resendFrom) {
+      console.warn("Email service is configured for Resend, but no sender address is set.");
+      console.warn("Set RESEND_FROM_EMAIL or EMAIL_FROM to enable email delivery.");
+      return null;
+    }
+
+    transporter = {
+      async sendMail({ to, subject, html, text, replyTo = null, headers = null }) {
+        const result = await sendViaResend({
+          from: resendFrom,
+          to,
+          subject,
+          html,
+          text,
+          replyTo,
+          headers
+        });
+
+        if (!result.success) {
+          throw new Error(result.message || "Resend email failed");
+        }
+
+        return {
+          messageId: result.messageId || null,
+          response: result.message || "Resend email queued"
+        };
+      },
+      async verify() {
+        return true;
+      }
+    };
+
+    console.log("Email service ready via Resend");
+    return transporter;
+  }
+
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = process.env.SMTP_PORT;
   const smtpUser = process.env.SMTP_USER;
@@ -94,6 +133,172 @@ function initializeTransporter() {
     console.error("❌ Failed to initialize email transporter:", err.message);
     return null;
   }
+}
+
+function hasResendConfig() {
+  return Boolean(String(process.env.RESEND_API_KEY || "").trim());
+}
+
+function hasSmtpConfig() {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+function getEmailProvider() {
+  const preferred = String(process.env.EMAIL_PROVIDER || "auto").trim().toLowerCase();
+
+  if (preferred === "resend") {
+    return hasResendConfig() ? "resend" : null;
+  }
+
+  if (preferred === "smtp") {
+    return hasSmtpConfig() ? "smtp" : null;
+  }
+
+  if (hasResendConfig()) return "resend";
+  if (hasSmtpConfig()) return "smtp";
+  return null;
+}
+
+function formatFromAddress(email, name = "") {
+  const normalizedEmail = String(email || "").trim();
+  if (!normalizedEmail) return "";
+  if (normalizedEmail.includes("<") && normalizedEmail.includes(">")) return normalizedEmail;
+
+  const normalizedName = String(name || "").trim();
+  return normalizedName ? `${normalizedName} <${normalizedEmail}>` : normalizedEmail;
+}
+
+function getSenderAddress(provider) {
+  if (provider === "resend") {
+    const fromEmail = String(process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "").trim();
+    const fromName = String(process.env.RESEND_FROM_NAME || process.env.APP_NAME || "MyTruckingLeads").trim();
+    return formatFromAddress(fromEmail, fromName);
+  }
+
+  const fromEmail = String(process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_FROM || "").trim();
+  const fromName = String(process.env.SMTP_FROM_NAME || process.env.APP_NAME || "").trim();
+  return formatFromAddress(fromEmail, fromName);
+}
+
+function parseProviderResponse(rawText) {
+  if (!rawText) return null;
+
+  try {
+    return JSON.parse(rawText);
+  } catch (err) {
+    return { message: rawText };
+  }
+}
+
+async function sendViaResend({ from, to, subject, html, text, replyTo = null, headers = null }) {
+  const apiKey = String(process.env.RESEND_API_KEY || "").trim();
+  if (!apiKey) {
+    return { success: false, message: "Resend API key is not configured" };
+  }
+
+  const payload = {
+    from,
+    to: Array.isArray(to) ? to : [to],
+    subject,
+    html,
+    text
+  };
+
+  if (replyTo) {
+    payload.reply_to = Array.isArray(replyTo) ? replyTo : [replyTo];
+  }
+
+  if (headers && Object.keys(headers).length) {
+    payload.headers = headers;
+  }
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const rawText = await response.text();
+    const data = parseProviderResponse(rawText);
+    const errorMessage = data?.error?.message || data?.message || rawText || `HTTP ${response.status}`;
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: `Resend error: ${errorMessage}`
+      };
+    }
+
+    return {
+      success: true,
+      provider: "resend",
+      messageId: data?.id || null,
+      message: data?.id ? `Resend email queued (${data.id})` : "Resend email queued"
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: `Error: ${err.message}`
+    };
+  }
+}
+
+async function sendViaSmtp({ from, to, subject, html, text, replyTo = null, headers = null }) {
+  const transport = initializeTransporter();
+  if (!transport) {
+    return { success: false, message: "Email service not configured" };
+  }
+
+  try {
+    const result = await transport.sendMail({
+      from,
+      to,
+      subject,
+      html,
+      text,
+      ...(replyTo ? { replyTo } : {}),
+      ...(headers && Object.keys(headers).length ? { headers } : {})
+    });
+
+    return {
+      success: true,
+      provider: "smtp",
+      messageId: result.messageId || null,
+      message: result.messageId ? `SMTP email sent (${result.messageId})` : "SMTP email sent"
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: `Error: ${err.message}`
+    };
+  }
+}
+
+async function sendEmailMessage({ to, subject, html, text, replyTo = null, headers = null }) {
+  const provider = getEmailProvider();
+  if (!provider) {
+    return { success: false, message: "Email service not configured" };
+  }
+
+  const from = getSenderAddress(provider);
+  if (!from) {
+    return {
+      success: false,
+      message: provider === "resend"
+        ? "Resend is configured, but RESEND_FROM_EMAIL is missing"
+        : "Email service is configured, but no sender address is set"
+    };
+  }
+
+  if (provider === "resend") {
+    return sendViaResend({ from, to, subject, html, text, replyTo, headers });
+  }
+
+  return sendViaSmtp({ from, to, subject, html, text, replyTo, headers });
 }
 
 // HTML Email Templates

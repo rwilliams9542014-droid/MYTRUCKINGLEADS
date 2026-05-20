@@ -18,6 +18,9 @@ function createResponse() {
 
 async function testMissingEmailConfigReturns503() {
   const originalEnv = {
+    EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,
     SMTP_USER: process.env.SMTP_USER,
@@ -25,6 +28,9 @@ async function testMissingEmailConfigReturns503() {
     CONTACT_REQUEST_TO: process.env.CONTACT_REQUEST_TO
   };
 
+  delete process.env.EMAIL_PROVIDER;
+  delete process.env.RESEND_API_KEY;
+  delete process.env.RESEND_FROM_EMAIL;
   delete process.env.SMTP_HOST;
   delete process.env.SMTP_PORT;
   delete process.env.SMTP_USER;
