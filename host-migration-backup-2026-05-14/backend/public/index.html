@@ -2545,14 +2545,21 @@
       return `<div class="profile-summary-grid">${items.map((item) => stat(item[0], item[1])).join("")}</div>`;
     }
 
+    const MOTUS_PORTAL_URL = "https://motus.dot.gov/";
+    const FMCSA_TRANSITION_NOTICE = "FMCSA is transitioning registration services to Motus. Some legacy SAFER registration functions may move to Motus over time.";
+
     function officialLinksHtml(links = {}) {
       const linkItems = [
-        ["FMCSA Carrier Profile", links.safer],
+        ["SAFER Snapshot (Legacy)", links.safer],
         ["Licensing & Insurance", links.licensingInsurance],
-        ["SMS Safety Data", links.sms]
+        ["SMS Safety Data", links.sms],
+        ["Motus Registration Portal", links.motus || MOTUS_PORTAL_URL]
       ].filter((item) => item[1]);
       if (!linkItems.length) return "";
-      return `<div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`;
+      return `
+        <div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>
+        <p class="muted-note">${escapeHtml(links.notice || FMCSA_TRANSITION_NOTICE)}</p>
+      `;
     }
 
     function contactLockMessage(carrier = {}) {
@@ -2668,7 +2675,7 @@
         carrierEls.results.innerHTML = data.results.map(carrierCard).join("");
         setCarrierStatus(`Found ${data.results.length} carrier profile${data.results.length === 1 ? "" : "s"}.`, "good");
       } catch (err) {
-        carrierEls.results.innerHTML = `<div class="empty-state">Live data is temporarily unavailable. Showing most recent cached record when available.</div>`;
+        carrierEls.results.innerHTML = `<div class="empty-state">Live FMCSA data is temporarily unavailable. Showing saved carrier data where available.</div>`;
         setCarrierStatus(err.message || "Carrier search failed.", "bad");
       }
     }
@@ -2867,7 +2874,7 @@
       } catch (err) {
         carrierEls.loading.hidden = true;
         carrierEls.body.hidden = true;
-        carrierEls.alert.textContent = err.message || "Live data is temporarily unavailable. Showing most recent cached record when available.";
+        carrierEls.alert.textContent = err.message || "Live FMCSA data is temporarily unavailable. Showing saved carrier data where available.";
         carrierEls.alert.classList.add("show");
         carrierEls.subtitle.textContent = "Carrier intelligence unavailable";
       }

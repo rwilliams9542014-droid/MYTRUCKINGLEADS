@@ -418,7 +418,6 @@ function hasFullCarrierProfile(carrier = {}) {
     carrier.physicalAddress ||
     carrier.safety ||
     carrier.licensingInsurance ||
-    carrier.officialLinks ||
     (Array.isArray(carrier.cargoCarried) && carrier.cargoCarried.length) ||
     carrier.companyOfficer1
   );
@@ -462,16 +461,24 @@ function renderProfileSummary(items = []) {
   return `<div class="profile-summary-grid">${items.map((item) => renderProfileStat(item[0], item[1])).join("")}</div>`;
 }
 
+const MOTUS_PORTAL_URL = "https://motus.dot.gov/";
+const FMCSA_TRANSITION_NOTICE = "FMCSA is transitioning registration services to Motus. Some legacy SAFER registration functions may move to Motus over time.";
+
 function renderOfficialLinksCard(links = {}) {
   const linkItems = [
-    ["FMCSA Carrier Profile", links.safer],
+    ["SAFER Snapshot (Legacy)", links.safer],
     ["Licensing & Insurance", links.licensingInsurance],
-    ["SMS Safety Data", links.sms]
+    ["SMS Safety Data", links.sms],
+    ["Motus Registration Portal", links.motus || MOTUS_PORTAL_URL]
   ].filter((item) => item[1]);
+  const notice = links.notice || FMCSA_TRANSITION_NOTICE;
 
   if (!linkItems.length) return `<p class="muted-note mb-0">Official source links are not available for this carrier yet.</p>`;
 
-  return `<div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeAttribute(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`;
+  return `
+    <div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeAttribute(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>
+    <p class="muted-note mb-0">${escapeHtml(notice)}</p>
+  `;
 }
 
 function renderInsuranceFilingsTable(filings = []) {
@@ -651,7 +658,9 @@ function normalizeCarrierProfile(carrier = {}) {
     officialLinks: carrier.officialLinks || (dot ? {
       safer: `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${encodeURIComponent(dot)}`,
       licensingInsurance: `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${encodeURIComponent(dot)}`,
-      ...(safety.smsProfileAvailable ? { sms: `https://ai.fmcsa.dot.gov/SMS/Carrier/${encodeURIComponent(dot)}/Overview.aspx?FirstView=True` } : {})
+      ...(safety.smsProfileAvailable ? { sms: `https://ai.fmcsa.dot.gov/SMS/Carrier/${encodeURIComponent(dot)}/Overview.aspx?FirstView=True` } : {}),
+      motus: MOTUS_PORTAL_URL,
+      notice: FMCSA_TRANSITION_NOTICE
     } : {}),
     dataSources: uniqueValues([
       ...normalizeListValue(carrier.dataSources),
@@ -741,7 +750,7 @@ function renderCarrierDetails(carrier, options = {}) {
       </div>
 
       ${options.hydrating ? renderCarrierDetailMessage("Loading the expanded carrier profile so cargo, safety, insurance, and contact detail can fill in.", "info") : ""}
-      ${profile.liveUnavailable || profile.message ? renderCarrierDetailMessage(profile.message || "Live FMCSA data is temporarily unavailable. Showing the most recent saved record.", "warn") : ""}
+      ${profile.liveUnavailable || profile.message ? renderCarrierDetailMessage(profile.message || "Live FMCSA data is temporarily unavailable. Showing saved carrier data where available.", "warn") : ""}
 
       <div class="company-overview-card">${escapeHtml(profile.companyOverview)}</div>
 
@@ -1562,10 +1571,13 @@ function renderCarrierSourceLinks(dot) {
 
   return `
     <a class="carrier-source-link" href="${saferUrl}" target="_blank" rel="noopener noreferrer">
-      <i class="bi bi-box-arrow-up-right"></i> View SAFER
+      <i class="bi bi-box-arrow-up-right"></i> View SAFER (Legacy)
     </a>
     <a class="carrier-source-link" href="${smsUrl}" target="_blank" rel="noopener noreferrer">
       <i class="bi bi-box-arrow-up-right"></i> View SMS
+    </a>
+    <a class="carrier-source-link" href="${MOTUS_PORTAL_URL}" target="_blank" rel="noopener noreferrer">
+      <i class="bi bi-box-arrow-up-right"></i> View Motus
     </a>
   `;
 }

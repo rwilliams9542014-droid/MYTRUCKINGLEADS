@@ -1,7 +1,11 @@
 import Carrier from "../models/Carrier.js";
 import { isMongoConnected } from "../config/mongo.js";
 import { query as dbQuery } from "../config/db.js";
-import { fetchCarrierByDotOrMc } from "../services/fmcsaService.js";
+import {
+  FMCSA_TRANSITION_NOTICE,
+  MOTUS_PORTAL_URL,
+  fetchCarrierByDotOrMc
+} from "../services/fmcsaService.js";
 import {
   enrichCarrierByDot,
   hasCargoData as hasEnrichedCargoData,
@@ -15,6 +19,7 @@ import {
 } from "../utils/trialAccess.js";
 
 const PUBLIC_CONTACT_LOCK_MESSAGE = "Create an account to reveal carrier phone and email.";
+const LIVE_FMCSA_FALLBACK_MESSAGE = "Live FMCSA data is temporarily unavailable. Showing saved carrier data where available.";
 
 function clean(value, fallback = "") {
   if (value === undefined || value === null) return fallback;
@@ -54,6 +59,44 @@ function normalizeDot(value) {
   if (!digits) return "";
   const normalized = String(Number(digits));
   return normalized === "0" ? "" : normalized;
+}
+
+function normalizeMc(value) {
+  return clean(value).toUpperCase().replace(/^(MC|MX|FF)\s*-?\s*/, "");
+}
+
+function escapeRegex(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseCarrierSearchInput(query = {}) {
+  const explicitDot = normalizeDot(query.dot);
+  const explicitMc = normalizeMc(query.mc);
+  const explicitName = clean(query.name);
+  const freeText = clean(query.query || query.q);
+  const requestedLimit = Number(query.limit);
+  const singleResultNameLookup = Boolean(freeText && !explicitName && !Number.isNaN(requestedLimit) && requestedLimit === 1);
+  const dotMatch = freeText.match(/^(?:DOT|USDOT)?\s*-?\s*(\d{1,8})$/i);
+  const mcMatch = freeText.match(/^(?:MC|MX|FF)\s*-?\s*([A-Z0-9-]{1,20})$/i);
+  const parsedDot = normalizeDot(dotMatch?.[1]);
+  const parsedMc = normalizeMc(mcMatch?.[1]);
+
+  const dot = explicitDot || parsedDot;
+  const mc = explicitMc || parsedMc;
+  const name = explicitName || (!dot && !mc ? freeText : "");
+  const queryText = clean(
+    explicitDot ? `DOT ${explicitDot}` :
+      explicitMc ? `MC ${explicitMc}` :
+        explicitName || freeText
+  );
+
+  return {
+    dot,
+    mc,
+    name,
+    queryText,
+    preferLiveLookup: Boolean(explicitDot || explicitMc || explicitName || parsedDot || parsedMc || singleResultNameLookup)
+  };
 }
 
 function hasContactFields(profile = {}) {
@@ -97,7 +140,9 @@ function officialLinks(dotNumber, { includeSms = false } = {}) {
   if (!dotNumber) return {};
   const links = {
     safer: `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dot}`,
-    licensingInsurance: `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${dot}`
+    licensingInsurance: `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${dot}`,
+    motus: MOTUS_PORTAL_URL,
+    notice: FMCSA_TRANSITION_NOTICE
   };
   if (includeSms) links.sms = `https://ai.fmcsa.dot.gov/SMS/Carrier/${dot}/Overview.aspx?FirstView=True`;
   return links;
@@ -502,7 +547,7 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     dataSources: sourceLabels(carrier, sourceType),
     sourceType,
     liveUnavailable,
-    message: message || (liveUnavailable ? "Live data is temporarily unavailable. Showing most recent cached record." : "")
+    message: message || (liveUnavailable ? LIVE_FMCSA_FALLBACK_MESSAGE : "")
   };
 }
 
@@ -510,8 +555,12 @@ function mapSearchResult(carrier = {}) {
   const profile = mapProfile(carrier);
   return {
     dotNumber: profile.dotNumber,
+    dot: profile.dotNumber,
     legalName: profile.legalName,
+    carrierName: profile.legalName,
     dbaName: profile.dbaName,
+    docketNumber: profile.docketNumber,
+    mc: profile.docketNumber,
     state: clean(carrier.address?.state || rawCensus(carrier).phy_state),
     city: clean(carrier.address?.city || rawCensus(carrier).phy_city),
     authorityStatus: profile.authorityStatus,
@@ -525,6 +574,10 @@ function mapSearchResult(carrier = {}) {
     mcs150Mileage: profile.mcs150Mileage || "",
     mcs150_mileage: profile.mcs150Mileage || "",
     phoneNumber: profile.phoneNumber,
+    officialLinks: profile.officialLinks,
+    sourceType: profile.sourceType,
+    liveUnavailable: profile.liveUnavailable,
+    message: profile.message,
     lastUpdated: profile.lastUpdated
   };
 }
@@ -651,9 +704,12 @@ function stateFilter(state) {
   };
 }
 
-async function searchCachedCarriers(query, limit, state) {
+async function searchCachedCarriers(criteria = {}, limit, state) {
   if (!isMongoConnected()) return [];
-  const value = clean(query);
+  const dot = normalizeDot(criteria.dot);
+  const mc = normalizeMc(criteria.mc);
+  const name = clean(criteria.name);
+  const value = clean(criteria.queryText || name || mc || dot);
   const stateClause = stateFilter(state);
   if (!value) {
     const filter = stateClause
@@ -665,19 +721,42 @@ async function searchCachedCarriers(query, limit, state) {
       .lean();
   }
 
-  const regex = new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-  const queryClause = {
-    $or: [
-      { dotNumber: value },
-      { legalName: regex },
-      { dbaName: regex },
-      { "address.city": regex },
-      { "address.state": value.toUpperCase() },
-      { "raw.census.legal_name": regex },
-      { "raw.census.dba_name": regex },
-      { "raw.census.phy_state": value.toUpperCase() }
-    ]
-  };
+  let queryClause = null;
+
+  if (dot) {
+    queryClause = {
+      $or: [
+        { dotNumber: dot },
+        { "raw.census.dot_number": dot }
+      ]
+    };
+  } else if (mc) {
+    const mcRegex = new RegExp(escapeRegex(mc), "i");
+    queryClause = {
+      $or: [
+        { docketNumber: mcRegex },
+        { "raw.census.docket1": mcRegex },
+        { "raw.census.docket2": mcRegex },
+        { "raw.census.docket3": mcRegex }
+      ]
+    };
+  } else {
+    const regex = new RegExp(escapeRegex(name || value), "i");
+    queryClause = {
+      $or: [
+        { dotNumber: value },
+        { docketNumber: regex },
+        { legalName: regex },
+        { dbaName: regex },
+        { "address.city": regex },
+        { "address.state": value.toUpperCase() },
+        { "raw.census.legal_name": regex },
+        { "raw.census.dba_name": regex },
+        { "raw.census.phy_state": value.toUpperCase() }
+      ]
+    };
+  }
+
   const filter = stateClause ? { $and: [queryClause, stateClause] } : queryClause;
   return Carrier.find(filter)
     .sort({ lastUpdated: -1, fleetSize: -1, legalName: 1 })
@@ -734,15 +813,39 @@ async function enrichSearchResults(carriers = [], limit = 3) {
   return hydrated;
 }
 
-async function fetchAndCacheLiveCarrier(dotNumberOrName) {
-  const value = clean(dotNumberOrName);
-  const isDot = /^\d+$/.test(value);
-  if (isDot) {
-    return enrichCarrierByDot(value);
+function normalizeLiveLookup(criteriaOrValue) {
+  if (criteriaOrValue && typeof criteriaOrValue === "object") {
+    const dot = normalizeDot(criteriaOrValue.dot);
+    const mc = normalizeMc(criteriaOrValue.mc);
+    const name = clean(criteriaOrValue.name || criteriaOrValue.query || criteriaOrValue.value);
+    return {
+      dot,
+      mc,
+      name: !dot && !mc ? name : ""
+    };
   }
 
-  const liveCarrier = await fetchCarrierByDotOrMc(isDot ? { dot: value } : { name: value });
-  const resolvedDot = clean(liveCarrier.dot || value);
+  const value = clean(criteriaOrValue);
+  const dot = /^\d+$/.test(value) ? normalizeDot(value) : "";
+  return {
+    dot,
+    mc: "",
+    name: dot ? "" : value
+  };
+}
+
+async function fetchAndCacheLiveCarrier(criteriaOrValue) {
+  const { dot, mc, name } = normalizeLiveLookup(criteriaOrValue);
+  if (!dot && !mc && !name) {
+    throw new Error("DOT, MC, or carrier name required");
+  }
+
+  if (dot) {
+    return enrichCarrierByDot(dot);
+  }
+
+  const liveCarrier = await fetchCarrierByDotOrMc({ dot, mc, name });
+  const resolvedDot = clean(liveCarrier.dot || dot);
   const searchCarrier = {
     ...liveCarrier,
     dotNumber: resolvedDot,
@@ -776,7 +879,9 @@ async function fetchAndCacheLiveCarrier(dotNumberOrName) {
 }
 
 export async function searchCarrierIntelligence(req, res) {
-  const query = clean(req.query.query || req.query.q || req.query.name);
+  const searchInput = parseCarrierSearchInput(req.query);
+  const { dot, mc, name, queryText, preferLiveLookup } = searchInput;
+  const query = queryText;
   const state = clean(req.query.state);
   const leadType = clean(req.query.leadType);
   const trialAccess = trialAccessForRequest(req, res);
@@ -787,15 +892,75 @@ export async function searchCarrierIntelligence(req, res) {
   const maskReason = !req.user ? PUBLIC_CONTACT_LOCK_MESSAGE : TRIAL_LIMIT_MESSAGE;
   const maskLabel = !req.user ? "Create an account to reveal" : "Upgrade to reveal";
 
+  function responseMessage(baseMessage = "") {
+    if (!trialAccess.active) return baseMessage || undefined;
+    const trialMessage = `Trial access shows up to ${trialAccess.limits.searchResults} carrier matches per search.`;
+    return [baseMessage, trialMessage].filter(Boolean).join(" ");
+  }
+
+  function finalizeResults(items = []) {
+    return items.map((result) => shouldMaskContacts
+      ? maskSearchResultContact(result, { reason: maskReason, label: maskLabel })
+      : result);
+  }
+
   try {
-    const cached = await searchCachedCarriers(query, limit, state);
+    if (preferLiveLookup && (dot || mc || name)) {
+      try {
+        const liveCarrier = await fetchAndCacheLiveCarrier({ dot, mc, name });
+        const results = finalizeResults([mapSearchResult(liveCarrier)]);
+        return res.json({
+          total: results.length,
+          query,
+          state,
+          leadType,
+          source: "live",
+          results,
+          trialAccess,
+          message: responseMessage()
+        });
+      } catch (liveErr) {
+        const cachedFallback = await searchCachedCarriers(searchInput, limit, state);
+        if (cachedFallback.length > 0) {
+          const hydratedCached = await enrichSearchResults(cachedFallback, Math.min(limit, 3));
+          const results = finalizeResults(hydratedCached.map(mapSearchResult));
+          return res.json({
+            total: results.length,
+            query,
+            state,
+            leadType,
+            source: "cached-fallback",
+            results,
+            trialAccess,
+            message: responseMessage(LIVE_FMCSA_FALLBACK_MESSAGE)
+          });
+        }
+
+        if (dot) {
+          const postgresCarrier = await findPostgresCarrier(dot);
+          if (postgresCarrier) {
+            const results = finalizeResults([mapSearchResult(postgresCarrier)]);
+            return res.json({
+              total: results.length,
+              query,
+              state,
+              leadType,
+              source: "postgres-fallback",
+              results,
+              trialAccess,
+              message: responseMessage(LIVE_FMCSA_FALLBACK_MESSAGE)
+            });
+          }
+        }
+
+        throw liveErr;
+      }
+    }
+
+    const cached = await searchCachedCarriers(searchInput, limit, state);
     if (cached.length > 0) {
       const hydratedCached = await enrichSearchResults(cached, /^\d+$/.test(query) ? 1 : Math.min(limit, 3));
-      const results = hydratedCached
-        .map(mapSearchResult)
-        .map((result) => shouldMaskContacts
-          ? maskSearchResultContact(result, { reason: maskReason, label: maskLabel })
-          : result);
+      const results = finalizeResults(hydratedCached.map(mapSearchResult));
 
       return res.json({
         total: results.length,
@@ -805,7 +970,7 @@ export async function searchCarrierIntelligence(req, res) {
         source: "cached",
         results,
         trialAccess,
-        message: trialAccess.active ? `Trial access shows up to ${trialAccess.limits.searchResults} carrier matches per search.` : undefined
+        message: responseMessage()
       });
     }
 
@@ -822,10 +987,8 @@ export async function searchCarrierIntelligence(req, res) {
     }
 
     try {
-      const liveCarrier = await fetchAndCacheLiveCarrier(query);
-      const results = [mapSearchResult(liveCarrier)].map((result) => shouldMaskContacts
-        ? maskSearchResultContact(result, { reason: maskReason, label: maskLabel })
-        : result);
+      const liveCarrier = await fetchAndCacheLiveCarrier({ dot, mc, name: name || query });
+      const results = finalizeResults([mapSearchResult(liveCarrier)]);
       return res.json({
         total: 1,
         query,
@@ -834,15 +997,13 @@ export async function searchCarrierIntelligence(req, res) {
         source: "live",
         results,
         trialAccess,
-        message: trialAccess.active ? `Trial access shows up to ${trialAccess.limits.searchResults} carrier matches per search.` : undefined
+        message: responseMessage()
       });
     } catch (liveErr) {
-      if (/^\d+$/.test(query)) {
-        const postgresCarrier = await findPostgresCarrier(query);
+      if (dot) {
+        const postgresCarrier = await findPostgresCarrier(dot);
         if (postgresCarrier) {
-          const results = [mapSearchResult(postgresCarrier)].map((result) => shouldMaskContacts
-            ? maskSearchResultContact(result, { reason: maskReason, label: maskLabel })
-            : result);
+          const results = finalizeResults([mapSearchResult(postgresCarrier)]);
           return res.json({
             total: 1,
             query,
@@ -851,7 +1012,7 @@ export async function searchCarrierIntelligence(req, res) {
             source: "postgres-fallback",
             results,
             trialAccess,
-            message: trialAccess.active ? `Trial access shows up to ${trialAccess.limits.searchResults} carrier matches per search.` : undefined
+            message: responseMessage(LIVE_FMCSA_FALLBACK_MESSAGE)
           });
         }
       }
@@ -861,7 +1022,7 @@ export async function searchCarrierIntelligence(req, res) {
   } catch (err) {
     console.error("Carrier intelligence search error:", err.message);
     res.status(503).json({
-      error: "Live data is temporarily unavailable. Showing most recent cached record.",
+      error: LIVE_FMCSA_FALLBACK_MESSAGE,
       query,
       state,
       leadType,
@@ -891,7 +1052,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
           profile = mapProfile(cached, {
             sourceType: "cached",
             liveUnavailable: true,
-            message: "Live SAFER cargo data is temporarily unavailable. Showing the cached carrier record."
+            message: LIVE_FMCSA_FALLBACK_MESSAGE
           });
           mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
         } else {
@@ -900,7 +1061,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
             profile = mapProfile(postgresCarrier, {
               sourceType: "postgres-fallback",
               liveUnavailable: true,
-              message: "Live FMCSA data is temporarily unavailable. Showing the most recent Postgres carrier record."
+              message: LIVE_FMCSA_FALLBACK_MESSAGE
             });
             mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
           } else {
@@ -919,7 +1080,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
       const profile = mapProfile(cached, {
         sourceType: "cached",
         liveUnavailable: true,
-        message: "Live data is temporarily unavailable. Showing most recent cached record."
+        message: LIVE_FMCSA_FALLBACK_MESSAGE
       });
       mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
       return res.json(await finalizeTrialProfileResponse(req, res, profile));
@@ -930,7 +1091,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
       const profile = mapProfile(postgresCarrier, {
         sourceType: "postgres-fallback",
         liveUnavailable: true,
-        message: "Live data is temporarily unavailable. Showing the most recent Postgres carrier record."
+        message: LIVE_FMCSA_FALLBACK_MESSAGE
       });
       mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
       return res.json(await finalizeTrialProfileResponse(req, res, profile));
@@ -938,7 +1099,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
 
     res.status(404).json({
       error: "Carrier profile is not available right now.",
-      message: "Live data is temporarily unavailable and no cached record was found."
+      message: `${LIVE_FMCSA_FALLBACK_MESSAGE} No saved carrier record was found.`
     });
   }
 }
@@ -955,15 +1116,15 @@ export async function getCarrierIntelligenceSafety(req, res) {
         const liveCarrier = await fetchAndCacheLiveCarrier(dotNumber);
         profile = mapProfile(liveCarrier, { sourceType: "live" });
       } catch (liveErr) {
-        liveRefreshMessage = "Live SMS safety data is temporarily unavailable. Showing most recent cached record.";
+        liveRefreshMessage = LIVE_FMCSA_FALLBACK_MESSAGE;
         if (!profile) {
           const postgresCarrier = await findPostgresCarrier(dotNumber);
           if (postgresCarrier) {
-            liveRefreshMessage = "Live SMS safety data is temporarily unavailable. Showing the most recent Postgres carrier record.";
+            liveRefreshMessage = LIVE_FMCSA_FALLBACK_MESSAGE;
             profile = mapProfile(postgresCarrier, {
               sourceType: "postgres-fallback",
               liveUnavailable: true,
-              message: "Live SMS safety data is temporarily unavailable. Showing the most recent Postgres carrier record."
+              message: LIVE_FMCSA_FALLBACK_MESSAGE
             });
           } else {
             throw liveErr;
@@ -985,7 +1146,7 @@ export async function getCarrierIntelligenceSafety(req, res) {
     });
   } catch (err) {
     console.error("Carrier intelligence safety error:", err.message);
-    res.status(503).json({ error: "Safety/SMS data is temporarily unavailable." });
+    res.status(503).json({ error: LIVE_FMCSA_FALLBACK_MESSAGE });
   }
 }
 
@@ -1002,9 +1163,7 @@ export async function getCarrierIntelligenceLicensingInsurance(req, res) {
     const profile = mapProfile(carrier, {
       sourceType,
       liveUnavailable: sourceType !== "live",
-      message: sourceType === "postgres-fallback"
-        ? "Live licensing data is temporarily unavailable. Showing the most recent Postgres carrier record."
-        : ""
+      message: sourceType === "postgres-fallback" ? LIVE_FMCSA_FALLBACK_MESSAGE : ""
     });
     mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
     res.json({
@@ -1015,6 +1174,6 @@ export async function getCarrierIntelligenceLicensingInsurance(req, res) {
     });
   } catch (err) {
     console.error("Carrier intelligence L&I error:", err.message);
-    res.status(503).json({ error: "Licensing and insurance data is temporarily unavailable." });
+    res.status(503).json({ error: LIVE_FMCSA_FALLBACK_MESSAGE });
   }
 }

@@ -2285,14 +2285,21 @@
       return `<div class="profile-summary-grid">${items.map((item) => stat(item[0], item[1])).join("")}</div>`;
     }
 
+    const MOTUS_PORTAL_URL = "https://motus.dot.gov/";
+    const FMCSA_TRANSITION_NOTICE = "FMCSA is transitioning registration services to Motus. Some legacy SAFER registration functions may move to Motus over time.";
+
     function officialLinksHtml(links = {}) {
       const linkItems = [
-        ["FMCSA Carrier Profile", links.safer],
+        ["SAFER Snapshot (Legacy)", links.safer],
         ["Licensing & Insurance", links.licensingInsurance],
-        ["SMS Safety Data", links.sms]
+        ["SMS Safety Data", links.sms],
+        ["Motus Registration Portal", links.motus || MOTUS_PORTAL_URL]
       ].filter((item) => item[1]);
       if (!linkItems.length) return "";
-      return `<div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`;
+      return `
+        <div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>
+        <p class="muted-note">${escapeHtml(links.notice || FMCSA_TRANSITION_NOTICE)}</p>
+      `;
     }
 
     function contactActionLinks(carrier = {}) {
@@ -2434,12 +2441,14 @@
         },
         officialLinks: dotNumber ? {
           safer: `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${encodeURIComponent(dotNumber)}`,
-          licensingInsurance: `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${encodeURIComponent(dotNumber)}`
+          licensingInsurance: `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${encodeURIComponent(dotNumber)}`,
+          motus: MOTUS_PORTAL_URL,
+          notice: FMCSA_TRANSITION_NOTICE
         } : {},
         safety: null,
         licensingInsurance: null,
         lastUpdated: row.addDate || row.insurance_expiration || todayString(),
-        message: "Live data is temporarily unavailable. Showing most recent cached record."
+        message: "Live FMCSA data is temporarily unavailable. Showing saved carrier data where available."
       };
     }
 
@@ -2677,7 +2686,7 @@
           if (carrier.message) setProfileAlert(carrier.message);
         }
       } catch (err) {
-        setProfileAlert("Live data is temporarily unavailable. Showing most recent cached record.");
+        setProfileAlert("Live FMCSA data is temporarily unavailable. Showing saved carrier data where available.");
       }
 
       els.profileTitle.textContent = carrier.legalName || activeProfilePayload.carrier_name;

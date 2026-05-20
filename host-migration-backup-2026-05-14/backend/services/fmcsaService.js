@@ -5,6 +5,8 @@ const FMCSA_BASE_URL = "https://mobile.fmcsa.dot.gov/qc/services";
 const FMCSA_CENSUS_URL = "https://data.transportation.gov/resource/az4n-8mr2.json";
 const FMCSA_SMS_BASE_URL = "https://ai.fmcsa.dot.gov/SMS";
 const FMCSA_SAFER_URL = "https://safer.fmcsa.dot.gov/query.asp";
+export const MOTUS_PORTAL_URL = "https://motus.dot.gov/";
+export const FMCSA_TRANSITION_NOTICE = "FMCSA is transitioning registration services to Motus. Some legacy SAFER registration functions may move to Motus over time.";
 const FMCSA_SMS_HEADERS = {
   Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "Accept-Language": "en-US,en;q=0.9",
@@ -529,41 +531,142 @@ async function fetchQcMobileCarrier({ dot, mc }) {
   );
 }
 
-export async function fetchCarrierByDotOrMc({ dot, mc, name }) {
+export function isFmcsaWebKeyConfigured() {
+  return Boolean(FMCSA_WEBKEY);
+}
+
+export async function fetchQcmobileCarrierByDotOrMc({ dot, mc }) {
+  if (!dot && !mc) {
+    throw new Error("DOT or MC required");
+  }
+
+  return fetchQcMobileCarrier({ dot, mc });
+}
+
+function logProviderFailure(label, err) {
+  console.warn(`${label} failed: ${err.response?.status || err.message}`);
+}
+
+const FMCSA_PROVIDER_DEFINITIONS = {
+  qcmobile: {
+    key: "qcmobile",
+    label: "FMCSA QCMobile API",
+    enabled: ({ dot, mc }) => Boolean(FMCSA_WEBKEY && (dot || mc)),
+    resolve: ({ dot, mc }) => fetchQcMobileCarrier({ dot, mc })
+  },
+  censusDot: {
+    key: "censusDot",
+    label: "FMCSA Company Census File / MCS-150 self-reported",
+    enabled: ({ dot }) => Boolean(dot),
+    resolve: ({ dot }) => fetchCensusCarrierByDot(dot)
+  },
+  censusName: {
+    key: "censusName",
+    label: "FMCSA Company Census File / MCS-150 self-reported",
+    enabled: ({ name }) => Boolean(name),
+    resolve: ({ name }) => fetchCensusCarrierByName(name)
+  },
+  sms: {
+    key: "sms",
+    label: "FMCSA SMS public carrier profile",
+    enabled: ({ dot }) => Boolean(dot),
+    resolve: ({ dot }) => fetchSmsSafetyByDot(dot)
+  },
+  safer: {
+    key: "safer",
+    label: "FMCSA SAFER Company Snapshot",
+    enabled: ({ dot }) => Boolean(dot),
+    resolve: ({ dot }) => fetchSaferSnapshotByDot(dot)
+  },
+  motus: {
+    key: "motus",
+    label: "Motus Registration Portal",
+    enabled: () => true,
+    resolve: async () => null
+  }
+};
+
+export function getFmcsaProviderDefinitions() {
+  return FMCSA_PROVIDER_DEFINITIONS;
+}
+
+async function runFmcsaProvider(providerKey, criteria = {}) {
+  const provider = FMCSA_PROVIDER_DEFINITIONS[providerKey];
+  if (!provider || !provider.enabled(criteria)) return null;
+  return provider.resolve(criteria);
+}
+
+export async function getCarrierData({ dot, mc, name } = {}) {
   if (!dot && !mc && !name) throw new Error("DOT, MC, or carrier name required");
 
   const apiResult = dot || mc
-    ? await fetchQcMobileCarrier({ dot, mc }).catch(err => {
-      console.warn(`FMCSA QCMobile lookup failed: ${err.response?.status || err.message}`);
+    ? await runFmcsaProvider("qcmobile", { dot, mc }).catch(err => {
+      logProviderFailure("FMCSA QCMobile lookup", err);
       return null;
     })
     : null;
 
   const nameResult = !dot && !mc && name
-    ? await fetchCensusCarrierByName(name).catch(err => {
-      console.warn(`FMCSA Company Census name lookup failed: ${err.response?.status || err.message}`);
+    ? await runFmcsaProvider("censusName", { name }).catch(err => {
+      logProviderFailure("FMCSA Company Census name lookup", err);
       return null;
     })
     : null;
 
   const resolvedDot = dot || apiResult?.dot || nameResult?.dot;
-  const censusResult = await fetchCensusCarrierByDot(resolvedDot).catch(err => {
-    console.warn(`FMCSA Company Census lookup failed: ${err.response?.status || err.message}`);
-    return nameResult;
-  }) || nameResult;
+  const censusResult = resolvedDot
+    ? await runFmcsaProvider("censusDot", { dot: resolvedDot }).catch(err => {
+      logProviderFailure("FMCSA Company Census lookup", err);
+      return nameResult;
+    }) || nameResult
+    : nameResult;
 
-  const smsSafety = await fetchSmsSafetyByDot(resolvedDot).catch(err => {
-    console.warn(`FMCSA SMS safety lookup failed: ${err.response?.status || err.message}`);
-    return null;
-  });
+  const smsSafety = resolvedDot
+    ? await runFmcsaProvider("sms", { dot: resolvedDot }).catch(err => {
+      logProviderFailure("FMCSA SMS safety lookup", err);
+      return null;
+    })
+    : null;
 
-  const saferData = await fetchSaferSnapshotByDot(resolvedDot).catch(err => {
-    console.warn(`FMCSA SAFER snapshot lookup failed: ${err.response?.status || err.message}`);
-    return null;
-  });
+  const saferData = resolvedDot
+    ? await runFmcsaProvider("safer", { dot: resolvedDot }).catch(err => {
+      logProviderFailure("FMCSA SAFER snapshot lookup", err);
+      return null;
+    })
+    : null;
 
   const carrier = mergeCarrierData(apiResult, censusResult, smsSafety, saferData);
   if (!carrier) throw new Error("Carrier not found in FMCSA data sources");
 
-  return carrier;
+  const providerResults = {
+    qcmobile: apiResult,
+    census: censusResult,
+    censusName: nameResult,
+    sms: smsSafety,
+    safer: saferData,
+    motus: {
+      portalUrl: MOTUS_PORTAL_URL,
+      notice: FMCSA_TRANSITION_NOTICE,
+      status: "portal-only"
+    }
+  };
+
+  return {
+    carrier,
+    providerResults,
+    providersUsed: Object.entries(providerResults)
+      .filter(([, value]) => Boolean(value))
+      .map(([key]) => key),
+    registrationPlatform: {
+      active: "Motus",
+      motusUrl: MOTUS_PORTAL_URL,
+      notice: FMCSA_TRANSITION_NOTICE,
+      legacySystems: ["SAFER", "SMS", "QCMobile"]
+    }
+  };
+}
+
+export async function fetchCarrierByDotOrMc({ dot, mc, name }) {
+  const result = await getCarrierData({ dot, mc, name });
+  return result.carrier;
 }

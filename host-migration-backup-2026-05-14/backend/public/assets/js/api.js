@@ -129,24 +129,45 @@ export async function refreshCurrentUser() {
   return null;
 }
 
+function normalizeCarrierResult(carrier = {}) {
+  const dot = String(carrier.dot || carrier.dotNumber || "").trim();
+  const mc = String(carrier.mc || carrier.docketNumber || "").trim();
+  const carrierName = carrier.carrierName || carrier.legalName || carrier.name || "Unknown Carrier";
+
+  return {
+    ...carrier,
+    dot,
+    dotNumber: carrier.dotNumber || dot,
+    mc,
+    docketNumber: carrier.docketNumber || mc,
+    carrierName,
+    legalName: carrier.legalName || carrierName,
+    phone: carrier.phone || carrier.phoneNumber || "",
+    address: carrier.address || carrier.physicalAddress || "",
+    cargo: carrier.cargo || carrier.cargoHauled || carrier.cargo_hauled || "",
+    liveUnavailable: Boolean(carrier.liveUnavailable),
+    message: String(carrier.message || "").trim()
+  };
+}
+
 export async function searchCarrier(dot, mc, name) {
   if (!dot && !mc && !name) {
     throw new APIError("DOT, MC, or carrier name required", 400);
   }
 
-  const params = new URLSearchParams();
-  if (dot) params.set("dot", dot);
-  if (mc) params.set("mc", mc);
-  if (name) params.set("name", name);
-
   const data = dot && !mc && !name
     ? await apiCall(`/carriers/${encodeURIComponent(dot)}`, { timeout: 75000 })
-    : await apiCall(`/carriers?${params.toString()}`, { timeout: 75000 });
+    : await apiCall(
+      mc
+        ? `/carriers/search?mc=${encodeURIComponent(mc)}&limit=1`
+        : `/carriers/search?name=${encodeURIComponent(name)}&limit=1`,
+      { timeout: 75000 }
+    );
 
-  if (data.carrier) return data.carrier;
-  if (Array.isArray(data.results) && data.results.length > 0) return data.results[0];
-  if (Array.isArray(data) && data.length > 0) return data[0];
-  return data;
+  if (data.carrier) return normalizeCarrierResult(data.carrier);
+  if (Array.isArray(data.results) && data.results.length > 0) return normalizeCarrierResult(data.results[0]);
+  if (Array.isArray(data) && data.length > 0) return normalizeCarrierResult(data[0]);
+  return normalizeCarrierResult(data);
 }
 
 export async function getCarrierProfile(dot) {
@@ -155,7 +176,7 @@ export async function getCarrierProfile(dot) {
   }
 
   const data = await apiCall(`/carriers/${encodeURIComponent(dot)}`, { timeout: 75000 });
-  return data.carrier || data;
+  return normalizeCarrierResult(data.carrier || data);
 }
 
 export async function getMySubscription() {

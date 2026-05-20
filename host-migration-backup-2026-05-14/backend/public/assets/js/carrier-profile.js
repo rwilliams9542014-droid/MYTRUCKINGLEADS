@@ -64,7 +64,7 @@ function updateDirectLinks(dot) {
   const encodedDot = encodeURIComponent(dot);
 
   if (saferLink) {
-    saferLink.href = `https://ai.fmcsa.dot.gov/SMS/Carrier/${encodedDot}/CompleteProfile.aspx`;
+    saferLink.href = `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${encodedDot}`;
   }
   if (smsLink) {
     smsLink.href = `https://ai.fmcsa.dot.gov/SMS/Carrier/${encodedDot}/CompleteProfile.aspx`;

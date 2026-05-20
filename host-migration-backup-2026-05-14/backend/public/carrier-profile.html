@@ -646,15 +646,22 @@
       return `<div class="profile-summary-grid">${items.map((item) => stat(item[0], item[1])).join("")}</div>`;
     }
 
+    const MOTUS_PORTAL_URL = "https://motus.dot.gov/";
+    const FMCSA_TRANSITION_NOTICE = "FMCSA is transitioning registration services to Motus. Some legacy SAFER registration functions may move to Motus over time.";
+
     function officialLinksHtml(links = {}, dotNumber = "") {
       const dot = encodeURIComponent(dotNumber || "");
       const linkItems = [
-        ["FMCSA Carrier Profile", links.safer || (dot ? `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dot}` : "")],
+        ["SAFER Snapshot (Legacy)", links.safer || (dot ? `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dot}` : "")],
         ["Licensing & Insurance", links.licensingInsurance || (dot ? `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${dot}` : "")],
-        ["SMS Safety Data", links.sms]
+        ["SMS Safety Data", links.sms],
+        ["Motus Registration Portal", links.motus || MOTUS_PORTAL_URL]
       ].filter((item) => item[1]);
       if (!linkItems.length) return "";
-      return `<div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`;
+      return `
+        <div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>
+        <p>${escapeHtml(links.notice || FMCSA_TRANSITION_NOTICE)}</p>
+      `;
     }
 
     function contactActionLinks(carrier = {}) {

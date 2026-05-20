@@ -21,6 +21,7 @@ import authRoutes from "./routes/authRoutes.js";
 import billingRoutes from "./routes/billingRoutes.js";
 import { handleStripeWebhook } from "./controllers/billingController.js";
 import carrierRoutes from "./routes/carrierRoutes.js";
+import fmcsaRoutes from "./routes/fmcsaRoutes.js";
 import leadRoutes from "./routes/leadRoutes.js";
 import insuranceRoutes from "./routes/insuranceRoutes.js";
 import reportsRoutes from "./routes/reportsRoutes.js";
@@ -183,6 +184,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/carrier", carrierRoutes);
 app.use("/api/carriers", carrierRoutes);
+app.use("/api/fmcsa", fmcsaRoutes);
 if (publicLeadRoutesEnabled) {
   app.use("/api/leads", publicLeadRoutes);
 }
