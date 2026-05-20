@@ -11,6 +11,22 @@ function optionalString(value, maxLength = 255) {
   return trimmed;
 }
 
+function buildSourcePage(req) {
+  try {
+    const origin = String(req?.get?.("origin") || "").trim();
+    if (origin) return origin;
+
+    const protocol = String(req?.protocol || "https").trim() || "https";
+    const host = String(req?.get?.("host") || req?.headers?.host || "").trim();
+    const path = String(req?.originalUrl || req?.url || "/").trim() || "/";
+    if (host) return `${protocol}://${host}${path}`;
+  } catch (err) {
+    console.error("Failed to determine contact request source page:", err.message);
+  }
+
+  return "Website contact form";
+}
+
 export async function submitContactRequest(req, res, next) {
   try {
     const honeypot = String(req.body?.website || "").trim();
@@ -23,22 +39,42 @@ export async function submitContactRequest(req, res, next) {
     const message = validateString(req.body?.message, "message", 10, 2500);
     const phone = optionalString(req.body?.phone, 40);
     const agency = optionalString(req.body?.agency, 160);
+    const submittedAt = new Date().toISOString();
+    const sourcePage = buildSourcePage(req);
 
-    const result = await sendContactRequestEmail({
-      toEmail: process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
-      name,
-      email,
-      phone,
-      agency,
-      message,
-      submittedAt: new Date().toISOString(),
-      sourcePage: req.get("origin") || `${req.protocol}://${req.get("host")}${req.originalUrl}`
-    });
+    let result = null;
+    try {
+      result = await sendContactRequestEmail({
+        toEmail: process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        name,
+        email,
+        phone,
+        agency,
+        message,
+        submittedAt,
+        sourcePage
+      });
+    } catch (err) {
+      console.error("Unexpected contact email delivery error:", {
+        error: err.message,
+        stack: err.stack,
+        toEmail: process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        requesterEmail: email,
+        sourcePage
+      });
+    }
 
-    if (!result.success) {
+    if (!result?.success) {
+      const failureMessage = result?.message || "Contact email is not available right now.";
+      console.warn("Contact request email unavailable:", {
+        toEmail: process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        requesterEmail: email,
+        message: failureMessage,
+        sourcePage
+      });
       return res.status(503).json({
         success: false,
-        error: result.message || "Contact email is not available right now."
+        error: failureMessage
       });
     }
 

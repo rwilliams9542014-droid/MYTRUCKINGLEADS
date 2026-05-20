@@ -45,8 +45,9 @@ export function errorHandler(err, req, res, next) {
   // Log error
   console.error({
     timestamp: new Date().toISOString(),
+    errorName: err.name,
     error: err.message,
-    stack: isDevelopment ? err.stack : undefined,
+    stack: err.stack,
     path: req.path,
     method: req.method,
   });
