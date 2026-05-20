@@ -552,7 +552,11 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
 }
 
 function mapSearchResult(carrier = {}) {
-  const profile = mapProfile(carrier);
+  const profile = mapProfile(carrier, {
+    sourceType: clean(carrier.sourceType, carrier.raw?.liveCarrier ? "live" : "cached"),
+    liveUnavailable: Boolean(carrier.liveUnavailable),
+    message: clean(carrier.message)
+  });
   return {
     dotNumber: profile.dotNumber,
     dot: profile.dotNumber,

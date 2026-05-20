@@ -214,7 +214,7 @@ async function fetchCensusCarrierByExactName(name) {
   if (!escapedName) return null;
 
   return withFmcsaCache(
-    { source: "fmcsa-census-name-exact", identifier: escapedName },
+    { source: "fmcsa-census-name-exact-v2", identifier: escapedName },
     async () => {
       const response = await axios.get(FMCSA_CENSUS_URL, {
         params: {
@@ -239,7 +239,7 @@ async function fetchCensusCarrierByPartialName(name) {
   if (!escapedName) return null;
 
   return withFmcsaCache(
-    { source: "fmcsa-census-name-like", identifier: escapedName },
+    { source: "fmcsa-census-name-like-v2", identifier: escapedName },
     async () => {
       const response = await axios.get(FMCSA_CENSUS_URL, {
         params: {
@@ -265,7 +265,7 @@ async function fetchCensusCarrierByMc(mc) {
   const escapedDocket = escapeSocrataString(docket);
 
   return withFmcsaCache(
-    { source: "fmcsa-census-mc", identifier: escapedDocket },
+    { source: "fmcsa-census-mc-v2", identifier: escapedDocket },
     async () => {
       const response = await axios.get(FMCSA_CENSUS_URL, {
         params: {
