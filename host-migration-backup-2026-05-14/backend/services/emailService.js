@@ -37,6 +37,11 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function initializeTransporter() {
   if (transporter) return transporter;
 
@@ -44,6 +49,9 @@ function initializeTransporter() {
   const smtpPort = process.env.SMTP_PORT;
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
+  const smtpFamily = process.env.SMTP_ADDRESS_FAMILY
+    ? parsePositiveInt(process.env.SMTP_ADDRESS_FAMILY, 4)
+    : 4;
 
   if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
     console.warn("⚠️  Email service not configured. Emails will not be sent.");
@@ -56,6 +64,10 @@ function initializeTransporter() {
       host: smtpHost,
       port: parseInt(smtpPort),
       secure: parseInt(smtpPort) === 465, // Use TLS for port 465, STARTTLS for others
+      family: smtpFamily,
+      connectionTimeout: parsePositiveInt(process.env.SMTP_CONNECTION_TIMEOUT_MS, 15000),
+      greetingTimeout: parsePositiveInt(process.env.SMTP_GREETING_TIMEOUT_MS, 15000),
+      socketTimeout: parsePositiveInt(process.env.SMTP_SOCKET_TIMEOUT_MS, 20000),
       auth: {
         user: smtpUser,
         pass: smtpPass
