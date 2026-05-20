@@ -49,6 +49,8 @@ function initializeTransporter() {
   const smtpPort = process.env.SMTP_PORT;
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
+  const smtpConnectHost = process.env.SMTP_RESOLVED_HOST || smtpHost;
+  const smtpTlsServerName = process.env.SMTP_TLS_SERVERNAME || smtpHost;
   const smtpFamily = process.env.SMTP_ADDRESS_FAMILY
     ? parsePositiveInt(process.env.SMTP_ADDRESS_FAMILY, 4)
     : 4;
@@ -61,13 +63,16 @@ function initializeTransporter() {
 
   try {
     transporter = nodemailer.createTransport({
-      host: smtpHost,
+      host: smtpConnectHost,
       port: parseInt(smtpPort),
       secure: parseInt(smtpPort) === 465, // Use TLS for port 465, STARTTLS for others
       family: smtpFamily,
       connectionTimeout: parsePositiveInt(process.env.SMTP_CONNECTION_TIMEOUT_MS, 15000),
       greetingTimeout: parsePositiveInt(process.env.SMTP_GREETING_TIMEOUT_MS, 15000),
       socketTimeout: parsePositiveInt(process.env.SMTP_SOCKET_TIMEOUT_MS, 20000),
+      tls: {
+        servername: smtpTlsServerName
+      },
       auth: {
         user: smtpUser,
         pass: smtpPass
