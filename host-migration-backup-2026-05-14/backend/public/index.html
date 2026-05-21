@@ -285,6 +285,14 @@
       margin: 26px 0 0;
     }
 
+    .quote-nav-btn {
+      min-height: 42px;
+      padding: 0 16px;
+      font-size: 12px;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
     .social-proof {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -617,6 +625,41 @@
       background: rgba(255, 255, 255, 0.035);
     }
 
+    .quote-banner {
+      padding: 22px 0 30px;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      background:
+        radial-gradient(circle at 0% 50%, rgba(21, 101, 255, 0.16), transparent 36%),
+        rgba(255, 255, 255, 0.02);
+    }
+
+    .quote-banner-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 22px;
+      padding: 24px 26px;
+      border: 1px solid rgba(91, 156, 255, 0.28);
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(9, 23, 38, 0.96), rgba(15, 35, 57, 0.92));
+      box-shadow: 0 24px 72px rgba(0, 0, 0, 0.28);
+    }
+
+    .quote-banner-card h2 {
+      margin: 8px 0 10px;
+      font-size: clamp(28px, 4.3vw, 46px);
+      line-height: 1;
+    }
+
+    .quote-banner-card p {
+      margin: 0;
+      max-width: 760px;
+      color: #c0d1e4;
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
     .logos-row {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -634,6 +677,90 @@
       font-weight: 950;
       text-align: center;
       padding: 12px;
+    }
+
+    .trucker-lane {
+      background:
+        radial-gradient(circle at 80% 0%, rgba(91, 156, 255, 0.14), transparent 32%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.018), rgba(255, 255, 255, 0.04));
+      border-bottom: 1px solid var(--line);
+    }
+
+    .trucker-lane-shell {
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(8, 21, 34, 0.9), rgba(13, 31, 49, 0.88));
+      padding: 30px;
+      box-shadow: 0 26px 84px rgba(0, 0, 0, 0.26);
+    }
+
+    .trucker-lane-shell .section-title {
+      margin-bottom: 22px;
+    }
+
+    .trucker-lane-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .trucker-card {
+      min-height: 178px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.055);
+      padding: 18px;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .trucker-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(91, 156, 255, 0.42);
+      background: rgba(255, 255, 255, 0.075);
+    }
+
+    .trucker-card b {
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--teal), var(--blue));
+      color: #04111d;
+      font-size: 13px;
+      font-weight: 950;
+      margin-bottom: 16px;
+    }
+
+    .trucker-card h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.15;
+    }
+
+    .trucker-card p {
+      margin: 0;
+      color: #c3d3e6;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .trucker-cta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .trucker-cta-row p {
+      margin: 0;
+      max-width: 620px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
     }
 
     .data-authority {
@@ -1927,7 +2054,8 @@
       .authority-deck,
       .screens-grid,
       .terms-panel,
-      .split-preview {
+      .split-preview,
+      .quote-banner-card {
         grid-template-columns: 1fr;
       }
       .glass-frame { transform: none; animation: none; }
@@ -1937,6 +2065,7 @@
       .faq-grid,
       .contact-grid,
       .authority-grid,
+      .trucker-lane-grid,
       .carrier-grid,
       .profile-summary-grid,
       .logos-row {
@@ -1946,6 +2075,7 @@
         grid-template-columns: 1fr;
       }
       .section-title,
+      .trucker-cta-row,
       .urgency .container,
       .final-cta .container {
         align-items: flex-start;
@@ -1975,7 +2105,8 @@
       .profile-fields,
       .oos-rate-row,
       .filter-grid,
-      .data-grid {
+      .data-grid,
+      .trucker-lane-grid {
         grid-template-columns: 1fr;
       }
       .carrier-search {
@@ -2029,7 +2160,7 @@
         <a href="/">Home</a>
         <a href="#about">About Us</a>
         <a href="#pricing">Plans</a>
-        <a href="quote-request.html">Get Quotes</a>
+        <a class="btn secondary quote-nav-btn" href="/quote-request.html" data-quote-cta="nav-quote">GET A QUOTE</a>
         <a href="#contact" data-open-contact>Contact</a>
         <a href="login.html">Agent Login</a>
         <a href="signup.html">Sign Up</a>
@@ -2048,7 +2179,7 @@
           <p class="hero-copy">Connect with trucking companies looking for commercial auto, cargo, liability, and fleet insurance coverage.</p>
           <div class="actions">
             <a class="btn" href="#pricing">View Lead Plans</a>
-            <a class="btn secondary" href="quote-request.html">Get Insurance Quotes</a>
+            <a class="btn secondary" href="/quote-request.html" data-quote-cta="hero-actions">Get Insurance Quotes</a>
           </div>
         </div>
 
@@ -2106,12 +2237,72 @@
       </div>
     </section>
 
+    <section class="quote-banner" aria-label="Commercial truck insurance quote request banner">
+      <div class="container">
+        <div class="quote-banner-card">
+          <div>
+            <span class="eyebrow"><span class="pulse"></span> For Trucking Companies</span>
+            <h2>Need Commercial Truck Insurance?</h2>
+            <p>Owner Operators, Fleets, and New Ventures can request competitive insurance quotes from experienced trucking insurance professionals.</p>
+          </div>
+          <a class="btn" href="/quote-request.html" data-quote-cta="hero-banner">Get My Free Quote</a>
+        </div>
+      </div>
+    </section>
+
     <section class="logos-band" aria-label="Platform trust signals">
       <div class="container logos-row">
         <div>Real-time carrier activity</div>
         <div>Filtered prospect data</div>
         <div>Built for insurance agents</div>
         <div>Flat monthly pricing</div>
+      </div>
+    </section>
+
+    <section class="trucker-lane" id="truck-insurance">
+      <div class="container">
+        <div class="trucker-lane-shell">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow"><span class="pulse"></span> Trucker Quote Path</span>
+              <h2>Looking For Truck Insurance?</h2>
+            </div>
+            <p>MyTruckingLeads also helps trucking companies request coverage and upload the underwriting details agents need to quote faster.</p>
+          </div>
+
+          <div class="trucker-lane-grid">
+            <article class="trucker-card">
+              <b>FQ</b>
+              <h3>Fast Quotes</h3>
+              <p>Submit one structured request and get routed to trucking insurance professionals who work these accounts every day.</p>
+            </article>
+            <article class="trucker-card">
+              <b>LR</b>
+              <h3>Upload Loss Runs</h3>
+              <p>Attach loss runs up front so agents can move past guesswork and start quoting with better context.</p>
+            </article>
+            <article class="trucker-card">
+              <b>RG</b>
+              <h3>Upload Registrations</h3>
+              <p>Truck registrations and supporting fleet documents stay tied to the quote request for cleaner underwriting review.</p>
+            </article>
+            <article class="trucker-card">
+              <b>DI</b>
+              <h3>Upload Driver Information</h3>
+              <p>Driver lists, licenses, and operating details help agents understand the risk profile before they make contact.</p>
+            </article>
+            <article class="trucker-card">
+              <b>AO</b>
+              <h3>Multiple Agent Options</h3>
+              <p>Owner operators, fleets, and new ventures can compare interest from more than one experienced trucking insurance producer.</p>
+            </article>
+          </div>
+
+          <div class="trucker-cta-row">
+            <a class="btn" href="/quote-request.html" data-quote-cta="trucker-section">Get My Free Quote</a>
+            <p>Use the quote request page to send account details, upload documents like loss runs and registrations, and make the process faster for the agents reviewing your submission.</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2450,6 +2641,14 @@
       </div>
     </div>
   </div>
+
+  <a class="floating-cta" href="/quote-request.html" data-quote-cta="floating-sticky" aria-label="Get Truck Insurance Quote">
+    <div>
+      <span>Owner operators, fleets, and new ventures</span>
+      <strong>Get Truck Insurance Quote</strong>
+    </div>
+    <b>🚛</b>
+  </a>
 
   <footer>
     <div class="container">

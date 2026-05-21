@@ -83,6 +83,7 @@ const META_PIXEL_ID = "1961596024723013";
       const href = String(element.getAttribute("href") || element.href || "").toLowerCase();
       const id = String(element.id || "").toLowerCase();
       const classes = String(element.className || "").toLowerCase();
+      const quoteCtaLocation = String(element.dataset?.quoteCta || "").trim();
 
       const isSignup =
         id.includes("signup") ||
@@ -103,10 +104,23 @@ const META_PIXEL_ID = "1961596024723013";
         text.includes("get started") ||
         text.includes("view plans") ||
         text.includes("start secure trial");
+      const isQuoteRequest =
+        Boolean(quoteCtaLocation) ||
+        href.includes("quote-request") ||
+        text.includes("get a quote") ||
+        text.includes("get quotes") ||
+        text.includes("free quote") ||
+        text.includes("truck insurance quote") ||
+        text.includes("insurance quotes");
 
       if (isSignup) trackClick("SignupButtonClick", element);
       if (isLogin) trackClick("LoginButtonClick", element);
       if (isCta) trackClick("CTAButtonClick", element);
+      if (isQuoteRequest) {
+        trackClick("QuoteRequestClick", element, {
+          quote_cta_location: quoteCtaLocation || (href.includes("quote-request") ? "quote-page-link" : "quote-request-action")
+        });
+      }
     });
   }
 

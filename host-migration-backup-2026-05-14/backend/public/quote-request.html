@@ -13,19 +13,33 @@
   <script defer src="assets/js/meta-pixel.js?v=meta-pixel-1"></script>
   <script defer src="assets/js/quote-request.js"></script>
   <style>
+    :root {
+      --quote-bg-top: #07121f;
+      --quote-bg-mid: #0d1e31;
+      --quote-bg-bottom: #101d2b;
+      --quote-panel: rgba(10, 24, 40, 0.9);
+      --quote-panel-strong: rgba(12, 29, 47, 0.94);
+      --quote-line: rgba(151, 176, 205, 0.18);
+      --quote-line-strong: rgba(151, 176, 205, 0.36);
+      --quote-text: #f3f8ff;
+      --quote-muted: #9cb1c9;
+      --quote-brand: #5b9cff;
+    }
+
     body {
       background:
-        radial-gradient(circle at 12% 0%, rgba(21, 101, 255, 0.14), transparent 32rem),
-        linear-gradient(180deg, #f7faff 0%, #eef4fb 54%, #ffffff 100%);
-      color: #152235;
+        radial-gradient(circle at 12% 0%, rgba(21, 101, 255, 0.2), transparent 34rem),
+        radial-gradient(circle at 88% 18%, rgba(91, 156, 255, 0.16), transparent 26rem),
+        linear-gradient(180deg, var(--quote-bg-top) 0%, var(--quote-bg-mid) 52%, var(--quote-bg-bottom) 100%);
+      color: var(--quote-text);
     }
 
     .quote-navbar {
       min-height: 78px;
-      border-bottom: 1px solid rgba(215, 224, 234, 0.8);
-      background: rgba(255, 255, 255, 0.94);
+      border-bottom: 1px solid var(--quote-line);
+      background: rgba(5, 16, 28, 0.92);
       backdrop-filter: blur(14px);
-      box-shadow: 0 12px 30px rgba(13, 32, 56, 0.08);
+      box-shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
     }
 
     .quote-hero {
@@ -50,10 +64,10 @@
     .support-card,
     .result-card,
     .status-card {
-      border: 1px solid rgba(215, 224, 234, 0.9);
+      border: 1px solid var(--quote-line);
       border-radius: 24px;
-      background: rgba(255, 255, 255, 0.92);
-      box-shadow: 0 24px 70px rgba(13, 32, 56, 0.08);
+      background: var(--quote-panel);
+      box-shadow: 0 28px 76px rgba(0, 0, 0, 0.24);
       backdrop-filter: blur(12px);
     }
 
@@ -65,7 +79,7 @@
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      color: #1565ff;
+      color: var(--quote-brand);
       font-size: 0.76rem;
       font-weight: 900;
       letter-spacing: 0.12em;
@@ -81,7 +95,7 @@
 
     .hero-copy {
       max-width: 760px;
-      color: #5c6f87;
+      color: #bfd1e5;
       font-size: 1.06rem;
       line-height: 1.75;
       margin-bottom: 1.6rem;
@@ -91,7 +105,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 0.9rem;
-      color: #24405e;
+      color: #dce9f8;
       font-size: 0.95rem;
       font-weight: 700;
     }
@@ -106,13 +120,13 @@
     .hero-metrics div {
       padding: 1rem 1.05rem;
       border-radius: 18px;
-      border: 1px solid rgba(221, 229, 240, 0.95);
-      background: linear-gradient(180deg, rgba(247, 250, 255, 0.98), rgba(240, 246, 255, 0.92));
+      border: 1px solid var(--quote-line);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
     }
 
     .hero-metrics span {
       display: block;
-      color: #60738c;
+      color: var(--quote-muted);
       font-size: 0.8rem;
       font-weight: 800;
       text-transform: uppercase;
@@ -132,9 +146,9 @@
 
     .form-section {
       padding: 1.15rem 1.2rem 1.35rem;
-      border: 1px solid rgba(222, 229, 238, 0.94);
+      border: 1px solid var(--quote-line);
       border-radius: 20px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.94));
+      background: linear-gradient(180deg, rgba(10, 24, 40, 0.98), rgba(13, 31, 49, 0.94));
       height: 100%;
     }
 
@@ -145,23 +159,46 @@
     }
 
     .form-section p {
-      color: #61748d;
+      color: var(--quote-muted);
       margin-bottom: 1rem;
       font-size: 0.94rem;
     }
 
     .form-label {
       font-weight: 700;
-      color: #22324a;
+      color: #e7f0fb;
     }
 
     .form-control,
     .form-select {
       min-height: 50px;
       border-radius: 14px;
-      border: 1px solid #d7e0ea;
+      border: 1px solid var(--quote-line-strong);
       padding-inline: 0.95rem;
+      background: rgba(6, 17, 29, 0.88);
+      color: #f8fbff;
       box-shadow: none;
+    }
+
+    .form-control::placeholder,
+    .form-select::placeholder,
+    .document-field select::placeholder {
+      color: #90a5bc;
+    }
+
+    .form-select option,
+    .document-field select option {
+      background: #091420;
+      color: #f8fbff;
+    }
+
+    .form-control:focus,
+    .form-select:focus,
+    .document-field select:focus {
+      border-color: rgba(91, 156, 255, 0.72);
+      background: rgba(7, 20, 33, 0.96);
+      color: #ffffff;
+      box-shadow: 0 0 0 3px rgba(21, 101, 255, 0.18);
     }
 
     textarea.form-control {
@@ -179,8 +216,8 @@
       position: relative;
       padding: 1rem 1rem 0.95rem 1rem;
       border-radius: 18px;
-      border: 1px solid #dce5ef;
-      background: #fff;
+      border: 1px solid var(--quote-line);
+      background: rgba(255, 255, 255, 0.04);
       cursor: pointer;
       transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
     }
@@ -202,19 +239,19 @@
       display: block;
       font-size: 1rem;
       font-weight: 900;
-      color: #162238;
+      color: #eef5ff;
     }
 
     .choice-card span {
       display: block;
       margin-top: 0.35rem;
-      color: #60738c;
+      color: var(--quote-muted);
       font-size: 0.88rem;
     }
 
     .choice-card:has(input:checked) {
       border-color: rgba(21, 101, 255, 0.78);
-      background: linear-gradient(180deg, rgba(21, 101, 255, 0.08), rgba(255, 255, 255, 0.98));
+      background: linear-gradient(180deg, rgba(21, 101, 255, 0.18), rgba(11, 26, 43, 0.98));
       box-shadow: 0 18px 40px rgba(21, 101, 255, 0.16);
     }
 
@@ -226,7 +263,7 @@
       place-items: center;
       text-align: center;
       padding: 1.4rem;
-      background: linear-gradient(180deg, rgba(21, 101, 255, 0.05), rgba(255, 255, 255, 0.96));
+      background: linear-gradient(180deg, rgba(21, 101, 255, 0.12), rgba(8, 21, 34, 0.96));
       transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
       cursor: pointer;
     }
@@ -245,7 +282,7 @@
     }
 
     .document-dropzone span {
-      color: #60738c;
+      color: var(--quote-muted);
       font-size: 0.92rem;
     }
 
@@ -261,9 +298,9 @@
       gap: 0.9rem;
       align-items: center;
       padding: 0.95rem 1rem;
-      border: 1px solid #dde6f0;
+      border: 1px solid var(--quote-line);
       border-radius: 18px;
-      background: rgba(255, 255, 255, 0.94);
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .document-meta strong,
@@ -279,7 +316,7 @@
 
     .document-meta span,
     .document-field span {
-      color: #62748c;
+      color: var(--quote-muted);
       font-size: 0.82rem;
     }
 
@@ -288,9 +325,10 @@
       min-height: 46px;
       margin-top: 0.35rem;
       border-radius: 14px;
-      border: 1px solid #d7e0ea;
+      border: 1px solid var(--quote-line-strong);
       padding-inline: 0.9rem;
-      background: #fff;
+      background: rgba(6, 17, 29, 0.88);
+      color: #f8fbff;
     }
 
     .remove-doc {
@@ -315,9 +353,9 @@
       justify-content: space-between;
       gap: 0.9rem;
       padding: 0.95rem 1rem;
-      border: 1px solid #dde6f0;
+      border: 1px solid var(--quote-line);
       border-radius: 18px;
-      background: rgba(255, 255, 255, 0.94);
+      background: rgba(255, 255, 255, 0.05);
       font-weight: 700;
     }
 
@@ -327,7 +365,7 @@
     }
 
     .check-item .check-state {
-      color: #60738c;
+      color: var(--quote-muted);
       font-size: 0.82rem;
       font-weight: 800;
     }
@@ -341,7 +379,7 @@
       height: 12px;
       border-radius: 999px;
       overflow: hidden;
-      background: #dfe8f2;
+      background: rgba(255, 255, 255, 0.12);
     }
 
     .progress-bar {
@@ -357,7 +395,7 @@
       align-items: center;
       justify-content: space-between;
       margin-bottom: 0.65rem;
-      color: #26415f;
+      color: #dce9f8;
       font-weight: 800;
     }
 
@@ -398,7 +436,7 @@
     }
 
     .result-card p {
-      color: #5e728b;
+      color: var(--quote-muted);
       margin-bottom: 1rem;
     }
 
@@ -427,8 +465,8 @@
     .result-grid div {
       padding: 0.95rem 1rem;
       border-radius: 18px;
-      border: 1px solid #dce5ef;
-      background: rgba(247, 250, 255, 0.96);
+      border: 1px solid var(--quote-line);
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .result-grid span,
@@ -437,7 +475,7 @@
     }
 
     .result-grid span {
-      color: #60738c;
+      color: var(--quote-muted);
       font-size: 0.78rem;
       font-weight: 800;
       text-transform: uppercase;
@@ -462,10 +500,29 @@
     }
 
     .support-card p {
-      color: #60738c;
+      color: var(--quote-muted);
       font-size: 0.92rem;
       line-height: 1.65;
       margin-bottom: 0;
+    }
+
+    .quote-navbar .navbar-brand,
+    .quote-navbar .nav-link {
+      color: #eaf3ff !important;
+    }
+
+    .quote-navbar .nav-link:hover,
+    .quote-navbar .nav-link:focus {
+      color: #9fc4ff !important;
+    }
+
+    .quote-navbar .navbar-toggler {
+      border-color: rgba(151, 176, 205, 0.28);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .quote-navbar .navbar-toggler-icon {
+      filter: invert(1);
     }
 
     @media (max-width: 991px) {
@@ -701,7 +758,7 @@
                 </div>
 
                 <div class="col-12">
-                  <button id="quoteSubmitButton" type="submit" class="btn-quote-submit w-100">Get My Trucking Insurance Quotes</button>
+                  <button id="quoteSubmitButton" type="submit" class="btn-quote-submit w-100" data-quote-cta="quote-form-submit">Get My Trucking Insurance Quotes</button>
                 </div>
               </div>
             </form>
