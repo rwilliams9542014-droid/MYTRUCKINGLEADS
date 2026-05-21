@@ -57,6 +57,18 @@ const SAVED_LEAD_LIMITS = {
   premium: null
 };
 
+const MARKETPLACE_FREE_LEAD_CREDITS = {
+  basic: 0,
+  pro: 0,
+  premium: 10
+};
+
+const MARKETPLACE_LEAD_PRICING = {
+  basic: { Bronze: 20, Silver: 40, Gold: "75-100" },
+  pro: { Bronze: 20, Silver: 40, Gold: "75-100" },
+  premium: { Bronze: 10, Silver: 15, Gold: 20 }
+};
+
 export function normalizePlan(plan) {
   const value = String(plan || "basic").toLowerCase();
   return PLAN_ALIASES[value] || value;
@@ -136,6 +148,7 @@ export function getPlanAccessSummary(user) {
   const renewalWindowDays = getRenewalWindowDays(user);
   const leadState = String(user?.lead_state || user?.leadState || "").toUpperCase() || null;
   const exportUsage = getMonthlyExportUsage(user);
+  const subscriptionActive = hasActiveSubscription(user);
 
   return {
     plan,
@@ -161,7 +174,13 @@ export function getPlanAccessSummary(user) {
     requiresSingleState: ["basic", "pro"].includes(plan),
     canSearchAllStates: isPremiumPlan(user),
     userLimit: Object.prototype.hasOwnProperty.call(USER_LIMITS, plan) ? USER_LIMITS[plan] : 1,
-    savedLeadLimit: Object.prototype.hasOwnProperty.call(SAVED_LEAD_LIMITS, plan) ? SAVED_LEAD_LIMITS[plan] : 0
+    savedLeadLimit: Object.prototype.hasOwnProperty.call(SAVED_LEAD_LIMITS, plan) ? SAVED_LEAD_LIMITS[plan] : 0,
+    canAccessLeadMarketplace: isPaidPlan(user),
+    canPurchaseMarketplaceLeads: isPaidPlan(user),
+    marketplaceFreeLeadCreditsPerMonth: MARKETPLACE_FREE_LEAD_CREDITS[plan] ?? 0,
+    marketplaceLeadPricing: MARKETPLACE_LEAD_PRICING[plan] || MARKETPLACE_LEAD_PRICING.basic,
+    receivesPriorityLeadNotifications: ["pro", "premium"].includes(plan) && subscriptionActive,
+    receivesEliteGoldLeadAlerts: plan === "premium" && subscriptionActive
   };
 }
 

@@ -805,3 +805,91 @@ export async function sendPrivacyRequestEmail({
     };
   }
 }
+
+export async function sendMarketplaceAdminLeadEmail({
+  toEmail,
+  quoteRequest
+}) {
+  const appName = process.env.APP_NAME || "MyTruckingLeads";
+  const appUrl = process.env.APP_URL || "https://www.mytruckingleads.com";
+  const subject = `New marketplace quote request: ${quoteRequest.company_name} - ${appName}`;
+  const submittedLabel = quoteRequest.created_at
+    ? new Date(quoteRequest.created_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+    : "Just now";
+
+  const html = `
+    <div style="font-family: Arial, Helvetica, sans-serif; color: #172033; line-height: 1.6;">
+      <h2 style="margin-bottom: 12px;">New Quote Request Marketplace Lead</h2>
+      <p style="margin-top: 0;">A new trucking insurance quote request was submitted on ${escapeHtml(appName)}.</p>
+      <table style="border-collapse: collapse; width: 100%; max-width: 760px; margin: 18px 0;">
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Company</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.company_name)}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Lead tier</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.lead_tier)}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Lead score</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.lead_score)}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Fleet size</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.power_units || 0)} power units</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">State</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.primary_state || "Multi-state")}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Renewal date</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.renewal_date || "Not provided")}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Documents</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.document_count || 0)} uploaded (${escapeHtml(quoteRequest.document_completion_percent || 0)}% complete)</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Submitted</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(submittedLabel)}</td></tr>
+      </table>
+      <p><a href="${escapeHtml(`${appUrl}/admin-leads.html`)}">Open admin lead management</a></p>
+    </div>
+  `;
+
+  const text = [
+    "New Quote Request Marketplace Lead",
+    `Company: ${quoteRequest.company_name}`,
+    `Lead tier: ${quoteRequest.lead_tier}`,
+    `Lead score: ${quoteRequest.lead_score}`,
+    `Fleet size: ${quoteRequest.power_units || 0} power units`,
+    `State: ${quoteRequest.primary_state || "Multi-state"}`,
+    `Renewal date: ${quoteRequest.renewal_date || "Not provided"}`,
+    `Documents: ${quoteRequest.document_count || 0} uploaded (${quoteRequest.document_completion_percent || 0}% complete)`,
+    `Submitted: ${submittedLabel}`,
+    `Admin: ${appUrl}/admin-leads.html`
+  ].join("\n");
+
+  return sendEmailMessage({ to: toEmail, subject, html, text });
+}
+
+export async function sendMarketplaceGoldLeadAlertEmail({
+  toEmail,
+  recipientName,
+  quoteRequest
+}) {
+  const appName = process.env.APP_NAME || "MyTruckingLeads";
+  const appUrl = process.env.APP_URL || "https://www.mytruckingleads.com";
+  const subject = `New Gold trucking lead available - ${appName}`;
+
+  const html = `
+    <div style="font-family: Arial, Helvetica, sans-serif; color: #172033; line-height: 1.6;">
+      <h2 style="margin-bottom: 12px;">New Gold Lead Available</h2>
+      <p>Hi ${escapeHtml(recipientName || "there")},</p>
+      <p>A new Gold trucking insurance lead is now available in the marketplace.</p>
+      <table style="border-collapse: collapse; width: 100%; max-width: 760px; margin: 18px 0;">
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Lead score</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.lead_score)}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Fleet size</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.power_units || 0)} power units</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">State</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.primary_state || "Multi-state")}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Cargo</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.cargo_hauled || "Not provided")}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Renewal date</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.renewal_date || "Not provided")}</td></tr>
+        <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Documents</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(quoteRequest.document_count || 0)} uploaded (${escapeHtml(quoteRequest.document_completion_percent || 0)}% complete)</td></tr>
+      </table>
+      <p><a href="${escapeHtml(`${appUrl}/lead-marketplace.html`)}">Open the lead marketplace</a></p>
+    </div>
+  `;
+
+  const text = [
+    `Hi ${recipientName || "there"},`,
+    "",
+    "A new Gold trucking insurance lead is available in the marketplace.",
+    `Lead score: ${quoteRequest.lead_score}`,
+    `Fleet size: ${quoteRequest.power_units || 0} power units`,
+    `State: ${quoteRequest.primary_state || "Multi-state"}`,
+    `Cargo: ${quoteRequest.cargo_hauled || "Not provided"}`,
+    `Renewal date: ${quoteRequest.renewal_date || "Not provided"}`,
+    `Documents: ${quoteRequest.document_count || 0} uploaded (${quoteRequest.document_completion_percent || 0}% complete)`,
+    "",
+    `${appUrl}/lead-marketplace.html`
+  ].join("\n");
+
+  return sendEmailMessage({ to: toEmail, subject, html, text });
+}

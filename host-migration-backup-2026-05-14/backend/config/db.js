@@ -45,6 +45,10 @@ export async function query(text, params) {
   }
 }
 
+export async function getClient() {
+  return pool.connect();
+}
+
 export async function closePool() {
   await pool.end();
   console.log("Database pool closed");

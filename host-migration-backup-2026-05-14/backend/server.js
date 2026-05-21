@@ -30,14 +30,17 @@ import subscriptionRoutes from "./routes/subscriptionRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import privacyRoutes from "./routes/privacyRoutes.js";
+import marketplaceRoutes from "./routes/marketplaceRoutes.js";
 import publicCarrierRoutes from "./routes/publicCarrierRoutes.js";
 import publicLeadRoutes from "./routes/publicLeadRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requireAuth } from "./middleware/authMiddleware.js";
+import { ownerRequired } from "./middleware/ownerMiddleware.js";
 import { query } from "./config/db.js";
 import { connectMongo } from "./config/mongo.js";
 import { startCarrierUpdateCron } from "./cron/carrierUpdateCron.js";
 import { startRenewalUpdateCron } from "./cron/renewalUpdateCron.js";
+import { ensureMarketplaceSchema } from "./services/marketplaceSchemaService.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -198,6 +201,7 @@ app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/contact-request", contactRoutes);
 app.use("/api/privacy-request", privacyRoutes);
+app.use("/api/marketplace", marketplaceRoutes);
 
 if (publicCarrierRoutesEnabled) {
   app.use("/api/public/carriers", publicCarrierRoutes);
@@ -238,6 +242,8 @@ app.get("/dot-analytics.html", sendPublicPage("dot-analytics.html"));
 app.get("/insurance-expiration.html", sendPublicPage("insurance-expiration.html"));
 app.get("/app-dashboard.html", sendPublicPage("app-dashboard.html"));
 app.get("/otrucking-test-panel.html", sendPublicPage("otrucking-test-panel.html"));
+app.get("/quote-request.html", sendPublicPage("quote-request.html"));
+app.get("/quote-request", sendPublicPage("quote-request.html"));
 
 // User dashboard - main page after login
 app.get("/dashboard", requireAuth, (req, res) => {
@@ -250,6 +256,22 @@ app.get("/lead-desk", requireAuth, (req, res) => {
 
 app.get("/crm", requireAuth, (req, res) => {
   res.sendFile(join(publicDir, "crm.html"));
+});
+
+app.get("/lead-marketplace", requireAuth, (req, res) => {
+  res.sendFile(join(publicDir, "lead-marketplace.html"));
+});
+
+app.get("/lead-marketplace.html", requireAuth, (req, res) => {
+  res.sendFile(join(publicDir, "lead-marketplace.html"));
+});
+
+app.get("/admin-leads", requireAuth, ownerRequired, (req, res) => {
+  res.sendFile(join(publicDir, "admin-leads.html"));
+});
+
+app.get("/admin-leads.html", requireAuth, ownerRequired, (req, res) => {
+  res.sendFile(join(publicDir, "admin-leads.html"));
 });
 
 app.get("/carrier-profile", (req, res) => {
@@ -371,6 +393,7 @@ connectMongo()
     try {
       await ensureUserAccountSchema();
       await ensureOperationalTables();
+      await ensureMarketplaceSchema();
       console.log("User account schema ready");
     } catch (err) {
       console.error("User account schema setup failed:", err.message);

@@ -189,8 +189,10 @@
           <li class="mb-2"><a href="user-dashboard.html" class="sidebar-link active"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
           <li class="mb-2"><a href="lead-desk.html" class="sidebar-link"><i class="bi bi-search"></i> Lead Search</a></li>
           <li class="mb-2"><a href="crm.html" class="sidebar-link"><i class="bi bi-kanban"></i> CRM</a></li>
+          <li class="mb-2"><a href="lead-marketplace.html" class="sidebar-link"><i class="bi bi-bag-check"></i> Lead Marketplace</a></li>
           <li class="mb-2"><a href="dot-analytics.html" class="sidebar-link"><i class="bi bi-graph-up-arrow"></i> DOT Analytics</a></li>
           <li id="ownerAdminNav" class="mb-2 d-none"><a href="admin.html" class="sidebar-link"><i class="bi bi-shield-lock"></i> Owner Admin</a></li>
+          <li id="ownerMarketplaceAdminNav" class="mb-2 d-none"><a href="admin-leads.html" class="sidebar-link"><i class="bi bi-briefcase"></i> Lead Admin</a></li>
           <li class="mb-2"><a href="settings.html" class="sidebar-link"><i class="bi bi-gear"></i> Settings</a></li>
         </ul>
         <hr class="border-secondary" />
@@ -324,6 +326,7 @@
 
       const ownerToolsVisible = Boolean(user.isOwner);
       document.getElementById("ownerAdminNav")?.classList.toggle("d-none", !ownerToolsVisible);
+      document.getElementById("ownerMarketplaceAdminNav")?.classList.toggle("d-none", !ownerToolsVisible);
       document.getElementById("ownerAdminCard")?.classList.toggle("d-none", !ownerToolsVisible);
     }
 
