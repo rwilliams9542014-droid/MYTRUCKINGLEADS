@@ -61,6 +61,23 @@
     return `tier-${String(tier || "").toLowerCase()}`;
   }
 
+  function renderSignalList(signals = []) {
+    if (!signals.length) {
+      return `<p class="muted-copy">No scoring signals are available yet for this lead.</p>`;
+    }
+
+    return `
+      <div class="sub-list">
+        ${signals.map((signal) => `
+          <div class="sub-item">
+            <strong>Qualification Signal</strong>
+            <span>${signal}</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   function getActiveLead() {
     return state.leads.find((lead) => Number(lead.id) === Number(state.activeLeadId)) || null;
   }
@@ -176,6 +193,13 @@
           <div><span>Document Completion</span><strong>${lead.documentCompletionPercent}%</strong></div>
           <div><span>Submitted</span><strong>${fmtDate(lead.submittedAt)}</strong></div>
         </div>
+      </div>
+
+      <div class="section">
+        <h4>${lead.qualificationBadge || `${lead.leadTier} Qualification`}</h4>
+        <p class="muted-copy">${lead.qualificationExplanation || "This lead was scored using documentation strength, urgency, and contact readiness."}</p>
+        <p class="muted-copy"><strong>Admin note:</strong> ${lead.adminReviewNote || "Review the document package and quote-readiness before changing tier."}</p>
+        ${renderSignalList(lead.qualificationSignals || [])}
       </div>
 
       <div class="section">

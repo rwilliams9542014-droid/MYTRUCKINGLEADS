@@ -168,6 +168,10 @@ function coverageWindowDays(label) {
   }
 }
 
+function selectedCoverageWindowDays(value) {
+  return String(value || "").trim() ? coverageWindowDays(value) : null;
+}
+
 function normalizeDate(value) {
   const trimmed = String(value || "").trim();
   if (!trimmed) return null;
@@ -273,6 +277,169 @@ function computeLeadPricing(tier, score) {
   return 20;
 }
 
+function getMarketplaceDocumentSignals(documents = []) {
+  const activeDocuments = documents.filter((document) => document.status !== "deleted");
+  const activeTypes = new Set(
+    activeDocuments.map((document) => normalizeDocumentType(document.document_type || document.documentType))
+  );
+
+  const hasLossRuns = activeTypes.has("loss_runs");
+  const hasPolicy = activeTypes.has("current_policy_declarations_page");
+  const hasIFTA = activeTypes.has("ifta_reports");
+  const hasRegistrations = activeTypes.has("truck_registrations");
+  const hasDriverLicenses = activeTypes.has("driver_licenses");
+  const hasVehicleSchedule = activeTypes.has("vehicle_schedule");
+
+  const keyDocumentCount = REQUIRED_MARKETPLACE_DOCUMENT_TYPES.filter((type) => activeTypes.has(type)).length;
+  const strongDocumentPackage =
+    keyDocumentCount >= 4 ||
+    (hasLossRuns && hasPolicy && (hasRegistrations || hasVehicleSchedule));
+
+  return {
+    activeDocumentCount: activeDocuments.length,
+    keyDocumentCount,
+    hasLossRuns,
+    hasPolicy,
+    hasIFTA,
+    hasRegistrations,
+    hasDriverLicenses,
+    hasVehicleSchedule,
+    strongDocumentPackage
+  };
+}
+
+function buildQualificationSignals({
+  leadTier,
+  powerUnits,
+  contactVerified,
+  activeShopping,
+  renewalDays,
+  coverageWindow,
+  keyDocumentCount,
+  strongDocumentPackage,
+  hasLossRuns,
+  hasPolicy,
+  hasRegistrations,
+  hasVehicleSchedule
+}) {
+  const signals = [];
+
+  if (contactVerified) signals.push("Verified phone and email");
+  if (renewalDays != null) {
+    if (renewalDays <= 60) signals.push(`Renewal in ${renewalDays} days`);
+    else signals.push("Renewal date provided");
+  }
+  if (coverageWindow != null && coverageWindow <= 30) {
+    signals.push(`Needs coverage within ${coverageWindow} days`);
+  }
+  if (activeShopping) signals.push("Actively shopping for quotes");
+  if (keyDocumentCount > 0) {
+    signals.push(`${keyDocumentCount} key underwriting documents uploaded`);
+  }
+  if (hasLossRuns) signals.push("Loss runs included");
+  if (hasPolicy) signals.push("Current policy included");
+  if (hasRegistrations || hasVehicleSchedule) {
+    signals.push(hasRegistrations && hasVehicleSchedule ? "Registration and vehicle schedule included" : "Registration package included");
+  }
+  if (powerUnits >= 10) signals.push("Larger fleet opportunity");
+  else if (powerUnits >= 1 && leadTier !== "Bronze") signals.push("Small fleet upgraded by documentation strength");
+
+  if (!signals.length) {
+    signals.push("Minimal quote-readiness data submitted");
+  }
+
+  return signals.slice(0, 5);
+}
+
+function buildQualificationMessaging({
+  leadTier,
+  powerUnits,
+  contactVerified,
+  activeShopping,
+  renewalDays,
+  coverageWindow,
+  keyDocumentCount,
+  strongDocumentPackage,
+  hasLossRuns,
+  hasPolicy,
+  hasRegistrations,
+  hasVehicleSchedule
+}) {
+  let badge = `${leadTier} Lead`;
+  let explanation = "Lead tier is based on quote readiness, documentation quality, and underwriting urgency.";
+  let adminReviewNote = "Review the document package and contact readiness before adjusting this lead manually.";
+
+  if (leadTier === "Gold") {
+    badge = powerUnits <= 2 ? "Docs-Forward Gold" : "Quote-Ready Gold";
+    explanation = "Gold because the carrier is actively shopping, needs coverage soon, and submitted a strong underwriting package.";
+    adminReviewNote = "Gold is being driven by quote readiness and document strength, not just fleet size. Do not downgrade solely because this is a 1-truck account.";
+  } else if (leadTier === "Silver") {
+    badge = powerUnits <= 2 ? "Docs-Verified Silver" : "Qualified Silver";
+    explanation = "Silver because contact details are verified, a renewal date is on file, and at least 2 key underwriting documents were submitted.";
+    adminReviewNote = "Silver now allows 1-truck owner-operators when verified contact details and at least 2 key documents are present.";
+  } else {
+    badge = "Early-Stage Bronze";
+    explanation = "Bronze because the submission is still missing enough quote-readiness signals or key underwriting documents to qualify for Silver or Gold.";
+    adminReviewNote = "Bronze usually means minimal info, missing urgency signals, or a thin document package. A large fleet should not stay Gold without stronger underwriting support.";
+  }
+
+  return {
+    badge,
+    explanation,
+    adminReviewNote,
+    qualificationSignals: buildQualificationSignals({
+      leadTier,
+      powerUnits,
+      contactVerified,
+      activeShopping,
+      renewalDays,
+      coverageWindow,
+      keyDocumentCount,
+      strongDocumentPackage,
+      hasLossRuns,
+      hasPolicy,
+      hasRegistrations,
+      hasVehicleSchedule
+    })
+  };
+}
+
+function buildQualificationSummaryFromRow(row) {
+  const checklist = row.document_checklist || {};
+  const powerUnits = Math.max(0, Number(row.power_units || 0));
+  const contactVerified = Boolean(row.contact_verified);
+  const activeShopping = Boolean(row.actively_shopping);
+  const renewalDays = row.renewal_proximity_days == null ? null : Number(row.renewal_proximity_days);
+  const coverageWindow = selectedCoverageWindowDays(row.coverage_needed_within);
+  const keyDocumentCount = Number(row.required_documents_submitted || 0);
+  const hasLossRuns = Boolean(checklist.loss_runs?.present);
+  const hasPolicy = Boolean(checklist.current_policy_declarations_page?.present);
+  const hasRegistrations = Boolean(checklist.truck_registrations?.present);
+  const hasVehicleSchedule = Boolean(checklist.vehicle_schedule?.present);
+  const strongDocumentPackage =
+    keyDocumentCount >= 4 ||
+    (hasLossRuns && hasPolicy && (hasRegistrations || hasVehicleSchedule));
+
+  return {
+    keyDocumentCount,
+    strongDocumentPackage,
+    ...buildQualificationMessaging({
+      leadTier: row.lead_tier,
+      powerUnits,
+      contactVerified,
+      activeShopping,
+      renewalDays,
+      coverageWindow,
+      keyDocumentCount,
+      strongDocumentPackage,
+      hasLossRuns,
+      hasPolicy,
+      hasRegistrations,
+      hasVehicleSchedule
+    })
+  };
+}
+
 export function scoreQuoteRequest(payload, documents = []) {
   const checklist = buildDocumentChecklist(documents);
   const contactVerified = Boolean(payload.emailAddress && payload.phoneNumber);
@@ -280,47 +447,75 @@ export function scoreQuoteRequest(payload, documents = []) {
   const renewalDays = daysUntil(payload.renewalDate);
   const powerUnits = Math.max(0, Number(payload.powerUnits || 0));
   const activeShopping = Boolean(payload.activelyShopping);
-  const hasLossRuns = documents.some((document) => normalizeDocumentType(document.document_type || document.documentType) === "loss_runs");
-  const hasPolicy = documents.some((document) => normalizeDocumentType(document.document_type || document.documentType) === "current_policy_declarations_page");
-  const hasVehicleSchedule = documents.some((document) => normalizeDocumentType(document.document_type || document.documentType) === "vehicle_schedule");
+  const coverageWindow = selectedCoverageWindowDays(payload.coverageNeededWithin);
+  const {
+    activeDocumentCount,
+    keyDocumentCount,
+    hasLossRuns,
+    hasPolicy,
+    hasRegistrations,
+    hasVehicleSchedule,
+    strongDocumentPackage
+  } = getMarketplaceDocumentSignals(documents);
 
   let score = 0;
 
-  if (powerUnits >= 10) score += 28;
-  else if (powerUnits >= 3) score += 18;
-  else if (powerUnits >= 1) score += 8;
+  if (powerUnits >= 10) score += 16;
+  else if (powerUnits >= 5) score += 12;
+  else if (powerUnits >= 3) score += 9;
+  else if (powerUnits >= 1) score += 6;
 
   if (renewalDays != null) {
-    if (renewalDays <= 30) score += 22;
-    else if (renewalDays <= 60) score += 18;
-    else if (renewalDays <= 90) score += 12;
+    if (renewalDays <= 30) score += 18;
+    else if (renewalDays <= 60) score += 14;
+    else if (renewalDays <= 90) score += 10;
     else score += 6;
   }
 
-  score += Math.min(22, Math.round(checklist.percent * 0.22));
-  score += activeShopping ? 12 : 3;
-  score += contactVerified ? 8 : 0;
-  score += Math.min(8, Math.round(dataCompleteness * 0.08));
+  if (coverageWindow != null) {
+    if (coverageWindow <= 7) score += 12;
+    else if (coverageWindow <= 30) score += 10;
+    else if (coverageWindow <= 60) score += 6;
+    else score += 3;
+  }
+
+  score += Math.min(24, Math.round(checklist.percent * 0.24));
+  score += Math.min(12, keyDocumentCount * 3);
+  score += activeShopping ? 10 : 2;
+  score += contactVerified ? 10 : 0;
+  score += Math.min(10, Math.round(dataCompleteness * 0.1));
+  if (strongDocumentPackage) score += 6;
 
   const silverReady =
-    powerUnits >= 3 &&
-    powerUnits <= 10 &&
+    powerUnits >= 1 &&
     contactVerified &&
     Boolean(payload.renewalDate) &&
-    documents.length >= 2;
+    keyDocumentCount >= 2;
 
   const goldReady =
-    powerUnits >= 10 &&
+    powerUnits >= 1 &&
     activeShopping &&
-    renewalDays != null &&
-    renewalDays <= 60 &&
-    hasLossRuns &&
-    hasPolicy &&
-    hasVehicleSchedule;
+    contactVerified &&
+    ((renewalDays != null && renewalDays <= 60) || (coverageWindow != null && coverageWindow <= 30)) &&
+    strongDocumentPackage;
 
   const leadTier = goldReady ? "Gold" : silverReady ? "Silver" : "Bronze";
   const leadScore = Math.max(0, Math.min(100, score));
   const leadPrice = computeLeadPricing(leadTier, leadScore);
+  const qualification = buildQualificationMessaging({
+    leadTier,
+    powerUnits,
+    contactVerified,
+    activeShopping,
+    renewalDays,
+    coverageWindow,
+    keyDocumentCount,
+    strongDocumentPackage,
+    hasLossRuns,
+    hasPolicy,
+    hasRegistrations,
+    hasVehicleSchedule
+  });
 
   return {
     leadTier,
@@ -329,11 +524,17 @@ export function scoreQuoteRequest(payload, documents = []) {
     contactVerified,
     dataCompleteness,
     renewalProximityDays: renewalDays,
-    documentCount: documents.filter((document) => document.status !== "deleted").length,
+    documentCount: activeDocumentCount,
     documentCompletionPercent: checklist.percent,
     requiredDocumentsSubmitted: checklist.submitted,
     requiredDocumentsTotal: checklist.total,
-    documentChecklist: checklist.checklist
+    documentChecklist: checklist.checklist,
+    keyDocumentCount,
+    strongDocumentPackage,
+    qualificationBadge: qualification.badge,
+    qualificationExplanation: qualification.explanation,
+    adminReviewNote: qualification.adminReviewNote,
+    qualificationSignals: qualification.qualificationSignals
   };
 }
 
@@ -452,6 +653,7 @@ function visibleToUserClause(user) {
 }
 
 function buildPublicLeadSummary(row) {
+  const qualification = buildQualificationSummaryFromRow(row);
   return {
     id: row.id,
     leadTier: row.lead_tier,
@@ -470,7 +672,16 @@ function buildPublicLeadSummary(row) {
     listPrice: money(row.lead_price),
     submittedAt: row.created_at,
     status: row.status,
-    activelyShopping: Boolean(row.actively_shopping)
+    activelyShopping: Boolean(row.actively_shopping),
+    coverageNeededWithin: row.coverage_needed_within,
+    contactVerified: Boolean(row.contact_verified),
+    dataCompleteness: Number(row.data_completeness_score || 0),
+    keyDocumentCount: qualification.keyDocumentCount,
+    strongDocumentPackage: qualification.strongDocumentPackage,
+    qualificationBadge: qualification.badge,
+    qualificationExplanation: qualification.explanation,
+    adminReviewNote: qualification.adminReviewNote,
+    qualificationSignals: qualification.qualificationSignals
   };
 }
 
@@ -588,7 +799,8 @@ async function syncQuoteRequestDerivedFields(quoteRequestId, client = null) {
     currentInsuranceCompany: quoteRequest.current_insurance_company,
     renewalDate: quoteRequest.renewal_date,
     coverageTypesNeeded: quoteRequest.coverage_types_needed,
-    activelyShopping: quoteRequest.actively_shopping
+    activelyShopping: quoteRequest.actively_shopping,
+    coverageNeededWithin: quoteRequest.coverage_needed_within
   }, documents);
 
   const result = await db.query(

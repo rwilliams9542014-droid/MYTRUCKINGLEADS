@@ -77,6 +77,23 @@
     return `tier-${String(tier || "").toLowerCase()}`;
   }
 
+  function renderSignalGrid(signals = []) {
+    if (!signals.length) {
+      return `<p class="muted-copy">Qualification signals are still being prepared for this lead.</p>`;
+    }
+
+    return `
+      <div class="detail-list">
+        ${signals.map((signal) => `
+          <div>
+            <span>Qualification Signal</span>
+            <strong>${signal}</strong>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   function renderHeader() {
     if (byId("headerUser") && state.user) {
       const plan = state.access?.marketplacePlanLabel || "Starter";
@@ -154,7 +171,10 @@
     grid.innerHTML = state.leads.map((lead) => `
       <article class="lead-card ${tierClass(lead.leadTier)}">
         <div class="lead-card-top">
-          <span class="tier-chip ${tierClass(lead.leadTier)}">${lead.leadTier} Lead</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="tier-chip ${tierClass(lead.leadTier)}">${lead.leadTier} Lead</span>
+            <span class="price-pill">${lead.qualificationBadge || "Quote Ready"}</span>
+          </div>
           <span class="price-pill">${fmtMoney(lead.price)}</span>
         </div>
         <h3>${lead.masked ? "Carrier identity locked until purchase" : lead.companyName}</h3>
@@ -167,7 +187,8 @@
           <div><span>Docs</span><strong>${lead.requiredDocumentsSubmitted}/${lead.requiredDocumentsTotal}</strong></div>
           <div><span>Status</span><strong>${lead.status}</strong></div>
         </div>
-        <p class="lead-note">${lead.masked ? lead.revealMessage : "This lead has been unlocked in your workspace and CRM."}</p>
+        <p class="lead-note">${lead.qualificationExplanation || ""}</p>
+        <p class="muted-copy">${lead.masked ? lead.revealMessage : "This lead has been unlocked in your workspace and CRM."}</p>
         <div class="lead-actions">
           <button type="button" class="ghost-button" data-view-lead="${lead.id}">${lead.masked ? "Preview Lead" : "Open Lead"}</button>
           ${lead.masked
@@ -214,6 +235,11 @@
         <div><span>Renewal Date</span><strong>${fmtDate(lead.renewalDate)}</strong></div>
         <div><span>Fleet Size</span><strong>${lead.fleetSize} trucks</strong></div>
         <div><span>Coverage</span><strong>${lead.coverageNeeded || "Not provided"}</strong></div>
+      </div>
+      <div class="detail-section">
+        <h4>${lead.qualificationBadge || `${lead.leadTier} Qualification`}</h4>
+        <p class="lead-note">${lead.qualificationExplanation || "This lead was scored using documentation strength, urgency, and contact readiness."}</p>
+        ${renderSignalGrid(lead.qualificationSignals || [])}
       </div>
       <div class="detail-section">
         <h4>Contact & Carrier</h4>
