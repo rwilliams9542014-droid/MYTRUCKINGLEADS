@@ -354,7 +354,7 @@ export function normalizeMarketplaceUploadMetadata(files = [], body = {}) {
 
   return files.map((file, index) => ({
     ...file,
-    documentType: normalizeDocumentType(documentTypes[index])
+    documentType: normalizeDocumentType(documentTypes[index] || file.documentType || file.document_type)
   }));
 }
 

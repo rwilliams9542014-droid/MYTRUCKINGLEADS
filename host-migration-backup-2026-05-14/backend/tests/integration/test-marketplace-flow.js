@@ -59,7 +59,7 @@ async function createTestUser({ plan, namePrefix }) {
   return user;
 }
 
-async function createTempUpload(filename, mimeType, contents = "sample document") {
+async function createTempUpload(filename, mimeType, contents = "sample document", documentType = "other_supporting_documents") {
   const uploadDir = await ensureMarketplaceUploadDir();
   const storedName = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}-${filename}`;
   const filePath = path.join(uploadDir, storedName);
@@ -71,7 +71,8 @@ async function createTempUpload(filename, mimeType, contents = "sample document"
     filename: storedName,
     mimetype: mimeType,
     size: stat.size,
-    path: filePath
+    path: filePath,
+    documentType
   };
 }
 
@@ -167,8 +168,8 @@ async function testMarketplaceFlow() {
       additionalComments: "Has current quote pressure."
     },
     [
-      await createTempUpload("silver-loss-runs.pdf", "application/pdf", "loss runs"),
-      await createTempUpload("silver-policy.pdf", "application/pdf", "policy")
+      await createTempUpload("silver-loss-runs.pdf", "application/pdf", "loss runs", "loss_runs"),
+      await createTempUpload("silver-policy.pdf", "application/pdf", "policy", "current_policy_declarations_page")
     ]
   );
 
@@ -195,11 +196,11 @@ async function testMarketplaceFlow() {
       additionalComments: "Need quick turnaround with full package."
     },
     [
-      await createTempUpload("gold-loss-runs.pdf", "application/pdf", "loss runs"),
-      await createTempUpload("gold-policy.pdf", "application/pdf", "policy"),
-      await createTempUpload("gold-vehicle-schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "vehicles"),
-      await createTempUpload("gold-registrations.pdf", "application/pdf", "registrations"),
-      await createTempUpload("gold-driver-licenses.pdf", "application/pdf", "licenses")
+      await createTempUpload("gold-loss-runs.pdf", "application/pdf", "loss runs", "loss_runs"),
+      await createTempUpload("gold-policy.pdf", "application/pdf", "policy", "current_policy_declarations_page"),
+      await createTempUpload("gold-vehicle-schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "vehicles", "vehicle_schedule"),
+      await createTempUpload("gold-registrations.pdf", "application/pdf", "registrations", "truck_registrations"),
+      await createTempUpload("gold-driver-licenses.pdf", "application/pdf", "licenses", "driver_licenses")
     ]
   );
 
