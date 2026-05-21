@@ -29,6 +29,7 @@ import teamRoutes from "./routes/teamRoutes.js";
 import subscriptionRoutes from "./routes/subscriptionRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
+import privacyRoutes from "./routes/privacyRoutes.js";
 import publicCarrierRoutes from "./routes/publicCarrierRoutes.js";
 import publicLeadRoutes from "./routes/publicLeadRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -196,6 +197,7 @@ app.use("/api/team", teamRoutes);
 app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/contact-request", contactRoutes);
+app.use("/api/privacy-request", privacyRoutes);
 
 if (publicCarrierRoutesEnabled) {
   app.use("/api/public/carriers", publicCarrierRoutes);

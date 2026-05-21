@@ -710,3 +710,98 @@ export async function sendContactRequestEmail({
     };
   }
 }
+
+function formatPrivacyRequestType(requestType = "") {
+  switch (String(requestType || "").trim().toLowerCase()) {
+    case "access":
+      return "Access / know what data you have";
+    case "correction":
+      return "Correction / update my information";
+    case "export":
+      return "Export / copy of my information";
+    case "deletion":
+      return "Deletion / remove my information";
+    case "opt_out":
+      return "Opt out of marketing / tracking";
+    default:
+      return "Other privacy request";
+  }
+}
+
+export async function sendPrivacyRequestEmail({
+  toEmail,
+  requestType,
+  name,
+  email,
+  accountEmail = "",
+  location = "",
+  details,
+  submittedAt,
+  sourcePage = ""
+}) {
+  const transport = initializeTransporter();
+  if (!transport) {
+    return { success: false, message: "Email service not configured" };
+  }
+
+  try {
+    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.RESEND_FROM_EMAIL;
+    const appName = process.env.APP_NAME || "MyTruckingLeads";
+    const submittedLabel = submittedAt ? new Date(submittedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "Unknown";
+    const requestLabel = formatPrivacyRequestType(requestType);
+    const escapedDetails = escapeHtml(details).replace(/\n/g, "<br>");
+
+    const html = `
+      <div style="font-family: Arial, Helvetica, sans-serif; color: #172033; line-height: 1.6;">
+        <h2 style="margin-bottom: 12px;">New Privacy Request</h2>
+        <p style="margin-top: 0;">A privacy request was submitted on ${escapeHtml(appName)}.</p>
+        <table style="border-collapse: collapse; width: 100%; max-width: 760px; margin: 18px 0;">
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Request type</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(requestLabel)}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Name</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(name)}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Reply email</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;"><a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Account email</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${accountEmail ? `<a href="mailto:${escapeHtml(accountEmail)}">${escapeHtml(accountEmail)}</a>` : "Not provided"}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">State / country</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(location || "Not provided")}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Submitted</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(submittedLabel)}</td></tr>
+          <tr><td style="padding: 8px 12px; border: 1px solid #dbe4f0; font-weight: 700;">Source</td><td style="padding: 8px 12px; border: 1px solid #dbe4f0;">${escapeHtml(sourcePage || "Website privacy request form")}</td></tr>
+        </table>
+        <div style="padding: 16px; border: 1px solid #dbe4f0; border-radius: 12px; background: #f8fbff;">
+          <div style="font-weight: 700; margin-bottom: 8px;">Request details</div>
+          <div>${escapedDetails}</div>
+        </div>
+      </div>
+    `;
+
+    const text = [
+      "New Privacy Request",
+      `Request type: ${requestLabel}`,
+      `Name: ${name}`,
+      `Reply email: ${email}`,
+      `Account email: ${accountEmail || "Not provided"}`,
+      `State / country: ${location || "Not provided"}`,
+      `Submitted: ${submittedLabel}`,
+      `Source: ${sourcePage || "Website privacy request form"}`,
+      "",
+      "Request details:",
+      details
+    ].join("\n");
+
+    const result = await transport.sendMail({
+      from: fromEmail,
+      to: toEmail,
+      replyTo: accountEmail || email,
+      subject: `Privacy request: ${requestLabel} - ${name} - ${appName}`,
+      html,
+      text
+    });
+
+    return {
+      success: true,
+      message: `Privacy request sent successfully (ID: ${result.messageId})`
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: `Error: ${err.message}`
+    };
+  }
+}
