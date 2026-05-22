@@ -1,4 +1,5 @@
 import * as API from "./api.js?v=cookie-session-2";
+import { getAccountLeadState, resolvePlanLeadState } from "./lead-state.js";
 
 const IS_LOCAL_DEV =
   window.location.protocol === "file:" ||
@@ -226,6 +227,45 @@ function getPlanLeadLabel() {
   if (plan === "premium") return "Agency Unlimited";
   if (plan === "pro") return "Pro";
   return "Starter";
+}
+
+function getCurrentLeadState() {
+  return getAccountLeadState(API.getCurrentUser());
+}
+
+function resolveStateSelection(stateElementId) {
+  return resolvePlanLeadState({
+    selectedState: document.getElementById(stateElementId)?.value || "",
+    user: API.getCurrentUser(),
+    oneStatePlan: isOneStatePlan()
+  });
+}
+
+function syncPlanStateControl(stateElementId) {
+  const control = document.getElementById(stateElementId);
+  if (!control) return;
+
+  const accountState = getCurrentLeadState();
+  const lockedToSingleState = isOneStatePlan() && Boolean(accountState);
+  const blankOption = control.querySelector('option[value=""]');
+
+  if (blankOption) {
+    blankOption.textContent = lockedToSingleState
+      ? `${accountState} locked on your plan`
+      : "All states (Agency only)";
+  }
+
+  if (lockedToSingleState) {
+    control.value = accountState;
+    control.disabled = true;
+    control.title = `${getPlanLeadLabel()} is locked to ${accountState}. Upgrade to Agency Unlimited to search all states.`;
+    return;
+  }
+
+  control.disabled = false;
+  control.title = isOneStatePlan()
+    ? `${getPlanLeadLabel()} includes one state. Choose a state to start searching.`
+    : "Search any state or leave all states selected.";
 }
 
 function getCurrentExportQuota() {
@@ -1055,7 +1095,7 @@ function getProspectFilters() {
   return {
     renewalFrom: monthRange.from || document.getElementById("renewalFrom")?.value || "",
     renewalTo: monthRange.to || document.getElementById("renewalTo")?.value || "",
-    state: document.getElementById("prospectState")?.value?.trim().toUpperCase() || "",
+    state: resolveStateSelection("prospectState"),
     minFleetSize: document.getElementById("minFleetSize")?.value || "",
     hasEmail: emailFilter === "hasEmail" || emailFilter === "verified" ? "true" : "",
     emailVerified: emailFilter === "verified" ? "true" : "",
@@ -1067,9 +1107,13 @@ function getProspectFilters() {
 }
 
 function requireStateForOneStatePlan(stateElementId, targetElement = null) {
-  const state = document.getElementById(stateElementId)?.value?.trim().toUpperCase() || "";
+  const state = resolveStateSelection(stateElementId);
+  const stateControl = document.getElementById(stateElementId);
+  if (stateControl && state) {
+    stateControl.value = state;
+  }
   if (isOneStatePlan() && !state) {
-    showUpgradePrompt(`${getPlanLeadLabel()} includes one state. Choose a state, then search.`, targetElement || document.getElementById(stateElementId));
+    showUpgradePrompt(`${getPlanLeadLabel()} includes one state. Choose a state, then search.`, targetElement || stateControl);
     return false;
   }
   return true;
@@ -1084,7 +1128,7 @@ function getNewVentureFilters() {
   return {
     from: monthRange.from || document.getElementById("newVentureFrom")?.value || "",
     to: monthRange.to || document.getElementById("newVentureTo")?.value || "",
-    state: document.getElementById("newVentureState")?.value?.trim().toUpperCase() || "",
+    state: resolveStateSelection("newVentureState"),
     operation: document.getElementById("newVentureOperation")?.value || "",
     minFleetSize: document.getElementById("newVentureMinFleet")?.value || "",
     hasEmail: emailFilter === "hasEmail" || emailFilter === "verify" ? "true" : "",
@@ -1484,6 +1528,7 @@ function applySubscriptionUiControls() {
   const summary = document.getElementById("prospectReportSummary");
   const newVentureSummary = document.getElementById("newVentureSummary");
   const renewalTabButton = document.getElementById("renewal-tab");
+  const accountState = getCurrentLeadState();
   const exportButtons = [
     document.getElementById("exportProspectsBtn"),
     document.getElementById("exportNewVenturesBtn"),
@@ -1494,14 +1539,20 @@ function applySubscriptionUiControls() {
     summary.textContent = plan === "premium"
       ? "Agency Unlimited: search any lead type in any state."
       : plan === "pro"
-        ? "Pro: choose one state, then search renewals and new DOT leads."
-        : "Starter: choose one state, then search new DOT leads and basic renewals.";
+        ? accountState
+          ? `Pro: locked to ${accountState} for renewals and new DOT leads.`
+          : "Pro: choose one state, then search renewals and new DOT leads."
+        : accountState
+          ? `Starter: locked to ${accountState} for new DOT leads and basic renewals.`
+          : "Starter: choose one state, then search new DOT leads and basic renewals.";
   }
 
   if (newVentureSummary) {
     newVentureSummary.textContent = plan === "premium"
       ? "Choose a state or leave all states selected, then search new DOT leads."
-      : "Choose your state, then search new DOT leads.";
+      : accountState
+        ? `Searching ${accountState} new DOT leads on your ${getPlanLeadLabel()} plan.`
+        : "Choose your state, then search new DOT leads.";
   }
 
   if (plan === "basic" && renewalTabButton) {
@@ -1543,6 +1594,9 @@ function applySubscriptionUiControls() {
       ? `${getPlanLeadLabel()} monthly export limit reached. Upgrade or wait until next month to export more records.`
       : exportQuotaMessage();
   });
+
+  syncPlanStateControl("prospectState");
+  syncPlanStateControl("newVentureState");
 }
 
 function formatDateOnly(value) {

@@ -7,6 +7,8 @@ import { ValidationError, ConflictError, AuthenticationError } from "../middlewa
 import { getTrialUsage } from "../utils/trialAccess.js";
 import { getPlanAccessSummary } from "../utils/planAccess.js";
 import { loadEffectiveTeamUser } from "../utils/teamAccounts.js";
+import { isOwnerUser } from "../utils/ownerAccess.js";
+import { clearOwnerPreviewCookie } from "../utils/ownerPreview.js";
 
 function effectiveSubscriptionStatus(user) {
   if (process.env.LOCAL_DEV_FREE_ACCESS === "true" && process.env.NODE_ENV !== "production") {
@@ -14,27 +16,6 @@ function effectiveSubscriptionStatus(user) {
   }
 
   return user.subscription_status;
-}
-
-function csvEnv(name) {
-  return String(process.env[name] || "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function ownerUsernames() {
-  const configured = csvEnv("OWNER_USERNAMES").concat(csvEnv("OWNER_USERNAME"));
-  return configured.length ? configured : ["admin"];
-}
-
-function isOwnerUser(user) {
-  const ownerEmails = csvEnv("OWNER_EMAILS").concat(csvEnv("OWNER_EMAIL"));
-
-  return (
-    ownerEmails.includes(String(user.email || "").toLowerCase()) ||
-    ownerUsernames().includes(String(user.username || "").toLowerCase())
-  );
 }
 
 function publicPlan(plan, subscriptionStatus) {
@@ -53,6 +34,29 @@ function publicUser(user) {
     ...user,
     subscription_status: subscriptionStatus
   });
+  const ownerPreview = user.owner_preview_active
+    ? {
+        active: true,
+        plan: publicPlan(user.owner_preview_plan || user.plan, user.owner_preview_subscription_status || subscriptionStatus),
+        internalPlan: user.owner_preview_plan || user.plan,
+        leadState: user.owner_preview_lead_state || null,
+        subscriptionStatus: user.owner_preview_subscription_status || subscriptionStatus,
+        savedAt: user.owner_preview_saved_at || null,
+        actualPlan: publicPlan(user.owner_actual_plan, user.owner_actual_subscription_status),
+        actualInternalPlan: user.owner_actual_plan || null,
+        actualLeadState: user.owner_actual_lead_state || null,
+        actualSubscriptionStatus: user.owner_actual_subscription_status || null,
+        actualSubscriptionExpiresAt: user.owner_actual_subscription_expires_at || null
+      }
+    : {
+        active: false,
+        actualPlan: publicPlan(user.plan, subscriptionStatus),
+        actualInternalPlan: user.plan || null,
+        actualLeadState: user.lead_state || null,
+        actualSubscriptionStatus: subscriptionStatus,
+        actualSubscriptionExpiresAt: user.subscription_expires_at || null
+      };
+
   return {
     id: user.id,
     name: user.name,
@@ -86,7 +90,8 @@ function publicUser(user) {
     canUseTextMessaging: access.canUseTextMessaging,
     lastUsageResetAt: user.last_usage_reset_at || null,
     trialAccess,
-    access
+    access,
+    ownerPreview
   };
 }
 
@@ -280,6 +285,7 @@ export async function login(req, res, next) {
 
 export async function logout(req, res) {
   clearAuthCookie(res);
+  clearOwnerPreviewCookie(res);
   res.json({ message: "Logged out successfully" });
 }
 
@@ -309,7 +315,26 @@ export async function getCurrentUser(req, res, next) {
     }
 
     const effectiveUser = await loadEffectiveTeamUser(userResult.rows[0]);
-    res.json({ user: publicUser(effectiveUser) });
+    const responseUser = req.user?.owner_preview_active
+      ? {
+          ...effectiveUser,
+          plan: req.user.plan,
+          lead_state: req.user.lead_state,
+          subscription_status: req.user.subscription_status,
+          subscription_expires_at: req.user.subscription_expires_at,
+          trial_ends_at: req.user.trial_ends_at,
+          owner_preview_active: req.user.owner_preview_active,
+          owner_preview_plan: req.user.owner_preview_plan,
+          owner_preview_lead_state: req.user.owner_preview_lead_state,
+          owner_preview_subscription_status: req.user.owner_preview_subscription_status,
+          owner_preview_saved_at: req.user.owner_preview_saved_at,
+          owner_actual_plan: req.user.owner_actual_plan,
+          owner_actual_lead_state: req.user.owner_actual_lead_state,
+          owner_actual_subscription_status: req.user.owner_actual_subscription_status,
+          owner_actual_subscription_expires_at: req.user.owner_actual_subscription_expires_at
+        }
+      : effectiveUser;
+    res.json({ user: publicUser(responseUser) });
   } catch (err) {
     next(err);
   }

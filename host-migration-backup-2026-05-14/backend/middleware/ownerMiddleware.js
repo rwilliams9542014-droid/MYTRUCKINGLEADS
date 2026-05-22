@@ -1,16 +1,5 @@
 import { query } from "../config/db.js";
-
-function csvEnv(name) {
-  return String(process.env[name] || "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function ownerUsernames() {
-  const configured = csvEnv("OWNER_USERNAMES").concat(csvEnv("OWNER_USERNAME"));
-  return configured.length ? configured : ["admin"];
-}
+import { isOwnerUser } from "../utils/ownerAccess.js";
 
 export async function ownerRequired(req, res, next) {
   try {
@@ -30,11 +19,7 @@ export async function ownerRequired(req, res, next) {
     }
 
     const user = result.rows[0];
-    const ownerEmails = csvEnv("OWNER_EMAILS").concat(csvEnv("OWNER_EMAIL"));
-    const isOwnerEmail = ownerEmails.includes(String(user.email || "").toLowerCase());
-    const isOwnerUsername = ownerUsernames().includes(String(user.username || "").toLowerCase());
-
-    if (!isOwnerEmail && !isOwnerUsername) {
+    if (!isOwnerUser(user)) {
       return res.status(403).json({ error: "Owner access required" });
     }
 

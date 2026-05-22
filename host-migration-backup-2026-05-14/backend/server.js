@@ -266,6 +266,14 @@ app.get("/lead-marketplace.html", requireAuth, (req, res) => {
   res.sendFile(join(publicDir, "lead-marketplace.html"));
 });
 
+app.get("/admin", requireAuth, ownerRequired, (req, res) => {
+  res.sendFile(join(publicDir, "admin.html"));
+});
+
+app.get("/admin.html", requireAuth, ownerRequired, (req, res) => {
+  res.sendFile(join(publicDir, "admin.html"));
+});
+
 app.get("/admin-leads", requireAuth, ownerRequired, (req, res) => {
   res.sendFile(join(publicDir, "admin-leads.html"));
 });
@@ -382,6 +390,51 @@ async function ensureOperationalTables() {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_invite_token
       ON team_members (invite_token)
       WHERE invite_token IS NOT NULL
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS contact_requests (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT,
+      agency TEXT,
+      message TEXT NOT NULL,
+      source_page TEXT,
+      email_delivery_status TEXT NOT NULL DEFAULT 'failed',
+      email_delivery_message TEXT,
+      status TEXT NOT NULL DEFAULT 'new',
+      reviewed_at TIMESTAMPTZ,
+      reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    ALTER TABLE contact_requests
+      ADD COLUMN IF NOT EXISTS phone TEXT,
+      ADD COLUMN IF NOT EXISTS agency TEXT,
+      ADD COLUMN IF NOT EXISTS source_page TEXT,
+      ADD COLUMN IF NOT EXISTS email_delivery_status TEXT NOT NULL DEFAULT 'failed',
+      ADD COLUMN IF NOT EXISTS email_delivery_message TEXT,
+      ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'new',
+      ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_contact_requests_submitted_at
+      ON contact_requests (submitted_at DESC)
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_contact_requests_status
+      ON contact_requests (status)
   `);
 }
 

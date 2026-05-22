@@ -5,6 +5,8 @@ import { normalizePlan } from "../utils/planAccess.js";
 import { syncUserSubscriptionFromStripe } from "../services/stripeService.js";
 import { applyTrialResponse, hydrateTrialAccessUser } from "../utils/trialAccess.js";
 import { loadEffectiveTeamUser } from "../utils/teamAccounts.js";
+import { isOwnerUser } from "../utils/ownerAccess.js";
+import { applyOwnerPreview, readOwnerPreviewCookie } from "../utils/ownerPreview.js";
 
 // Extract token from the httpOnly cookie first, then fall back to Authorization.
 function extractToken(req) {
@@ -66,8 +68,14 @@ async function loadUserForRequest(userId) {
     user.plan = normalizedPlan;
   }
 
-  const effectiveUser = await loadEffectiveTeamUser(user);
-  return hydrateTrialAccessUser(effectiveUser);
+  let effectiveUser = await loadEffectiveTeamUser(user);
+  effectiveUser = await hydrateTrialAccessUser(effectiveUser);
+
+  if (isOwnerUser(user)) {
+    effectiveUser = applyOwnerPreview(effectiveUser, readOwnerPreviewCookie(req));
+  }
+
+  return effectiveUser;
 }
 
 function assignRequestUser(req, res, user) {
@@ -87,7 +95,16 @@ function assignRequestUser(req, res, user) {
     monthly_export_reset_at: user.monthly_export_reset_at,
     team_owner_user_id: user.team_owner_user_id,
     team_member_role: user.team_member_role,
-    is_team_member: user.is_team_member
+    is_team_member: user.is_team_member,
+    owner_preview_active: user.owner_preview_active || false,
+    owner_preview_plan: user.owner_preview_plan || null,
+    owner_preview_lead_state: user.owner_preview_lead_state || null,
+    owner_preview_subscription_status: user.owner_preview_subscription_status || null,
+    owner_preview_saved_at: user.owner_preview_saved_at || null,
+    owner_actual_plan: user.owner_actual_plan || null,
+    owner_actual_lead_state: user.owner_actual_lead_state || null,
+    owner_actual_subscription_status: user.owner_actual_subscription_status || null,
+    owner_actual_subscription_expires_at: user.owner_actual_subscription_expires_at || null
   };
   applyTrialResponse(res, req.user);
 }

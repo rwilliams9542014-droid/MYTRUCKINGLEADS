@@ -1,4 +1,5 @@
 import { ValidationError } from "../middleware/errorHandler.js";
+import { query } from "../config/db.js";
 import { validateEmail, validateString } from "../utils/validators.js";
 import { sendContactRequestEmail } from "../services/emailService.js";
 
@@ -13,6 +14,12 @@ function optionalString(value, maxLength = 255) {
 
 function buildSourcePage(req) {
   try {
+    const bodySource = String(req?.body?.sourcePage || req?.body?.source_page || "").trim();
+    if (bodySource) return bodySource;
+
+    const referer = String(req?.get?.("referer") || req?.headers?.referer || "").trim();
+    if (referer) return referer;
+
     const origin = String(req?.get?.("origin") || "").trim();
     if (origin) return origin;
 
@@ -25,6 +32,37 @@ function buildSourcePage(req) {
   }
 
   return "Website contact form";
+}
+
+async function persistContactRequest(record) {
+  if (!process.env.DATABASE_URL) return null;
+
+  try {
+    const result = await query(
+      `INSERT INTO contact_requests (
+         name, email, phone, agency, message, source_page,
+         email_delivery_status, email_delivery_message, submitted_at, status
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new')
+       RETURNING id, status`,
+      [
+        record.name,
+        record.email,
+        record.phone || "",
+        record.agency || "",
+        record.message,
+        record.sourcePage || "",
+        record.emailDeliveryStatus || "failed",
+        record.emailDeliveryMessage || "",
+        record.submittedAt
+      ]
+    );
+
+    return result.rows[0] || null;
+  } catch (err) {
+    console.error("Failed to persist contact request:", err.message);
+    return null;
+  }
 }
 
 export async function submitContactRequest(req, res, next) {
@@ -66,6 +104,18 @@ export async function submitContactRequest(req, res, next) {
 
     if (!result?.success) {
       const failureMessage = result?.message || "Contact email is not available right now.";
+      await persistContactRequest({
+        name,
+        email,
+        phone,
+        agency,
+        message,
+        sourcePage,
+        submittedAt,
+        emailDeliveryStatus: "failed",
+        emailDeliveryMessage: failureMessage
+      });
+
       console.warn("Contact request email unavailable:", {
         toEmail: process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
         requesterEmail: email,
@@ -77,6 +127,18 @@ export async function submitContactRequest(req, res, next) {
         error: failureMessage
       });
     }
+
+    await persistContactRequest({
+      name,
+      email,
+      phone,
+      agency,
+      message,
+      sourcePage,
+      submittedAt,
+      emailDeliveryStatus: "sent",
+      emailDeliveryMessage: result.message
+    });
 
     return res.json({
       success: true,
