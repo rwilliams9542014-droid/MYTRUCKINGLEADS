@@ -522,6 +522,17 @@
 
     tbody tr { transition: background 0.14s ease, box-shadow 0.14s ease; cursor: pointer; }
     tbody tr:hover { background: rgba(21, 101, 255, 0.08); box-shadow: inset 3px 0 0 var(--brand-blue); }
+    tbody tr[data-dot] td {
+  border-right: 1px solid rgba(226, 232, 240, 0.25) !important;
+}
+
+tbody tr[data-dot] td:last-child {
+  border-right: 1px solid rgba(226, 232, 240, 0.25) !important;
+}
+
+.table-wrap {
+  border: 1px solid rgba(226, 232, 240, 0.25) !important;
+}
 
     .table-scroll {
       overflow-x: auto;
