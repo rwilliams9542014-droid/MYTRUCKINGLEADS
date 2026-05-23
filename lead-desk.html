@@ -20,6 +20,8 @@
   <meta name="twitter:description" content="Search new DOT leads, renewal prospects, and FMCSA carrier data from one producer-focused lead desk." />
   <meta name="twitter:image" content="https://www.mytruckingleads.com/assets/mytruckingleads-logo-icon.png" />
   <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://www.mytruckingleads.com/#organization","name":"MyTruckingLeads","url":"https://www.mytruckingleads.com/","logo":"https://www.mytruckingleads.com/assets/mytruckingleads-logo-icon.png"},{"@type":"SoftwareApplication","@id":"https://www.mytruckingleads.com/#software","name":"MyTruckingLeads Lead Desk","applicationCategory":"BusinessApplication","applicationSubCategory":"New DOT leads and trucking renewal lead search","operatingSystem":"Web","url":"https://www.mytruckingleads.com/lead-desk.html"}]}</script>
+  <script src="assets/js/theme.js?v=theme-11"></script>
+  <link rel="stylesheet" href="assets/css/enterprise-ui.css?v=enterprise-10" />
   <style>
     :root {
       color-scheme: dark;
@@ -382,6 +384,45 @@
       box-shadow: 0 28px 80px rgba(0, 0, 0, 0.25);
     }
 
+    .pager-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 10px 0 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(226, 232, 240, 0.11);
+      border-radius: 12px;
+      background: rgba(5, 11, 20, 0.48);
+    }
+
+    .pager-info {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .pager-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pager-actions button {
+      width: auto;
+      min-height: 34px;
+      padding: 0 12px;
+      font-size: 12px;
+    }
+
+    .pager-actions button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     .empty-state {
       padding: 26px;
       text-align: center;
@@ -439,6 +480,35 @@
       letter-spacing: 0.04em;
       border-bottom: 1px solid rgba(226, 232, 240, 0.14);
       box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
+    }
+
+    .sort-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      width: auto;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 11px;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      box-shadow: none;
+    }
+
+    .sort-button:hover {
+      color: #fff;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .sort-icon {
+      color: #5b9cff;
+      font-size: 10px;
+      min-width: 9px;
     }
 
     th:nth-child(1), td:nth-child(1) { width: 3%; }
@@ -1261,7 +1331,7 @@
   </style>
   <script defer src="/assets/js/meta-pixel.js?v=meta-pixel-1"></script>
 </head>
-<body>
+<body class="product-shell product-sidebar lead-desk-shell">
   <header>
     <div class="topbar">
       <div class="brand">
@@ -1320,7 +1390,6 @@
           <div>
             <label id="windowLabel">Date Window</label>
             <div class="preset-row" id="presetRow">
-              <button type="button" data-preset="day">Today</button>
               <button type="button" data-preset="lastWeek">Last Week</button>
               <button type="button" data-preset="lastMonth">Last Month</button>
             </div>
@@ -1385,14 +1454,11 @@
               </select>
             </div>
             <div>
-              <label for="limit">Results</label>
-              <select id="limit">
+              <label for="pageSize">Rows Per Page</label>
+              <select id="pageSize">
+                <option value="10">10</option>
                 <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-                <option value="250">250</option>
-                <option value="500">500</option>
-                <option value="all">Unlimited</option>
+                <option value="50" selected>50</option>
               </select>
             </div>
             <button id="searchBtn" class="blue" type="button">Find Carriers</button>
@@ -1420,6 +1486,13 @@
           </div>
 
           <div class="status" id="searchStatus">Choose a date window and state, then search.</div>
+          <div class="pager-bar hidden" id="resultPager">
+            <div class="pager-info" id="pagerInfo">No results loaded.</div>
+            <div class="pager-actions">
+              <button id="prevPageBtn" class="secondary" type="button">Previous</button>
+              <button id="nextPageBtn" class="secondary" type="button">Next</button>
+            </div>
+          </div>
           <div class="table-wrap">
             <table>
               <thead id="tableHead"></thead>
@@ -1472,6 +1545,8 @@
     let currentRows = [];
     let selectedLeadIndexes = new Set();
     let activeQuickChip = "all";
+    let currentPage = 1;
+    let sortState = { key: "date", direction: "desc" };
     let activeProfilePayload = null;
     let cargoHydrationRun = 0;
     let currentUser = null;
@@ -1497,6 +1572,11 @@
       modeHelp: document.getElementById("modeHelp"),
       tableHead: document.getElementById("tableHead"),
       tableBody: document.getElementById("tableBody"),
+      resultPager: document.getElementById("resultPager"),
+      pagerInfo: document.getElementById("pagerInfo"),
+      prevPageBtn: document.getElementById("prevPageBtn"),
+      nextPageBtn: document.getElementById("nextPageBtn"),
+      pageSize: document.getElementById("pageSize"),
       userLine: document.getElementById("userLine"),
       stateSelect: document.getElementById("state"),
       windowLabel: document.getElementById("windowLabel"),
@@ -1537,9 +1617,9 @@
 
     const presetSets = {
       new: [
-        { value: "day", label: "Today" },
         { value: "lastWeek", label: "Last Week" },
-        { value: "lastMonth", label: "Last Month" }
+        { value: "lastMonth", label: "Last Month" },
+        { value: "custom", label: "Custom Date Range" }
       ],
       renewal: [
         { value: "next30", label: "Next 30 Days" },
@@ -1612,15 +1692,6 @@
       const trialAccess = currentTrialAccess;
       const trialActive = Boolean(trialAccess?.active);
       els.trialBanner.classList.toggle("hidden", !trialActive);
-
-      const unlimitedOption = [...document.getElementById("limit").options].find((option) => option.value === "all");
-      if (unlimitedOption) {
-        unlimitedOption.disabled = trialActive;
-        unlimitedOption.hidden = trialActive;
-      }
-      if (trialActive && document.getElementById("limit").value === "all") {
-        document.getElementById("limit").value = "25";
-      }
 
       els.exportBtn.disabled = trialActive;
       els.exportBtn.title = trialActive ? "Upgrade to unlock CSV exports." : "";
@@ -1817,7 +1888,7 @@
 
     function setPreset(preset) {
       if (!allowedPresetsForMode().includes(preset)) {
-        preset = currentMode === "new" ? "day" : "next30";
+        preset = currentMode === "new" ? "lastWeek" : "next30";
       }
       currentPreset = preset;
       els.customRange.classList.toggle("hidden", preset !== "custom");
@@ -1832,17 +1903,19 @@
       els.newTab.classList.toggle("active", mode === "new");
       els.renewalTab.classList.toggle("active", mode === "renewal");
       renderPresetButtons();
-      currentPreset = mode === "new" ? "day" : "next30";
+      currentPreset = mode === "new" ? "lastWeek" : "next30";
       setPreset(currentPreset);
       els.windowLabel.textContent = mode === "new" ? "Date Window" : "Renewal Window";
       els.modeHelp.textContent = mode === "new"
         ? "Search new DOT leads by state and date added. New DOT windows look backward only."
         : "Search carriers coming up for renewal by state and renewal window.";
       els.searchStatus.textContent = mode === "new"
-        ? "Choose Today, Last Week, or Last Month for new DOT leads."
+        ? "Choose Last Week, Last Month, or a custom date range for new DOT leads."
         : "Choose a renewal window and state for renewal leads.";
       currentRows = [];
       selectedLeadIndexes.clear();
+      currentPage = 1;
+      sortState = { key: "date", direction: "desc" };
       activeQuickChip = "all";
       els.quickChipRow.querySelectorAll("[data-chip]").forEach((chip) => {
         chip.classList.toggle("active", chip.dataset.chip === "all");
@@ -1856,12 +1929,10 @@
 
     async function search() {
       const selectedState = document.getElementById("state").value;
-      const limit = document.getElementById("limit").value;
-      const apiLimit = limit === "all" ? "5000" : limit;
       const range = getDateRange();
       const params = new URLSearchParams();
       if (selectedState !== "ALL") params.set("state", selectedState);
-      params.set("limit", apiLimit);
+      params.set("limit", "5000");
       params.set("from", range.from);
       params.set("to", range.to);
       params.set(currentMode === "new" ? "daysBack" : "days", "30");
@@ -1877,16 +1948,18 @@
         updateTrialAccess(data?.trialAccess);
         currentRows = normalizeRows(data);
         selectedLeadIndexes.clear();
+        currentPage = 1;
         renderRows(currentRows);
         void hydrateLeadDeskCargo(currentRows);
         const shownFrom = data.from || range.from;
         const shownTo = data.to || range.to;
-        els.searchStatus.textContent = data.message || `Found ${currentRows.length} ${currentMode === "new" ? "new DOT" : "renewal"} leads from ${shownFrom} to ${shownTo}${limit === "all" ? " using the largest available pull." : "."}`;
+        els.searchStatus.textContent = data.message || `Found ${currentRows.length} ${currentMode === "new" ? "new DOT" : "renewal"} leads from ${shownFrom} to ${shownTo}.`;
         els.searchStatus.className = "status good";
       } catch (err) {
         updateTrialAccess(err.data?.trialAccess);
         currentRows = [];
         selectedLeadIndexes.clear();
+        currentPage = 1;
         renderRows([]);
         els.searchStatus.textContent = err.message;
         els.searchStatus.className = "status bad";
@@ -1971,6 +2044,7 @@
         cargo: row.cargoHauled || row.cargo_hauled || "Not listed",
         mcs150Date: row.mcs150Date || row.mcs150_date || row.mcs150Updated || row.mcs150_updated || "Unavailable",
         mcs150Mileage: row.mcs150Mileage || row.mcs150_mileage || "Unavailable",
+        date: isNew ? (row.addDate || row.created_at || row.createdAt) : row.insurance_expiration,
         renewalDate: isNew ? "" : row.insurance_expiration,
         leadType: isNew ? "New DOT" : "Renewal",
         status: row.status || "New"
@@ -2063,6 +2137,81 @@
         .filter(({ row }) => matchesQuickChip(row));
     }
 
+    const sortTypes = {
+      dot: "number",
+      name: "text",
+      state: "text",
+      phone: "text",
+      email: "text",
+      powerUnits: "number",
+      drivers: "number",
+      cargo: "text",
+      mcs150Date: "date",
+      date: "date",
+      leadType: "text",
+      status: "text"
+    };
+
+    function comparableValue(row, key) {
+      const value = leadValue(row, key);
+      if (sortTypes[key] === "number") return numberValue(value);
+      if (sortTypes[key] === "date") {
+        const parsed = parseLeadDate(value);
+        return parsed ? parsed.getTime() : 0;
+      }
+      return String(value || "").toLowerCase();
+    }
+
+    function sortedEntries(entries) {
+      const direction = sortState.direction === "asc" ? 1 : -1;
+      return [...entries].sort((left, right) => {
+        const leftValue = comparableValue(left.row, sortState.key);
+        const rightValue = comparableValue(right.row, sortState.key);
+        if (leftValue < rightValue) return -1 * direction;
+        if (leftValue > rightValue) return 1 * direction;
+        return left.index - right.index;
+      });
+    }
+
+    function pageSizeValue() {
+      const parsed = Number(els.pageSize?.value || 50);
+      return [10, 25, 50].includes(parsed) ? parsed : 50;
+    }
+
+    function pageEntries(entries) {
+      const pageSize = pageSizeValue();
+      const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+      currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+      const start = (currentPage - 1) * pageSize;
+      return {
+        rows: entries.slice(start, start + pageSize),
+        start,
+        totalPages,
+        pageSize
+      };
+    }
+
+    function currentVisibleEntries() {
+      return pageEntries(sortedEntries(filteredEntries(currentRows))).rows;
+    }
+
+    function renderPager(total, pageInfo) {
+      if (!els.resultPager || !els.pagerInfo || !els.prevPageBtn || !els.nextPageBtn) return;
+      els.resultPager.classList.toggle("hidden", total === 0);
+      if (!total) return;
+      const first = pageInfo.start + 1;
+      const last = Math.min(pageInfo.start + pageInfo.rows.length, total);
+      els.pagerInfo.textContent = `Showing ${first}-${last} of ${total} leads. Page ${currentPage} of ${pageInfo.totalPages}.`;
+      els.prevPageBtn.disabled = currentPage <= 1;
+      els.nextPageBtn.disabled = currentPage >= pageInfo.totalPages;
+    }
+
+    function sortButton(label, key) {
+      const active = sortState.key === key;
+      const icon = active ? (sortState.direction === "asc" ? "^" : "v") : "-";
+      return `<button class="sort-button" type="button" data-sort-key="${escapeHtml(key)}">${escapeHtml(label)} <span class="sort-icon">${icon}</span></button>`;
+    }
+
     function selectedEntries() {
       return [...selectedLeadIndexes]
         .sort((left, right) => left - right)
@@ -2075,7 +2224,7 @@
       els.exportBtn.textContent = count ? `Export Selected (${count})` : "Export CSV";
     }
 
-    function syncSelectAll(entries = filteredEntries(currentRows)) {
+    function syncSelectAll(entries = currentVisibleEntries()) {
       const selectAll = document.getElementById("selectVisibleLeads");
       if (!selectAll) {
         updateExportLabel();
@@ -2135,7 +2284,7 @@
         escapeHtml(leadValue(row, "drivers") || "Not listed"),
         `<div class="cell-stack"><span>${escapeHtml(leadValue(row, "cargo") || "Not listed")}</span></div>`,
         escapeHtml(leadValue(row, "mcs150Date") || "Unavailable"),
-        escapeHtml(leadValue(row, "renewalDate") || "Not listed"),
+        escapeHtml(leadValue(row, "date") || "Not listed"),
         leadBadge(leadType, leadType === "New DOT" ? "new" : "renewal"),
         `<div class="badge-stack">${leadBadge(status, statusClass(status))}</div>`
       ];
@@ -2144,24 +2293,39 @@
     function renderRows(rows) {
       const headers = [
         `<label class="lead-check-wrap" title="Select visible leads"><input id="selectVisibleLeads" class="lead-checkbox" type="checkbox" aria-label="Select visible leads"></label>`,
-        "DOT Number",
-        "Carrier Name",
-        "State",
-        "Phone",
-        "Email",
-        "Power Units",
-        "Drivers",
-        "Cargo Hauled",
-        "MCS-150 Updated",
-        "Renewal Date",
-        "Lead Type",
-        "Status",
+        sortButton("DOT Number", "dot"),
+        sortButton("Carrier Name", "name"),
+        sortButton("State", "state"),
+        sortButton("Phone", "phone"),
+        sortButton("Email", "email"),
+        sortButton("Power Units", "powerUnits"),
+        sortButton("Drivers", "drivers"),
+        sortButton("Cargo Hauled", "cargo"),
+        sortButton("MCS-150 Updated", "mcs150Date"),
+        sortButton(currentMode === "new" ? "Added Date" : "Renewal Date", "date"),
+        sortButton("Lead Type", "leadType"),
+        sortButton("Status", "status"),
         "Action"
       ];
       els.tableHead.innerHTML = `<tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>`;
-      const entries = filteredEntries(rows);
+      els.tableHead.querySelectorAll("[data-sort-key]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const key = button.dataset.sortKey;
+          if (sortState.key === key) {
+            sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+          } else {
+            sortState = { key, direction: sortTypes[key] === "text" ? "asc" : "desc" };
+          }
+          currentPage = 1;
+          renderRows(currentRows);
+        });
+      });
+      const entries = sortedEntries(filteredEntries(rows));
+      const pageInfo = pageEntries(entries);
+      const visibleEntries = pageInfo.rows;
       updateLeadMetrics(entries);
-      syncSelectAll(entries);
+      syncSelectAll(visibleEntries);
+      renderPager(entries.length, pageInfo);
 
       if (!entries.length) {
         const message = rows.length
@@ -2169,10 +2333,11 @@
           : "Choose a state and date window, then click Find Carriers to load fresh carrier leads into this desk.";
         const title = rows.length ? "Nothing in this filter yet." : "Ready when you are.";
         els.tableBody.innerHTML = `<tr><td colspan="${headers.length}"><div class="empty-state"><h3>${title}</h3><p>${message}</p></div></td></tr>`;
+        renderPager(0, { rows: [], start: 0, totalPages: 1 });
         return;
       }
 
-      els.tableBody.innerHTML = entries.map(({ row, index }) => {
+      els.tableBody.innerHTML = visibleEntries.map(({ row, index }) => {
         const dot = leadValue(row, "dot");
         const checkbox = `<input class="lead-checkbox row-select" type="checkbox" data-select-index="${index}" aria-label="Select ${escapeHtml(leadValue(row, "name") || "lead")}" ${selectedLeadIndexes.has(index) ? "checked" : ""}>`;
         const saveLocked = isTrialAccount() && (currentTrialAccess?.remaining?.savedProspects ?? 0) <= 0;
@@ -2193,7 +2358,7 @@
       if (selectAll) {
         selectAll.addEventListener("click", (event) => event.stopPropagation());
         selectAll.addEventListener("change", () => {
-          entries.forEach(({ index }) => {
+          visibleEntries.forEach(({ index }) => {
             if (selectAll.checked) selectedLeadIndexes.add(index);
             else selectedLeadIndexes.delete(index);
           });
@@ -2221,7 +2386,7 @@
       els.tableBody.querySelectorAll("tr[data-row-index]").forEach((row) => {
         row.addEventListener("click", () => openCarrierProfile(Number(row.dataset.rowIndex)));
       });
-      syncSelectAll(entries);
+      syncSelectAll(visibleEntries);
     }
 
     function csvCell(value) {
@@ -2257,9 +2422,9 @@
       }
 
       const isNew = currentMode === "new";
-      const headers = ["DOT Number", "Carrier Name", "State", "Phone", "Email", "Power Units", "Drivers", "Cargo Hauled", "MCS-150 Updated", "MCS-150 Mileage", "Renewal Date", "Lead Type", "Status"];
+      const headers = ["DOT Number", "Carrier Name", "State", "Phone", "Email", "Power Units", "Drivers", "Cargo Hauled", "MCS-150 Updated", "MCS-150 Mileage", isNew ? "Added Date" : "Renewal Date", "Lead Type", "Status"];
       const rows = entries.map(({ row }) => isNew
-        ? [row.dotNumber, row.carrierName, row.state, row.phone, row.email, row.powerUnits, row.drivers, row.cargoHauled || row.cargo_hauled || "Not listed", row.mcs150Date || row.mcs150_date || "Unavailable", row.mcs150Mileage || row.mcs150_mileage || "Unavailable", "", "New DOT", row.status || "New"]
+        ? [row.dotNumber, row.carrierName, row.state, row.phone, row.email, row.powerUnits, row.drivers, row.cargoHauled || row.cargo_hauled || "Not listed", row.mcs150Date || row.mcs150_date || "Unavailable", row.mcs150Mileage || row.mcs150_mileage || "Unavailable", row.addDate || row.created_at || row.createdAt || "", "New DOT", row.status || "New"]
         : [row.dot_number, row.carrier_name, row.hq_state || row.state, row.phone, row.email, row.vehicle_count, row.driver_count, row.cargo_hauled || row.cargoHauled || "Not listed", row.mcs150_date || row.mcs150Date || "Unavailable", row.mcs150_mileage || row.mcs150Mileage || "Unavailable", row.insurance_expiration, "Renewal", row.status || "New"]
       );
       downloadCsv(`${currentMode}-${checkedEntries.length ? "selected-" : ""}trucking-leads.csv`, headers, rows);
@@ -2721,6 +2886,7 @@
       const button = event.target.closest("[data-chip]");
       if (!button) return;
       activeQuickChip = button.dataset.chip;
+      currentPage = 1;
       els.quickChipRow.querySelectorAll("[data-chip]").forEach((chip) => {
         chip.classList.toggle("active", chip === button);
       });
@@ -2729,6 +2895,19 @@
     els.presetRow.addEventListener("click", (event) => {
       const button = event.target.closest("[data-preset]");
       if (button) setPreset(button.dataset.preset);
+    });
+    els.pageSize.addEventListener("change", () => {
+      currentPage = 1;
+      renderRows(currentRows);
+    });
+    els.prevPageBtn.addEventListener("click", () => {
+      if (currentPage <= 1) return;
+      currentPage -= 1;
+      renderRows(currentRows);
+    });
+    els.nextPageBtn.addEventListener("click", () => {
+      currentPage += 1;
+      renderRows(currentRows);
     });
     document.querySelectorAll("[data-profile-tab]").forEach((button) => {
       button.addEventListener("click", () => setProfileTab(button.dataset.profileTab));
@@ -2799,5 +2978,6 @@
 
     setMode("new");
   </script>
+  <script src="assets/js/global-copilot.js?v=ai-1"></script>
 </body>
 </html>

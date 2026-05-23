@@ -20,6 +20,7 @@
   <meta name="twitter:description" content="Organize saved carriers, outreach, notes, follow-ups, and renewal opportunities in a trucking insurance CRM." />
   <meta name="twitter:image" content="https://www.mytruckingleads.com/assets/mytruckingleads-logo-icon.png" />
   <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://www.mytruckingleads.com/#organization","name":"MyTruckingLeads","url":"https://www.mytruckingleads.com/","logo":"https://www.mytruckingleads.com/assets/mytruckingleads-logo-icon.png"},{"@type":"SoftwareApplication","@id":"https://www.mytruckingleads.com/#software","name":"MyTruckingLeads CRM","applicationCategory":"BusinessApplication","applicationSubCategory":"Trucking prospect CRM and renewal follow-up platform","operatingSystem":"Web","url":"https://www.mytruckingleads.com/crm.html"}]}</script>
+  <script src="assets/js/theme.js?v=theme-10"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -698,9 +699,13 @@
       font-weight: 700;
     }
   </style>
+  <link rel="stylesheet" href="assets/css/enterprise-ui.css?v=enterprise-10" />
   <script defer src="/assets/js/meta-pixel.js?v=meta-pixel-1"></script>
 </head>
-<body>
+<body class="product-shell product-sidebar crm-shell">
+  <div id="crmRuntimeError" class="runtime-error hidden" role="alert">
+    CRM could not finish loading. Refresh the page or return to the dashboard while the system reconnects.
+  </div>
   <header>
     <div class="topbar">
       <a class="brand" href="/user-dashboard.html">
@@ -714,6 +719,7 @@
         <a class="home-link ghost" href="/user-dashboard.html">Dashboard</a>
         <a class="home-link ghost" href="/lead-desk.html">Leads</a>
         <a class="home-link ghost" href="/crm.html">CRM</a>
+        <a class="home-link ghost" href="/lead-marketplace.html">Marketplace</a>
         <a class="home-link ghost" href="/dot-analytics.html">DOT Analytics</a>
         <a class="home-link ghost" href="/#pricing">Pricing</a>
         <a class="home-link ghost" href="/#contact">Contact</a>
@@ -1677,7 +1683,20 @@
       if (event.key === "Escape") closeDrawer();
     });
 
+    window.addEventListener("error", (event) => {
+      console.error("CRM runtime error:", event.error || event.message);
+      document.getElementById("crmRuntimeError")?.classList.remove("hidden");
+      document.getElementById("crmApp")?.classList.remove("hidden");
+      setStatus("CRM hit a rendering issue. The page is still available, but some data may need a refresh.", "bad");
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      console.error("CRM async error:", event.reason);
+      document.getElementById("crmRuntimeError")?.classList.remove("hidden");
+      setStatus("CRM could not complete a request. Try Refresh after checking your session.", "bad");
+    });
+
     loadProspects();
   </script>
+  <script src="assets/js/global-copilot.js?v=ai-1"></script>
 </body>
 </html>
