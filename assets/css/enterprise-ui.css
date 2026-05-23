@@ -829,7 +829,7 @@ thead th,
 .sheet-table thead th {
   background: rgba(9, 19, 33, 0.96) !important;
   border-color: var(--mtl-app-line) !important;
-  color: #dbeafe !important;
+  color: var(--text-primary, #0f172a) !important;
 }
 
 tbody td,
@@ -892,7 +892,7 @@ th button,
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
-  color: #dbeafe !important;
+  color: var(--text-primary, #0f172a) !important;
   box-shadow: none !important;
   text-align: left !important;
   white-space: normal !important;
