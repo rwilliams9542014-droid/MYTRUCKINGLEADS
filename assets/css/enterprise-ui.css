@@ -1378,3 +1378,25 @@ body.product-shell .btn-outline-primary {
   border-color: var(--border) !important;
   color: var(--text-primary) !important;
 }
+/* Keep table row dividers visible before hover */
+.table-wrap tbody tr[data-dot] td,
+.sheet-table tbody tr td,
+.crm-table tbody tr td,
+table tbody tr td {
+  border-top: 1px solid var(--border, #cbd5e1) !important;
+  border-bottom: 1px solid var(--border, #cbd5e1) !important;
+}
+
+.table-wrap tbody tr[data-dot] td:first-child,
+.sheet-table tbody tr td:first-child,
+.crm-table tbody tr td:first-child,
+table tbody tr td:first-child {
+  border-left: 1px solid var(--border, #cbd5e1) !important;
+}
+
+.table-wrap tbody tr[data-dot] td:last-child,
+.sheet-table tbody tr td:last-child,
+.crm-table tbody tr td:last-child,
+table tbody tr td:last-child {
+  border-right: 1px solid var(--border, #cbd5e1) !important;
+}
