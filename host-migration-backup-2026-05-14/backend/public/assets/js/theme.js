@@ -270,3 +270,69 @@
   }
   window.addEventListener("load", keepThemeStyleLast, { once: true });
 })();
+// Highlight active navigation link based on current page
+(function highlightActiveNavigation() {
+  const currentPath = window.location.pathname
+    .replace(/\/+$/, "")
+    .toLowerCase();
+
+  const pageAliases = {
+    "": "/index.html",
+    "/": "/index.html",
+    "/index": "/index.html",
+    "/index.html": "/index.html",
+    "/dashboard": "/user-dashboard.html",
+    "/dashboard.html": "/user-dashboard.html",
+    "/user-dashboard": "/user-dashboard.html",
+    "/user-dashboard.html": "/user-dashboard.html",
+    "/lead-desk": "/lead-desk.html",
+    "/lead-desk.html": "/lead-desk.html",
+    "/dot-analytics": "/dot-analytics.html",
+    "/dot-analytics.html": "/dot-analytics.html",
+    "/crm": "/crm.html",
+    "/crm.html": "/crm.html",
+    "/settings": "/settings.html",
+    "/settings.html": "/settings.html",
+    "/admin": "/admin.html",
+    "/admin.html": "/admin.html",
+    "/lead-marketplace": "/lead-marketplace.html",
+    "/lead-marketplace.html": "/lead-marketplace.html",
+    "/quote-request": "/quote-request.html",
+    "/quote-request.html": "/quote-request.html",
+    "/pricing": "/pricing.html",
+    "/pricing.html": "/pricing.html"
+  };
+
+  const normalizedCurrent = pageAliases[currentPath] || currentPath;
+
+  document.querySelectorAll("a[href]").forEach((link) => {
+    const rawHref = link.getAttribute("href");
+
+    if (
+      !rawHref ||
+      rawHref.startsWith("#") ||
+      rawHref.startsWith("mailto:") ||
+      rawHref.startsWith("tel:") ||
+      rawHref.startsWith("javascript:")
+    ) {
+      return;
+    }
+
+    let linkPath;
+
+    try {
+      linkPath = new URL(rawHref, window.location.origin).pathname
+        .replace(/\/+$/, "")
+        .toLowerCase();
+    } catch {
+      return;
+    }
+
+    const normalizedLink = pageAliases[linkPath] || linkPath;
+
+    if (normalizedCurrent === normalizedLink) {
+      link.classList.add("is-active");
+      link.setAttribute("aria-current", "page");
+    }
+  });
+})();

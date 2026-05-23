@@ -11,39 +11,49 @@
   <link href="assets/css/enterprise-ui.css?v=enterprise-10" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    :root {
+      --bg: #0B0F17;
+      --panel: #111827;
+      --line: rgba(31, 41, 55, 1);
+      --ink: #FFFFFF;
+      --muted: #9CA3AF;
+      --btn-bg: #FFFFFF;
+      --btn-text: #0B0F17;
+      --btn-hover: #E5E7EB;
+      --teal: #FFFFFF;
+      --blue: #E5E7EB;
+    }
     body {
-      background:
-        radial-gradient(circle at top left, rgba(21, 101, 255, 0.24), transparent 34%),
-        linear-gradient(135deg, #0B1320 0%, #101f33 100%);
+      background: #0B0F17;
       min-height: 100vh;
     }
-    
+
     .dashboard-header {
-      background: rgba(255, 255, 255, 0.95);
+      background: #111827;
       padding: 20px;
       border-radius: 8px;
       margin-bottom: 30px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
-    
+
     .dashboard-header h1 {
-      color: #1565FF;
+      color: #FFFFFF;
       margin: 0;
       font-weight: bold;
     }
-    
+
     .dashboard-header p {
-      color: #666;
+      color: #9CA3AF;
       margin: 5px 0 0 0;
     }
-    
+
     .metric-card {
-      background: white;
+      background: #111827;
       border-radius: 8px;
       padding: 20px;
       margin-bottom: 20px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      border-left: 4px solid #1565FF;
+      border-left: 4px solid rgba(55, 65, 81, 0.9);
       transition: transform 0.2s;
     }
     
@@ -55,94 +65,94 @@
     .metric-card.status-active {
       border-left-color: #28a745;
     }
-    
+
     .metric-card.status-expiring {
       border-left-color: #ffc107;
     }
-    
+
     .metric-card.status-expired {
       border-left-color: #dc3545;
     }
-    
+
     .metric-label {
       font-size: 12px;
       text-transform: uppercase;
-      color: #999;
+      color: #9CA3AF;
       font-weight: 600;
       margin-bottom: 5px;
     }
-    
+
     .metric-value {
       font-size: 28px;
       font-weight: bold;
-      color: #1565FF;
+      color: #FFFFFF;
       margin-bottom: 10px;
     }
-    
+
     .metric-detail {
       font-size: 12px;
-      color: #666;
+      color: #9CA3AF;
     }
-    
+
     .progress-bar-custom {
-      background: linear-gradient(90deg, #1565FF 0%, #0b49c9 100%);
+      background: #FFFFFF;
     }
-    
+
     .chart-container {
-      background: white;
+      background: #111827;
       border-radius: 8px;
       padding: 20px;
       margin-bottom: 20px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
-    
+
     .chart-title {
       font-size: 16px;
       font-weight: 600;
-      color: #333;
+      color: #FFFFFF;
       margin-bottom: 15px;
     }
-    
+
     .activity-timeline {
-      background: white;
+      background: #111827;
       border-radius: 8px;
       padding: 20px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
-    
+
     .activity-item {
       display: flex;
       gap: 15px;
       padding: 15px 0;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid rgba(31, 41, 55, 1);
     }
-    
+
     .activity-item:last-child {
       border-bottom: none;
     }
-    
+
     .activity-icon {
       width: 40px;
       height: 40px;
       border-radius: 50%;
-      background: #f0f0f0;
+      background: rgba(55, 65, 81, 0.9);
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      color: #1565FF;
+      color: #FFFFFF;
     }
-    
+
     .activity-content h6 {
       margin: 0 0 5px 0;
       font-weight: 600;
-      color: #333;
+      color: #FFFFFF;
     }
-    
+
     .activity-content p {
       margin: 0;
       font-size: 12px;
-      color: #999;
+      color: #9CA3AF;
     }
     
     .status-badge {
@@ -185,15 +195,15 @@
       align-items: center;
       height: 200px;
     }
-    
+
     .spinner-border-custom {
-      color: #1565FF;
+      color: #FFFFFF;
     }
-    
+
     .error-message {
-      background: #f8d7da;
-      border: 1px solid #f5c6cb;
-      color: #721c24;
+      background: #111827;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      color: #9CA3AF;
       padding: 15px;
       border-radius: 4px;
       margin-bottom: 20px;

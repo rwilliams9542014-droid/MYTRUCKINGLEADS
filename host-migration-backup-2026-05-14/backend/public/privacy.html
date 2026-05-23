@@ -11,15 +11,23 @@
       --brand-slate: #64748B;
       --brand-light: #E2E8F0;
       --brand-glow: rgba(21, 101, 255, 0.24);
-      --ink: var(--brand-navy);
-      --line: var(--brand-light);
+      --bg: #0B0F17;
+      --panel: #111827;
+      --line: rgba(31, 41, 55, 1);
+      --ink: #FFFFFF;
+      --muted: #9CA3AF;
+      --btn-bg: #FFFFFF;
+      --btn-text: #0B0F17;
+      --btn-hover: #E5E7EB;
+      --teal: #FFFFFF;
+      --blue: #E5E7EB;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: Arial, Helvetica, sans-serif;
       color: var(--ink);
-      background: linear-gradient(180deg, #fbfdff, #eef4f7);
+      background: #0B0F17;
       min-height: 100vh;
     }
     a { color: var(--brand-blue); text-decoration: none; font-weight: 800; }
@@ -27,9 +35,9 @@
       position: sticky;
       top: 0;
       z-index: 10;
-      background: rgba(255, 255, 255, 0.92);
+      background: #111827;
       backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--line);
+      border-bottom: 1px solid rgba(31, 41, 55, 1);
     }
     .topbar, main, footer .inner {
       width: min(1120px, calc(100% - 36px));
@@ -59,10 +67,10 @@
     nav { display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; }
     main { padding: 38px 0 56px; }
     .doc {
-      background: #fff;
-      border: 1px solid var(--line);
+      background: #111827;
+      border: 1px solid rgba(31, 41, 55, 1);
       border-radius: 16px;
-      box-shadow: 0 22px 70px rgba(15, 23, 42, 0.1);
+      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.3);
       padding: clamp(22px, 4vw, 42px);
     }
     .kicker {
@@ -74,20 +82,20 @@
     }
     h1 { margin: 8px 0 8px; font-size: clamp(30px, 5vw, 48px); }
     h2 { margin: 30px 0 10px; font-size: 22px; }
-    p, li { color: #334155; line-height: 1.62; }
+    p, li { color: #9CA3AF; line-height: 1.62; }
     ul { padding-left: 20px; }
     .notice {
-      border: 1px solid #bfdbfe;
+      border: 1px solid rgba(55, 65, 81, 0.9);
       border-radius: 12px;
-      background: #f8fbff;
+      background: #0B0F17;
       padding: 14px;
       margin-top: 18px;
-      color: #334155;
+      color: #9CA3AF;
       font-weight: 800;
     }
     footer {
       padding: 26px 0;
-      background: #050e19;
+      background: #0B0F17;
       color: #d5e2f0;
       font-size: 13px;
     }

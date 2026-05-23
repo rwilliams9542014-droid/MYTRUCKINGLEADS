@@ -550,21 +550,36 @@ tbody tr:hover {
 
 /* Product shell values inherit the generic clean theme tokens. */
 :root {
-  --mtl-app-bg: var(--bg-main);
-  --mtl-app-bg-2: var(--bg-surface-muted);
-  --mtl-app-panel: var(--bg-surface);
-  --mtl-app-panel-strong: var(--bg-surface);
-  --mtl-app-panel-soft: var(--bg-surface-muted);
-  --mtl-app-line: var(--border);
-  --mtl-app-line-strong: var(--primary);
-  --mtl-app-ink: var(--text-primary);
-  --mtl-app-muted: var(--text-secondary);
-  --mtl-app-blue: var(--primary);
-  --mtl-app-blue-strong: var(--primary-hover);
-  --mtl-app-green: var(--success-text);
-  --mtl-app-yellow: var(--theme-gold);
-  --mtl-app-red: var(--danger-text);
-  --mtl-app-shadow: var(--theme-shadow, 0 14px 34px rgba(5, 11, 22, 0.1));
+  :root {
+    color-scheme: dark;
+    --topline-height: 38px;
+    
+    /* 1. Core Brand Architecture (High-Trust Industrial) */
+    --brand-navy: #0B1320;        /* Keep your deep core base */
+    --brand-blue: #F97316;        /* CRITICAL: Changed to Industrial Orange for action metrics */
+    --brand-slate: #64748B;       /* Muted clean metal */
+    --brand-light: #E2E8F0;       /* High-contrast data font */
+    --brand-white: #FFFFFF;
+    
+    /* 2. Glow and UI Accents */
+    --brand-glow: rgba(249, 115, 22, 0.2); /* Soft industrial warning glow */
+    --ink: #F8FAFC;               /* Clean slate white text */
+    --muted: #94A3B8;             /* Readable secondary text */
+    --dark-2: #0F172A;            /* Asphalt Deep Grey for cards */
+    --panel: rgba(15, 23, 42, 0.75); /* Modern translucent glass container */
+    --panel-strong: rgba(30, 41, 59, 0.9);
+    
+    /* 3. System States (Clean & Intentional) */
+    --teal: #F97316;              /* Action buttons turn to High-Conversion Orange */
+    --blue: #FB923C;              /* Vibrant orange hover state */
+    --indigo: #C2410C;            /* Pressed/active deep amber */
+    --green: #10B981;             /* Dynamic live data feed light (Green for GO) */
+    --line: rgba(148, 163, 184, 0.12);
+    --line-strong: rgba(148, 163, 184, 0.25);
+    
+    --shadow: 0 30px 100px rgba(0, 0, 0, 0.6);
+}
+
 }
 
 body.product-shell,
@@ -1377,4 +1392,26 @@ body.product-shell .btn-outline-primary {
   background-color: var(--bg-surface-muted) !important;
   border-color: var(--border) !important;
   color: var(--text-primary) !important;
+}
+/* Keep table row dividers visible before hover */
+.table-wrap tbody tr[data-dot] td,
+.sheet-table tbody tr td,
+.crm-table tbody tr td,
+table tbody tr td {
+  border-top: 1px solid var(--border, #cbd5e1) !important;
+  border-bottom: 1px solid var(--border, #cbd5e1) !important;
+}
+
+.table-wrap tbody tr[data-dot] td:first-child,
+.sheet-table tbody tr td:first-child,
+.crm-table tbody tr td:first-child,
+table tbody tr td:first-child {
+  border-left: 1px solid var(--border, #cbd5e1) !important;
+}
+
+.table-wrap tbody tr[data-dot] td:last-child,
+.sheet-table tbody tr td:last-child,
+.crm-table tbody tr td:last-child,
+table tbody tr td:last-child {
+  border-right: 1px solid var(--border, #cbd5e1) !important;
 }

@@ -3,84 +3,69 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Owner Console - MyTruckingLeads</title>
+  <title>Owner Admin - MyTruckingLeads</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
   <script src="assets/js/theme.js?v=theme-10"></script>
   <link rel="stylesheet" href="assets/css/styles.css" />
   <style>
     :root {
-      --owner-bg: radial-gradient(circle at top left, rgba(19, 99, 223, 0.18), transparent 28%), linear-gradient(135deg, #f3f7ff 0%, #f8fafc 52%, #eef7f2 100%);
-      --owner-card: rgba(255, 255, 255, 0.9);
-      --owner-ink: #0f172a;
-      --owner-muted: #64748b;
-      --owner-line: rgba(148, 163, 184, 0.22);
-      --owner-accent: #145af2;
-      --owner-accent-soft: rgba(20, 90, 242, 0.1);
-      --owner-success: #0f9d6c;
-      --owner-success-soft: rgba(15, 157, 108, 0.12);
-      --owner-warn: #c97812;
-      --owner-warn-soft: rgba(201, 120, 18, 0.14);
-      --owner-danger: #cf3f4f;
-      --owner-danger-soft: rgba(207, 63, 79, 0.14);
-      --owner-shadow: 0 30px 80px rgba(15, 23, 42, 0.12);
+      --owner-ink: #FFFFFF;
+      --owner-blue: #1565ff;
+      --owner-line: rgba(31, 41, 55, 1);
+      --owner-soft: #111827;
+      --bg: #0B0F17;
+      --panel: #111827;
+      --line: rgba(31, 41, 55, 1);
+      --ink: #FFFFFF;
+      --muted: #9CA3AF;
+      --btn-bg: #FFFFFF;
+      --btn-text: #0B0F17;
+      --btn-hover: #E5E7EB;
+      --teal: #FFFFFF;
+      --blue: #E5E7EB;
     }
-
-    * {
-      box-sizing: border-box;
-    }
-
     body {
-      background: var(--owner-bg);
+      background: #0B0F17;
       color: var(--owner-ink);
       min-height: 100vh;
     }
-
     .owner-shell {
-      margin: 0 auto;
-      max-width: 1520px;
-      padding: clamp(1rem, 2.8vw, 2rem);
+      padding: clamp(1rem, 3vw, 2rem);
     }
-
     .owner-topbar {
       align-items: center;
       display: flex;
       gap: 1rem;
       justify-content: space-between;
-      margin-bottom: 1rem;
+      margin: 0 auto 1.25rem;
+      max-width: 1440px;
     }
-
     .owner-brand {
       align-items: center;
       color: var(--owner-ink);
       display: flex;
-      gap: 0.85rem;
+      gap: 0.75rem;
       text-decoration: none;
     }
-
     .owner-brand img {
-      border-radius: 14px;
-      box-shadow: 0 12px 32px rgba(20, 90, 242, 0.18);
-      height: 46px;
-      width: 46px;
+      border-radius: 12px;
+      height: 42px;
+      width: 42px;
     }
-
     .owner-brand strong {
       display: block;
-      font-size: 1.08rem;
+      font-size: 1.05rem;
       font-weight: 900;
-      letter-spacing: -0.01em;
     }
-
     .owner-brand span {
-      color: var(--owner-muted);
+      color: #64748b;
       display: block;
-      font-size: 0.76rem;
+      font-size: 0.78rem;
       font-weight: 800;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
     }
-
     .owner-actions {
       align-items: center;
       display: flex;
@@ -88,510 +73,160 @@
       gap: 0.75rem;
       justify-content: flex-end;
     }
-
-    .owner-name {
-      background: rgba(255, 255, 255, 0.8);
-      border: 1px solid var(--owner-line);
-      border-radius: 999px;
-      color: var(--owner-muted);
-      font-size: 0.82rem;
-      font-weight: 800;
-      padding: 0.58rem 0.9rem;
-    }
-
-    .owner-btn,
-    .owner-btn:visited {
-      align-items: center;
-      background: #0f172a;
-      border: none;
-      border-radius: 999px;
-      color: #fff;
-      display: inline-flex;
-      font-size: 0.92rem;
-      font-weight: 800;
-      gap: 0.45rem;
-      padding: 0.7rem 1rem;
-      text-decoration: none;
-    }
-
-    .owner-btn.secondary {
-      background: rgba(255, 255, 255, 0.84);
-      border: 1px solid var(--owner-line);
-      color: var(--owner-ink);
-    }
-
-    .owner-btn.ghost {
-      background: transparent;
-      border: 1px dashed rgba(15, 23, 42, 0.2);
-      color: var(--owner-ink);
-    }
-
-    .owner-hero,
-    .owner-card {
-      background: var(--owner-card);
-      border: 1px solid var(--owner-line);
-      border-radius: 28px;
-      box-shadow: var(--owner-shadow);
-      overflow: hidden;
-    }
-
-    .owner-hero {
-      margin-bottom: 1rem;
-      padding: clamp(1.2rem, 3vw, 2rem);
-      position: relative;
-    }
-
-    .owner-hero::after {
-      background: linear-gradient(135deg, rgba(20, 90, 242, 0.14), rgba(15, 157, 108, 0.1));
-      border-radius: 999px;
-      content: "";
-      height: 220px;
-      pointer-events: none;
-      position: absolute;
-      right: -72px;
-      top: -72px;
-      width: 220px;
-    }
-
-    .hero-grid {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.95fr);
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero-copy h1 {
-      font-size: clamp(1.6rem, 3vw, 2.35rem);
-      font-weight: 950;
-      letter-spacing: -0.03em;
-      margin-bottom: 0.55rem;
-      max-width: 14ch;
-    }
-
-    .hero-copy p {
-      color: var(--owner-muted);
-      font-size: 0.98rem;
-      line-height: 1.65;
-      margin: 0;
-      max-width: 68ch;
-    }
-
-    .hero-kicker {
-      color: var(--owner-accent);
-      font-size: 0.77rem;
-      font-weight: 900;
-      letter-spacing: 0.16em;
-      margin-bottom: 0.8rem;
-      text-transform: uppercase;
-    }
-
-    .hero-status {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .preview-banner,
-    .helper-banner {
-      align-items: flex-start;
-      border-radius: 22px;
-      display: flex;
-      gap: 0.8rem;
-      padding: 1rem 1.05rem;
-    }
-
-    .preview-banner {
-      background: rgba(15, 23, 42, 0.92);
-      color: #fff;
-    }
-
-    .helper-banner {
-      background: rgba(255, 255, 255, 0.82);
-      border: 1px solid var(--owner-line);
-      color: var(--owner-ink);
-    }
-
-    .preview-banner i,
-    .helper-banner i {
-      font-size: 1rem;
-      margin-top: 0.15rem;
-    }
-
-    .preview-banner strong,
-    .helper-banner strong {
-      display: block;
-      font-size: 0.92rem;
-      margin-bottom: 0.2rem;
-    }
-
-    .preview-banner span,
-    .helper-banner span {
-      color: inherit;
-      display: block;
-      font-size: 0.82rem;
-      line-height: 1.55;
-      opacity: 0.88;
-    }
-
-    .stat-grid {
-      display: grid;
-      gap: 0.85rem;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      margin-top: 1.1rem;
-    }
-
-    .stat-card {
-      background: rgba(255, 255, 255, 0.84);
-      border: 1px solid var(--owner-line);
-      border-radius: 22px;
-      min-height: 122px;
-      padding: 1rem;
-    }
-
-    .stat-card span {
-      color: var(--owner-muted);
-      display: block;
-      font-size: 0.78rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      margin-bottom: 0.45rem;
-      text-transform: uppercase;
-    }
-
-    .stat-card strong {
-      display: block;
-      font-size: 1.65rem;
-      font-weight: 950;
-      letter-spacing: -0.03em;
-    }
-
-    .stat-card p {
-      color: var(--owner-muted);
-      font-size: 0.8rem;
-      line-height: 1.55;
-      margin: 0.4rem 0 0;
-    }
-
     .owner-grid {
       display: grid;
       gap: 1rem;
-      grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr);
+      grid-template-columns: minmax(0, 2fr) minmax(320px, 0.85fr);
+      margin: 0 auto;
+      max-width: 1440px;
     }
-
-    .owner-main-column,
-    .owner-side-column {
-      display: grid;
-      gap: 1rem;
-    }
-
     .owner-card {
-      padding: 1.1rem;
+      background: #111827;
+      border: 1px solid var(--owner-line);
+      border-radius: 26px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
     }
-
-    .card-head {
-      align-items: flex-start;
+    .owner-card-header {
+      align-items: center;
+      border-bottom: 1px solid var(--owner-line);
       display: flex;
       gap: 1rem;
       justify-content: space-between;
-      margin-bottom: 1rem;
+      padding: 1.2rem;
     }
-
-    .card-head h2 {
-      font-size: 1.12rem;
+    .owner-card-header h1,
+    .owner-card-header h2 {
+      font-size: 1.1rem;
       font-weight: 900;
       margin: 0;
     }
-
-    .card-head p {
-      color: var(--owner-muted);
-      margin: 0.2rem 0 0;
+    .owner-card-header p,
+    #adminStatus {
+      color: #64748b;
+      margin: 0.18rem 0 0;
     }
-
-    .head-actions {
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.65rem;
-      justify-content: flex-end;
-    }
-
-    .owner-search,
-    .owner-select,
-    .owner-input,
-    .owner-textarea {
-      background: rgba(248, 250, 252, 0.92);
-      border: 1px solid var(--owner-line);
-      border-radius: 18px;
-      color: var(--owner-ink);
-      padding: 0.78rem 0.92rem;
-      width: 100%;
-    }
-
     .owner-search {
-      min-width: min(300px, 100%);
+      background: var(--owner-soft);
+      border: 1px solid var(--owner-line);
+      border-radius: 999px;
+      min-width: min(360px, 100%);
+      padding: 0.72rem 1rem;
     }
-
-    .filter-row {
-      display: grid;
-      gap: 0.65rem;
-      grid-template-columns: minmax(200px, 1.5fr) repeat(2, minmax(150px, 0.7fr)) auto;
-      margin-bottom: 1rem;
-    }
-
     .table-wrap {
       overflow-x: auto;
     }
-
     .owner-table {
       margin: 0;
-      min-width: 1120px;
+      min-width: 980px;
     }
-
     .owner-table th {
-      color: var(--owner-muted);
-      font-size: 0.73rem;
-      letter-spacing: 0.09em;
-      padding: 0.9rem 0.85rem;
+      color: #64748b;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      padding: 1rem;
       text-transform: uppercase;
       white-space: nowrap;
     }
-
     .owner-table td {
-      border-color: rgba(226, 232, 240, 0.7);
-      padding: 0.9rem 0.85rem;
-      vertical-align: top;
+      padding: 1rem;
+      vertical-align: middle;
     }
-
-    .owner-table td strong {
-      display: block;
-      font-size: 0.95rem;
-      margin-bottom: 0.15rem;
-    }
-
     .owner-table td span {
-      color: var(--owner-muted);
+      color: #64748b;
       display: block;
-      font-size: 0.79rem;
-      line-height: 1.45;
+      font-size: 0.8rem;
+      margin-top: 0.15rem;
     }
-
-    .status-pill,
-    .plan-pill {
+    .status-pill {
       border-radius: 999px;
       display: inline-flex;
-      font-size: 0.76rem;
+      font-size: 0.78rem;
       font-weight: 900;
-      gap: 0.35rem;
-      line-height: 1;
-      padding: 0.42rem 0.7rem;
+      padding: 0.38rem 0.68rem;
       white-space: nowrap;
     }
-
     .status-good {
-      background: var(--owner-success-soft);
-      color: var(--owner-success);
+      background: #dcfce7;
+      color: #166534;
     }
-
     .status-warn {
-      background: var(--owner-warn-soft);
-      color: var(--owner-warn);
+      background: #fef3c7;
+      color: #92400e;
     }
-
     .status-bad {
-      background: var(--owner-danger-soft);
-      color: var(--owner-danger);
+      background: #fee2e2;
+      color: #991b1b;
     }
-
     .status-neutral {
-      background: rgba(100, 116, 139, 0.14);
-      color: #475569;
+      background: #e2e8f0;
+      color: #334155;
     }
-
-    .plan-pill {
-      background: var(--owner-accent-soft);
-      color: var(--owner-accent);
-    }
-
-    .table-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
-
-    .owner-mini-btn {
-      align-items: center;
-      background: rgba(15, 23, 42, 0.05);
-      border: 1px solid rgba(15, 23, 42, 0.08);
+    .sync-user-btn,
+    .owner-btn {
+      background: #FFFFFF;
+      border: 0;
       border-radius: 999px;
-      color: var(--owner-ink);
-      display: inline-flex;
-      font-size: 0.82rem;
-      font-weight: 800;
-      gap: 0.35rem;
-      padding: 0.48rem 0.78rem;
+      color: #0B0F17;
+      font-weight: 900;
+      padding: 0.62rem 0.92rem;
     }
-
-    .owner-mini-btn.primary {
-      background: var(--owner-accent);
-      border-color: transparent;
-      color: #fff;
-    }
-
-    .preview-form {
-      display: grid;
-      gap: 0.85rem;
-    }
-
-    .preview-grid {
-      display: grid;
-      gap: 0.75rem;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .preview-copy {
-      color: var(--owner-muted);
-      font-size: 0.88rem;
-      line-height: 1.6;
-      margin-bottom: 0.9rem;
-    }
-
-    .inline-note {
-      color: var(--owner-muted);
-      font-size: 0.76rem;
-      margin-top: -0.35rem;
-    }
-
-    .quick-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.55rem;
-      margin-top: 0.8rem;
-    }
-
-    .breakdown-list,
-    .webhook-list,
-    .request-list {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .breakdown-row,
-    .webhook-item,
-    .request-card {
-      background: rgba(248, 250, 252, 0.92);
+    .owner-btn.secondary {
+      background: #111827;
       border: 1px solid var(--owner-line);
-      border-radius: 20px;
-      padding: 0.95rem;
+      color: #FFFFFF;
     }
-
-    .breakdown-row {
-      align-items: center;
+    .health-summary {
       display: grid;
-      gap: 0.5rem;
-      grid-template-columns: minmax(0, 1fr) repeat(3, auto);
-    }
-
-    .breakdown-row strong,
-    .webhook-item strong,
-    .request-card strong {
-      display: block;
-      font-size: 0.92rem;
-      margin-bottom: 0.15rem;
-    }
-
-    .mini-stat {
-      color: var(--owner-muted);
-      font-size: 0.78rem;
-      font-weight: 800;
-      text-align: right;
-    }
-
-    .request-card p,
-    .webhook-item p {
-      color: var(--owner-muted);
-      font-size: 0.82rem;
-      line-height: 1.55;
-      margin: 0.45rem 0 0;
-      white-space: pre-wrap;
-    }
-
-    .request-meta,
-    .webhook-meta {
-      color: var(--owner-muted);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem 0.85rem;
-      margin-top: 0.55rem;
-      font-size: 0.77rem;
-      font-weight: 700;
-    }
-
-    .request-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-top: 0.85rem;
-    }
-
-    .section-empty {
-      background: rgba(248, 250, 252, 0.86);
-      border: 1px dashed rgba(148, 163, 184, 0.36);
-      border-radius: 20px;
-      color: var(--owner-muted);
+      gap: 0.75rem;
+      grid-template-columns: 1fr;
       padding: 1rem;
-      text-align: center;
     }
-
-    .admin-status {
-      color: var(--owner-muted);
-      font-size: 0.85rem;
-      font-weight: 700;
+    .health-summary div {
+      background: var(--owner-soft);
+      border: 1px solid var(--owner-line);
+      border-radius: 18px;
+      padding: 1rem;
     }
-
-    @media (max-width: 1180px) {
-      .hero-grid,
+    .health-summary strong {
+      display: block;
+      font-size: 1.65rem;
+      font-weight: 950;
+    }
+    .health-summary span {
+      color: #64748b;
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+    .webhook-table {
+      font-size: 0.86rem;
+      margin: 0;
+    }
+    .webhook-table td,
+    .webhook-table th {
+      padding: 0.85rem 1rem;
+      vertical-align: top;
+    }
+    .webhook-table td span {
+      color: #64748b;
+      display: block;
+      font-size: 0.72rem;
+      max-width: 240px;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 1080px) {
       .owner-grid {
         grid-template-columns: 1fr;
       }
-
-      .stat-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
     }
-
-    @media (max-width: 860px) {
+    @media (max-width: 720px) {
       .owner-topbar,
-      .card-head {
+      .owner-card-header {
         align-items: flex-start;
         flex-direction: column;
       }
-
-      .owner-actions,
-      .head-actions {
+      .owner-actions {
         justify-content: flex-start;
-      }
-
-      .filter-row,
-      .preview-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .breakdown-row {
-        grid-template-columns: 1fr;
-      }
-
-      .mini-stat {
-        text-align: left;
-      }
-    }
-
-    @media (max-width: 560px) {
-      .stat-grid {
-        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -605,254 +240,91 @@
         <img src="/assets/mytruckingleads-logo-icon.png" alt="" aria-hidden="true" />
         <div>
           <strong>MyTruckingLeads</strong>
-          <span>Owner Console</span>
+          <span>Owner admin</span>
         </div>
       </a>
       <div class="owner-actions">
-        <span id="ownerName" class="owner-name">Checking owner access...</span>
-        <a class="owner-btn secondary" href="/user-dashboard.html"><i class="bi bi-grid-1x2"></i> Dashboard</a>
-        <a class="owner-btn secondary" href="/admin-leads.html"><i class="bi bi-clipboard2-data"></i> Marketplace Leads</a>
-        <button id="logoutBtn" class="owner-btn ghost" type="button"><i class="bi bi-box-arrow-right"></i> Logout</button>
+        <span id="ownerName" class="fw-bold">Checking owner...</span>
+        <a class="owner-btn secondary" href="/user-dashboard.html">Dashboard</a>
+        <button id="logoutBtn" class="owner-btn secondary" type="button">Logout</button>
       </div>
     </header>
 
-    <section class="owner-hero">
-      <div class="hero-grid">
-        <div class="hero-copy">
-          <div class="hero-kicker">Owner Operations</div>
-          <h1>Test the real user experience before you need support.</h1>
-          <p>Use preview mode to step into Starter, Pro, or Agency access, watch subscription health in one place, and keep inbound contact requests visible inside the same owner workflow.</p>
-          <div class="stat-grid">
-            <div class="stat-card">
-              <span>Access Enabled</span>
-              <strong id="metricAccessEnabled">0</strong>
-              <p>Users with live access right now.</p>
-            </div>
-            <div class="stat-card">
-              <span>Active Subs</span>
-              <strong id="metricActiveSubscriptions">0</strong>
-              <p>Paid users currently marked active.</p>
-            </div>
-            <div class="stat-card">
-              <span>Trials</span>
-              <strong id="metricTrials">0</strong>
-              <p>Users still inside the trial window.</p>
-            </div>
-            <div class="stat-card">
-              <span>Need Attention</span>
-              <strong id="metricAttention">0</strong>
-              <p>Past-due, incomplete, or unpaid accounts.</p>
-            </div>
-            <div class="stat-card">
-              <span>Expiring Soon</span>
-              <strong id="metricExpiringSoon">0</strong>
-              <p>Subscriptions ending inside the next 14 days.</p>
-            </div>
-            <div class="stat-card">
-              <span>New Contact Requests</span>
-              <strong id="metricContactRequests">0</strong>
-              <p>Fresh inbound messages waiting in admin.</p>
-            </div>
-          </div>
-        </div>
-        <div class="hero-status">
-          <div id="ownerPreviewBanner" class="preview-banner">
-            <i class="bi bi-shield-lock"></i>
-            <div>
-              <strong>Loading preview state...</strong>
-              <span>The owner preview controls will appear once your session is verified.</span>
-            </div>
-          </div>
-          <div class="helper-banner">
-            <i class="bi bi-info-circle"></i>
-            <div>
-              <strong id="adminStatus">Preparing owner tools...</strong>
-              <span id="adminStatusNote">Subscriptions, contact requests, and webhook activity are loading now.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    <section class="owner-command-grid" id="ownerMetricsGrid"></section>
 
     <section class="owner-dashboard-section">
       <article class="owner-card">
-        <div class="card-head">
-          <div>
-            <h2>System Health</h2>
-            <p>Operational status across the owner-critical services.</p>
-          </div>
-        </div>
-        <div class="health-summary">
-          <div><span><i class="health-dot"></i>API Status</span><strong>Healthy</strong><small>Application routes responding</small></div>
-          <div><span><i class="health-dot"></i>Database Status</span><strong>Healthy</strong><small>Subscriber and lead queries active</small></div>
-          <div><span><i class="health-dot"></i>FMCSA Status</span><strong>Healthy</strong><small>Carrier lookup endpoints online</small></div>
-          <div><span><i class="health-dot"></i>Stripe Status</span><strong>Healthy</strong><small>Webhook monitor below</small></div>
-          <div><span><i class="health-dot warn"></i>Email Status</span><strong>Monitored</strong><small>Contact delivery tracked</small></div>
-          <div><span><i class="health-dot"></i>Storage Status</span><strong>Healthy</strong><small>Document storage available</small></div>
-        </div>
+        <div class="owner-card-header"><div><h2>System Health</h2><p>Operational status by service.</p></div></div>
+        <div id="systemHealthGrid" class="health-summary"></div>
       </article>
       <article class="owner-card">
-        <div class="card-head">
-          <div>
-            <h2>Financial Overview</h2>
-            <p>Estimated subscription and marketplace performance.</p>
-          </div>
-        </div>
-        <div class="health-summary">
-          <div><span>MRR</span><strong id="metricMrr">$0</strong><small>Estimated from active plan mix</small></div>
-          <div><span>ARR</span><strong id="metricArr">$0</strong><small>Projected annualized subscription revenue</small></div>
-          <div><span>Marketplace Revenue</span><strong>$52,310</strong><small>Lead purchase tracking placeholder</small></div>
-        </div>
+        <div class="owner-card-header"><div><h2>Marketplace Overview</h2><p>Lead inventory, sold leads, and revenue.</p></div></div>
+        <div id="marketplaceOverview" class="health-summary"></div>
       </article>
       <article class="owner-card">
-        <div class="card-head">
-          <div>
-            <h2>Marketplace Overview</h2>
-            <p>Lead tier supply, sold volume, and revenue snapshot.</p>
-          </div>
-        </div>
-        <div class="health-summary">
-          <div><span>Bronze Leads</span><strong>1,245</strong><small>932 sold - $9,320 revenue</small></div>
-          <div><span>Silver Leads</span><strong>842</strong><small>652 sold - $16,250 revenue</small></div>
-          <div><span>Gold Leads</span><strong>366</strong><small>258 sold - $26,740 revenue</small></div>
-        </div>
+        <div class="owner-card-header"><div><h2>Recent Activity</h2><p>Signups, requests, purchases, and sync issues.</p></div></div>
+        <div id="recentActivity" class="health-summary"></div>
       </article>
     </section>
 
     <main class="owner-grid">
-      <div class="owner-main-column">
-        <section class="owner-card">
-          <div class="card-head">
-            <div>
-              <h2>Subscriber Directory</h2>
-              <p><span id="userCount">0</span> accounts loaded. Search real users, filter by plan or status, then sync Stripe on demand.</p>
-            </div>
-            <div class="head-actions">
-              <button id="refreshBtn" class="owner-btn" type="button"><i class="bi bi-arrow-repeat"></i> Refresh</button>
-            </div>
+      <section class="owner-card">
+        <div class="owner-card-header">
+          <div>
+            <h1>Subscribers and Trials</h1>
+            <p><span id="userCount">0</span> users loaded. <span id="adminStatus">Preparing admin tools...</span></p>
           </div>
+          <div class="owner-actions">
+            <input id="userSearch" class="owner-search" type="search" placeholder="Search name, email, username, business..." />
+            <button id="refreshBtn" class="owner-btn" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table owner-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Account</th>
+                <th>Plan</th>
+                <th>Status</th>
+                <th>Trial / Access Ends</th>
+                <th>Stripe</th>
+                <th>Created</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+      </section>
 
-          <div class="filter-row">
-            <input id="userSearch" class="owner-search" type="search" placeholder="Search name, email, username, business, or Stripe id..." />
-            <select id="planFilter" class="owner-select">
-              <option value="">All plans</option>
-              <option value="basic">Starter</option>
-              <option value="pro">Pro</option>
-              <option value="premium">Agency Unlimited</option>
-            </select>
-            <select id="subscriptionStatusFilter" class="owner-select">
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="trialing">Trialing</option>
-              <option value="past_due">Past due</option>
-              <option value="incomplete">Incomplete</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="canceled">Canceled</option>
-            </select>
-            <button id="clearFiltersBtn" class="owner-btn secondary" type="button"><i class="bi bi-eraser"></i> Clear</button>
+      <aside class="owner-card">
+        <div class="owner-card-header">
+          <div>
+            <h2>Stripe Webhook Health</h2>
+            <p>Recent billing sync events from Stripe.</p>
           </div>
-
-          <div class="table-wrap">
-            <table class="table owner-table">
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Subscription</th>
-                  <th>State / Access</th>
-                  <th>Stripe</th>
-                  <th>Created</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="usersBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <div class="owner-side-column">
-        <section class="owner-card">
-          <div class="card-head">
-            <div>
-              <h2>Owner Preview Lab</h2>
-              <p>Temporarily step into a plan tier without changing the real owner account.</p>
-            </div>
-          </div>
-          <div class="preview-copy">Preview mode changes what your current owner session can access across the app, so you can reproduce Starter, Pro, or locked-account issues before asking me to debug them.</div>
-          <form id="previewForm" class="preview-form">
-            <div class="preview-grid">
-              <div>
-                <label class="form-label small" for="previewPlan">Preview plan</label>
-                <select id="previewPlan" class="owner-select">
-                  <option value="basic">Starter</option>
-                  <option value="pro">Pro</option>
-                  <option value="premium">Agency Unlimited</option>
-                </select>
-              </div>
-              <div>
-                <label class="form-label small" for="previewStatus">Subscription status</label>
-                <select id="previewStatus" class="owner-select">
-                  <option value="active">Active</option>
-                  <option value="trialing">Trialing</option>
-                  <option value="past_due">Past Due</option>
-                  <option value="incomplete">Incomplete</option>
-                  <option value="canceled">Canceled</option>
-                  <option value="unpaid">Unpaid</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label class="form-label small" for="previewState">Lead state</label>
-              <input id="previewState" class="owner-input" type="text" maxlength="2" placeholder="FL" />
-              <div class="inline-note">Starter and Pro previews are one-state views. Agency can leave this blank or use a state to mirror a real user setup.</div>
-            </div>
-            <div class="table-actions">
-              <button class="owner-btn" type="submit"><i class="bi bi-play-circle"></i> Apply Preview</button>
-              <button id="clearPreviewBtn" class="owner-btn secondary" type="button"><i class="bi bi-x-circle"></i> Return To Live Owner Access</button>
-            </div>
-          </form>
-          <div class="quick-links">
-            <a class="owner-mini-btn" href="/app-dashboard.html"><i class="bi bi-window"></i> Open Dashboard</a>
-            <a class="owner-mini-btn" href="/dot-analytics.html"><i class="bi bi-search"></i> Open DOT Analytics</a>
-            <a class="owner-mini-btn" href="/settings.html"><i class="bi bi-sliders"></i> Open Settings</a>
-          </div>
-        </section>
-
-        <section class="owner-card">
-          <div class="card-head">
-            <div>
-              <h2>Plan Mix Snapshot</h2>
-              <p>Live breakdown of the user base by plan and subscription posture.</p>
-            </div>
-          </div>
-          <div id="planBreakdown" class="breakdown-list"></div>
-        </section>
-
-        <section class="owner-card">
-          <div class="card-head">
-            <div>
-              <h2>Contact Request Inbox</h2>
-              <p id="contactStatusSummary">New website requests will appear here once loaded.</p>
-            </div>
-          </div>
-          <div id="contactRequestRows" class="request-list"></div>
-        </section>
-
-        <section class="owner-card">
-          <div class="card-head">
-            <div>
-              <h2>Stripe Webhook Health</h2>
-              <p>Recent billing sync results so you can spot webhook trouble quickly.</p>
-            </div>
-          </div>
-          <div id="webhookSummary" class="breakdown-list"></div>
-          <div id="webhookBody" class="webhook-list"></div>
-        </section>
-      </div>
+        </div>
+        <div id="webhookSummary" class="health-summary"></div>
+        <div class="table-wrap">
+          <table class="table webhook-table">
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Status</th>
+                <th>Mode</th>
+                <th>Message</th>
+                <th>Processed</th>
+              </tr>
+            </thead>
+            <tbody id="webhookBody"></tbody>
+          </table>
+        </div>
+      </aside>
     </main>
   </div>
 
-  <script src="assets/js/admin.js?v=owner-tools-2"></script>
+  <script src="assets/js/admin.js?v=owner-tools-1"></script>
   <script src="assets/js/global-copilot.js?v=ai-1"></script>
 </body>
 </html>

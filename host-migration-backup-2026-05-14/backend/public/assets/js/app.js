@@ -1,5 +1,4 @@
 import * as API from "./api.js?v=cookie-session-2";
-import { getAccountLeadState, resolvePlanLeadState } from "./lead-state.js";
 
 const IS_LOCAL_DEV =
   window.location.protocol === "file:" ||
@@ -17,7 +16,6 @@ const state = {
   prospectLeads: [],
   newVentureLeads: [],
   selectedCarrier: null,
-  carrierCandidateMatches: [],
   activeLeadIndex: null,
   isLoading: false,
   error: null,
@@ -229,66 +227,6 @@ function getPlanLeadLabel() {
   return "Starter";
 }
 
-function getCurrentLeadState() {
-  return getAccountLeadState(API.getCurrentUser());
-}
-
-function resolveStateSelection(stateElementId) {
-  return resolvePlanLeadState({
-    selectedState: document.getElementById(stateElementId)?.value || "",
-    user: API.getCurrentUser(),
-    oneStatePlan: isOneStatePlan()
-  });
-}
-
-function syncPlanStateControl(stateElementId) {
-  const control = document.getElementById(stateElementId);
-  if (!control) return;
-
-  const accountState = getCurrentLeadState();
-  const lockedToSingleState = isOneStatePlan() && Boolean(accountState);
-  const blankOption = control.querySelector('option[value=""]');
-
-  if (blankOption) {
-    blankOption.textContent = lockedToSingleState
-      ? `${accountState} locked on your plan`
-      : "All states (Agency only)";
-  }
-
-  if (lockedToSingleState) {
-    control.value = accountState;
-    control.disabled = true;
-    control.title = `${getPlanLeadLabel()} is locked to ${accountState}. Upgrade to Agency Unlimited to search all states.`;
-    return;
-  }
-
-  control.disabled = false;
-  control.title = isOneStatePlan()
-    ? `${getPlanLeadLabel()} includes one state. Choose a state to start searching.`
-    : "Search any state or leave all states selected.";
-}
-
-function getCurrentExportQuota() {
-  const user = API.getCurrentUser();
-  const limit = user?.monthlyExportLimit;
-  const remaining = user?.monthlyExportsRemaining;
-  return {
-    limit: Number.isFinite(limit) ? limit : null,
-    remaining: Number.isFinite(remaining) ? remaining : null
-  };
-}
-
-function exportQuotaMessage() {
-  const { limit, remaining } = getCurrentExportQuota();
-  if (limit === null) {
-    return "Agency Unlimited includes unlimited exports.";
-  }
-  if (remaining === null) {
-    return `${getPlanLeadLabel()} includes up to ${limit.toLocaleString()} exported records per month.`;
-  }
-  return `${getPlanLeadLabel()} includes up to ${limit.toLocaleString()} exported records per month. ${remaining.toLocaleString()} left this month.`;
-}
-
 function canUseCrm() {
   const status = String(API.getCurrentUser()?.subscription_status || "").toLowerCase();
   return ["basic", "pro", "premium"].includes(getCurrentPlan()) && (IS_LOCAL_DEV || ["active", "trialing"].includes(status));
@@ -320,7 +258,6 @@ async function searchCarrier(query, options = {}) {
 
   const searchBtn = document.querySelector('#searchForm [type="submit"]');
   const lookupToken = ++state.carrierLookupToken;
-  state.carrierCandidateMatches = [];
   renderCarrierLookupLoading(query);
   showLoading(searchBtn);
   if (searchBtn) {
@@ -335,17 +272,8 @@ async function searchCarrier(query, options = {}) {
     const mcNumber = mcMatch?.[1] || null;
     const carrierName = !dotNumber && !mcNumber ? trimmedQuery : null;
 
-    const carrierSearchResult = await API.searchCarrier(dotNumber, mcNumber, carrierName);
+    const carrier = applyCarrierWorkflowContext(await API.searchCarrier(dotNumber, mcNumber, carrierName));
     if (lookupToken !== state.carrierLookupToken) return;
-
-    if (carrierSearchResult?.multipleMatches) {
-      state.selectedCarrier = null;
-      state.carrierCandidateMatches = carrierSearchResult.results || [];
-      renderCarrierMatchSelection(carrierSearchResult, trimmedQuery);
-      return;
-    }
-
-    const carrier = applyCarrierWorkflowContext(carrierSearchResult);
     state.selectedCarrier = carrier;
     const shouldHydrate = needsCarrierProfileHydration(carrier);
     renderCarrierDetails(carrier, { hydrating: shouldHydrate });
@@ -366,7 +294,6 @@ function renderCarrierLookupLoading(query) {
   if (!container) return;
 
   if (saveBtn) saveBtn.disabled = true;
-  state.carrierCandidateMatches = [];
   renderContactInfo(null);
   renderCarrierAnalytics(null);
   renderCarrierIntelligence(null);
@@ -380,79 +307,6 @@ function renderCarrierLookupLoading(query) {
       </div>
     </div>
   `;
-}
-
-function selectCarrierCandidateMatch(index) {
-  const candidate = state.carrierCandidateMatches[index];
-  if (!candidate) return;
-
-  const lookupToken = ++state.carrierLookupToken;
-  state.carrierCandidateMatches = [];
-  state.selectedCarrier = applyCarrierWorkflowContext(candidate);
-
-  const shouldHydrate = needsCarrierProfileHydration(state.selectedCarrier);
-  renderCarrierDetails(state.selectedCarrier, { hydrating: shouldHydrate });
-
-  if (shouldHydrate) {
-    hydrateCarrierProfile(state.selectedCarrier, lookupToken);
-  }
-}
-
-function renderCarrierMatchSelection(matchResponse = {}, query = "") {
-  const container = document.getElementById("carrierDetails");
-  const saveBtn = document.getElementById("saveLeadBtn");
-  if (!container) return;
-
-  if (saveBtn) saveBtn.disabled = true;
-  renderContactInfo(null);
-  renderCarrierAnalytics(null);
-  renderCarrierIntelligence(null);
-
-  const matches = Array.isArray(matchResponse.results) ? matchResponse.results : [];
-  if (!matches.length) {
-    container.innerHTML = renderCarrierDetailMessage("Multiple matches were reported, but no carrier candidates were returned. Try a DOT or MC number instead.", "warn");
-    return;
-  }
-
-  container.innerHTML = `
-    <div class="carrier-profile-stack analytics-profile-shell">
-      <div class="profile-card">
-        <h3>Select The Correct Carrier</h3>
-        <p class="mb-2">More than one FMCSA carrier matched <strong>${escapeHtml(query || matchResponse.query || "that name")}</strong>. Choose the right record before opening the full profile.</p>
-        ${matchResponse.message ? renderCarrierDetailMessage(matchResponse.message, "warn") : ""}
-        <div class="list-group">
-          ${matches.map((carrier, index) => {
-            const location = [carrier.city, carrier.state].filter(Boolean).join(", ") || "Location not available";
-            const authorityStatus = carrier.authorityStatus || "Not available";
-            const operatingStatus = carrier.operatingStatus || authorityStatus || "Not available";
-            return `
-              <button type="button" class="list-group-item list-group-item-action text-start" data-carrier-match-index="${index}">
-                <div class="d-flex w-100 justify-content-between align-items-start gap-3">
-                  <div>
-                    <div class="fw-semibold">${escapeHtml(carrier.carrierName || carrier.legalName || "Unknown Carrier")}</div>
-                    <div class="small text-muted">DOT ${escapeHtml(carrier.dot || carrier.dotNumber || "Not available")}${carrier.mc ? ` - MC ${escapeHtml(carrier.mc)}` : ""}</div>
-                    <div class="small text-muted">${escapeHtml(location)}</div>
-                    ${carrier.dbaName ? `<div class="small text-muted">DBA ${escapeHtml(carrier.dbaName)}</div>` : ""}
-                  </div>
-                  <div class="text-end small">
-                    <div><strong>${escapeHtml(operatingStatus)}</strong></div>
-                    <div class="text-muted">${escapeHtml(authorityStatus)}</div>
-                  </div>
-                </div>
-              </button>
-            `;
-          }).join("")}
-        </div>
-      </div>
-    </div>
-  `;
-
-  container.querySelectorAll("[data-carrier-match-index]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const index = Number(button.getAttribute("data-carrier-match-index"));
-      if (Number.isFinite(index)) selectCarrierCandidateMatch(index);
-    });
-  });
 }
 
 function isMeaningfulValue(value) {
@@ -543,6 +397,7 @@ function hasFullCarrierProfile(carrier = {}) {
     carrier.physicalAddress ||
     carrier.safety ||
     carrier.licensingInsurance ||
+    carrier.officialLinks ||
     (Array.isArray(carrier.cargoCarried) && carrier.cargoCarried.length) ||
     carrier.companyOfficer1
   );
@@ -586,24 +441,16 @@ function renderProfileSummary(items = []) {
   return `<div class="profile-summary-grid">${items.map((item) => renderProfileStat(item[0], item[1])).join("")}</div>`;
 }
 
-const MOTUS_PORTAL_URL = "https://motus.dot.gov/";
-const FMCSA_TRANSITION_NOTICE = "FMCSA is transitioning registration services to Motus. Some legacy SAFER registration functions may move to Motus over time.";
-
 function renderOfficialLinksCard(links = {}) {
   const linkItems = [
-    ["SAFER Snapshot (Legacy)", links.safer],
+    ["FMCSA Carrier Profile", links.safer],
     ["Licensing & Insurance", links.licensingInsurance],
-    ["SMS Safety Data", links.sms],
-    ["Motus Registration Portal", links.motus || MOTUS_PORTAL_URL]
+    ["SMS Safety Data", links.sms]
   ].filter((item) => item[1]);
-  const notice = links.notice || FMCSA_TRANSITION_NOTICE;
 
   if (!linkItems.length) return `<p class="muted-note mb-0">Official source links are not available for this carrier yet.</p>`;
 
-  return `
-    <div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeAttribute(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>
-    <p class="muted-note mb-0">${escapeHtml(notice)}</p>
-  `;
+  return `<div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeAttribute(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`;
 }
 
 function renderInsuranceFilingsTable(filings = []) {
@@ -783,9 +630,7 @@ function normalizeCarrierProfile(carrier = {}) {
     officialLinks: carrier.officialLinks || (dot ? {
       safer: `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${encodeURIComponent(dot)}`,
       licensingInsurance: `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${encodeURIComponent(dot)}`,
-      ...(safety.smsProfileAvailable ? { sms: `https://ai.fmcsa.dot.gov/SMS/Carrier/${encodeURIComponent(dot)}/Overview.aspx?FirstView=True` } : {}),
-      motus: MOTUS_PORTAL_URL,
-      notice: FMCSA_TRANSITION_NOTICE
+      ...(safety.smsProfileAvailable ? { sms: `https://ai.fmcsa.dot.gov/SMS/Carrier/${encodeURIComponent(dot)}/Overview.aspx?FirstView=True` } : {})
     } : {}),
     dataSources: uniqueValues([
       ...normalizeListValue(carrier.dataSources),
@@ -875,7 +720,7 @@ function renderCarrierDetails(carrier, options = {}) {
       </div>
 
       ${options.hydrating ? renderCarrierDetailMessage("Loading the expanded carrier profile so cargo, safety, insurance, and contact detail can fill in.", "info") : ""}
-      ${profile.liveUnavailable || profile.message ? renderCarrierDetailMessage(profile.message || "Live FMCSA data is temporarily unavailable. Showing saved carrier data where available.", "warn") : ""}
+      ${profile.liveUnavailable || profile.message ? renderCarrierDetailMessage(profile.message || "Live FMCSA data is temporarily unavailable. Showing the most recent saved record.", "warn") : ""}
 
       <div class="company-overview-card">${escapeHtml(profile.companyOverview)}</div>
 
@@ -1095,7 +940,7 @@ function getProspectFilters() {
   return {
     renewalFrom: monthRange.from || document.getElementById("renewalFrom")?.value || "",
     renewalTo: monthRange.to || document.getElementById("renewalTo")?.value || "",
-    state: resolveStateSelection("prospectState"),
+    state: document.getElementById("prospectState")?.value?.trim().toUpperCase() || "",
     minFleetSize: document.getElementById("minFleetSize")?.value || "",
     hasEmail: emailFilter === "hasEmail" || emailFilter === "verified" ? "true" : "",
     emailVerified: emailFilter === "verified" ? "true" : "",
@@ -1107,13 +952,9 @@ function getProspectFilters() {
 }
 
 function requireStateForOneStatePlan(stateElementId, targetElement = null) {
-  const state = resolveStateSelection(stateElementId);
-  const stateControl = document.getElementById(stateElementId);
-  if (stateControl && state) {
-    stateControl.value = state;
-  }
+  const state = document.getElementById(stateElementId)?.value?.trim().toUpperCase() || "";
   if (isOneStatePlan() && !state) {
-    showUpgradePrompt(`${getPlanLeadLabel()} includes one state. Choose a state, then search.`, targetElement || stateControl);
+    showUpgradePrompt(`${getPlanLeadLabel()} includes one state. Choose a state, then search.`, targetElement || document.getElementById(stateElementId));
     return false;
   }
   return true;
@@ -1128,7 +969,7 @@ function getNewVentureFilters() {
   return {
     from: monthRange.from || document.getElementById("newVentureFrom")?.value || "",
     to: monthRange.to || document.getElementById("newVentureTo")?.value || "",
-    state: resolveStateSelection("newVentureState"),
+    state: document.getElementById("newVentureState")?.value?.trim().toUpperCase() || "",
     operation: document.getElementById("newVentureOperation")?.value || "",
     minFleetSize: document.getElementById("newVentureMinFleet")?.value || "",
     hasEmail: emailFilter === "hasEmail" || emailFilter === "verify" ? "true" : "",
@@ -1170,8 +1011,7 @@ async function exportProspectReport() {
   showLoading(exportButton);
 
   try {
-    await exportCheckedProspectLeads(exportButton);
-    applySubscriptionUiControls();
+    exportCheckedProspectLeads(exportButton);
   } catch (err) {
     if (err.status === 403) {
       showUpgradePrompt(err.message, exportButton);
@@ -1255,8 +1095,7 @@ async function exportNewVentureReport() {
   showLoading(exportButton);
 
   try {
-    await exportCheckedNewVentureLeads(exportButton);
-    applySubscriptionUiControls();
+    exportCheckedNewVentureLeads(exportButton);
   } catch (err) {
     if (err.status === 403) {
       showUpgradePrompt(err.message, exportButton);
@@ -1375,16 +1214,11 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
-async function exportCheckedProspectLeads(exportButton) {
+function exportCheckedProspectLeads(exportButton) {
   const selected = getCheckedRows(".prospect-row-checkbox", state.prospectLeads);
   if (!selected.length) {
     throw new Error("Check at least one renewal carrier before exporting.");
   }
-
-  await API.claimExportQuota({
-    exportType: "renewal-selected",
-    recordCount: selected.length
-  });
 
   const headers = [
     "DOT",
@@ -1418,19 +1252,14 @@ async function exportCheckedProspectLeads(exportButton) {
   }));
 
   downloadCsv(`renewal-leads-selected-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
-  showSuccess(`Exported ${selected.length} selected renewal lead${selected.length === 1 ? "" : "s"}. ${exportQuotaMessage()}`, exportButton);
+  showSuccess(`Exported ${selected.length} selected renewal lead${selected.length === 1 ? "" : "s"}.`, exportButton);
 }
 
-async function exportCheckedNewVentureLeads(exportButton) {
+function exportCheckedNewVentureLeads(exportButton) {
   const selected = getCheckedRows(".new-venture-row-checkbox", state.newVentureLeads);
   if (!selected.length) {
     throw new Error("Check at least one new venture carrier before exporting.");
   }
-
-  await API.claimExportQuota({
-    exportType: "new-venture-selected",
-    recordCount: selected.length
-  });
 
   const headers = [
     "DOT",
@@ -1464,7 +1293,7 @@ async function exportCheckedNewVentureLeads(exportButton) {
   }));
 
   downloadCsv(`new-venture-leads-selected-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
-  showSuccess(`Exported ${selected.length} selected new venture lead${selected.length === 1 ? "" : "s"}. ${exportQuotaMessage()}`, exportButton);
+  showSuccess(`Exported ${selected.length} selected new venture lead${selected.length === 1 ? "" : "s"}.`, exportButton);
 }
 
 function initResizableLeadTables() {
@@ -1528,31 +1357,19 @@ function applySubscriptionUiControls() {
   const summary = document.getElementById("prospectReportSummary");
   const newVentureSummary = document.getElementById("newVentureSummary");
   const renewalTabButton = document.getElementById("renewal-tab");
-  const accountState = getCurrentLeadState();
-  const exportButtons = [
-    document.getElementById("exportProspectsBtn"),
-    document.getElementById("exportNewVenturesBtn"),
-    document.getElementById("sheetTopExportBtn")
-  ].filter(Boolean);
 
   if (summary) {
     summary.textContent = plan === "premium"
       ? "Agency Unlimited: search any lead type in any state."
       : plan === "pro"
-        ? accountState
-          ? `Pro: locked to ${accountState} for renewals and new DOT leads.`
-          : "Pro: choose one state, then search renewals and new DOT leads."
-        : accountState
-          ? `Starter: locked to ${accountState} for new DOT leads and basic renewals.`
-          : "Starter: choose one state, then search new DOT leads and basic renewals.";
+        ? "Pro: choose one state, then search renewals and new DOT leads."
+        : "Starter: choose one state, then search new DOT leads and basic renewals.";
   }
 
   if (newVentureSummary) {
     newVentureSummary.textContent = plan === "premium"
       ? "Choose a state or leave all states selected, then search new DOT leads."
-      : accountState
-        ? `Searching ${accountState} new DOT leads on your ${getPlanLeadLabel()} plan.`
-        : "Choose your state, then search new DOT leads.";
+      : "Choose your state, then search new DOT leads.";
   }
 
   if (plan === "basic" && renewalTabButton) {
@@ -1585,18 +1402,6 @@ function applySubscriptionUiControls() {
       ? "Starter includes renewal leads in the next 30 days."
       : "Choose the renewal month you want to call.";
   }
-
-  const { limit, remaining } = getCurrentExportQuota();
-  const exportLimitReached = limit !== null && remaining !== null && remaining <= 0;
-  exportButtons.forEach((button) => {
-    button.disabled = exportLimitReached;
-    button.title = exportLimitReached
-      ? `${getPlanLeadLabel()} monthly export limit reached. Upgrade or wait until next month to export more records.`
-      : exportQuotaMessage();
-  });
-
-  syncPlanStateControl("prospectState");
-  syncPlanStateControl("newVentureState");
 }
 
 function formatDateOnly(value) {
@@ -1710,13 +1515,10 @@ function renderCarrierSourceLinks(dot) {
 
   return `
     <a class="carrier-source-link" href="${saferUrl}" target="_blank" rel="noopener noreferrer">
-      <i class="bi bi-box-arrow-up-right"></i> View SAFER (Legacy)
+      <i class="bi bi-box-arrow-up-right"></i> View SAFER
     </a>
     <a class="carrier-source-link" href="${smsUrl}" target="_blank" rel="noopener noreferrer">
       <i class="bi bi-box-arrow-up-right"></i> View SMS
-    </a>
-    <a class="carrier-source-link" href="${MOTUS_PORTAL_URL}" target="_blank" rel="noopener noreferrer">
-      <i class="bi bi-box-arrow-up-right"></i> View Motus
     </a>
   `;
 }

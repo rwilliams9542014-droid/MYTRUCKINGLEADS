@@ -30,20 +30,25 @@
       --brand-light: #e2e8f0;
       --brand-white: #ffffff;
       --brand-glow: rgba(21, 101, 255, 0.28);
-      --bg: #07111f;
-      --bg-2: #0b1728;
-      --panel: rgba(12, 25, 43, 0.88);
-      --panel-strong: rgba(16, 32, 54, 0.96);
-      --line: rgba(148, 163, 184, 0.18);
-      --line-strong: rgba(91, 156, 255, 0.34);
-      --ink: #f8fbff;
-      --muted: #9fb0c5;
+      --bg: #0B0F17;
+      --bg-2: #0B0F17;
+      --panel: #111827;
+      --panel-strong: #111827;
+      --line: rgba(31, 41, 55, 1);
+      --line-strong: rgba(55, 65, 81, 0.9);
+      --ink: #FFFFFF;
+      --muted: #9CA3AF;
       --soft: #d8e6ff;
       --orange: #f59e0b;
       --red: #ef4444;
       --green: #22c55e;
       --yellow: #facc15;
       --shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      --btn-bg: #FFFFFF;
+      --btn-text: #0B0F17;
+      --btn-hover: #E5E7EB;
+      --teal: #FFFFFF;
+      --blue: #E5E7EB;
     }
 
     * { box-sizing: border-box; }
@@ -52,10 +57,7 @@
       margin: 0;
       min-height: 100vh;
       color: var(--ink);
-      background:
-        radial-gradient(circle at 12% -10%, rgba(21, 101, 255, 0.28), transparent 34rem),
-        radial-gradient(circle at 88% 0%, rgba(34, 197, 94, 0.08), transparent 26rem),
-        linear-gradient(180deg, #050d18 0%, var(--bg) 48%, #08121f 100%);
+      background: #0B0F17;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
     }
 
@@ -119,9 +121,9 @@
       align-items: center;
       justify-content: center;
       gap: 7px;
-      color: #fff;
-      background: linear-gradient(135deg, var(--brand-blue), #0948c4);
-      box-shadow: 0 14px 30px rgba(21, 101, 255, 0.18);
+      color: #0B0F17;
+      background: #FFFFFF;
+      box-shadow: none;
       font-size: 13px;
       font-weight: 850;
       cursor: pointer;
@@ -132,7 +134,7 @@
     button:hover {
       transform: translateY(-1px);
       border-color: rgba(255, 255, 255, 0.22);
-      box-shadow: 0 18px 42px rgba(21, 101, 255, 0.28);
+      background: #E5E7EB;
     }
 
     button.ghost,
@@ -169,7 +171,7 @@
       border: 1px solid var(--line);
       border-radius: 18px;
       padding: 22px;
-      background: linear-gradient(135deg, rgba(21, 101, 255, 0.16), rgba(255, 255, 255, 0.055));
+      background: #0B0F17;
       box-shadow: var(--shadow);
     }
 
@@ -258,8 +260,8 @@
     }
 
     select option {
-      color: var(--brand-navy);
-      background: #ffffff;
+      color: var(--ink);
+      background: #111827;
     }
 
     select option:checked {
@@ -358,10 +360,10 @@
     .prospect-card {
       position: relative;
       overflow: hidden;
-      border: 1px solid rgba(148, 163, 184, 0.16);
+      border: 1px solid rgba(55, 65, 81, 0.9);
       border-radius: 14px;
       padding: 10px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.078), rgba(255, 255, 255, 0.04));
+      background: #111827;
       box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22);
       cursor: grab;
       transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
@@ -522,17 +524,6 @@
 
     tbody tr { transition: background 0.14s ease, box-shadow 0.14s ease; cursor: pointer; }
     tbody tr:hover { background: rgba(21, 101, 255, 0.08); box-shadow: inset 3px 0 0 var(--brand-blue); }
-    tbody tr[data-dot] td {
-  border-right: 1px solid rgba(226, 232, 240, 0.25) !important;
-}
-
-tbody tr[data-dot] td:last-child {
-  border-right: 1px solid rgba(226, 232, 240, 0.25) !important;
-}
-
-.table-wrap {
-  border: 1px solid rgba(226, 232, 240, 0.25) !important;
-}
 
     .table-scroll {
       overflow-x: auto;
@@ -571,7 +562,7 @@ tbody tr[data-dot] td:last-child {
       height: 100%;
       overflow-y: auto;
       border-left: 1px solid var(--line-strong);
-      background: linear-gradient(180deg, rgba(8, 24, 39, 0.98), rgba(7, 17, 31, 0.98));
+      background: #111827;
       box-shadow: -34px 0 90px rgba(0,0,0,0.38);
       transform: translateX(104%);
       transition: transform 0.24s ease;
@@ -612,7 +603,7 @@ tbody tr[data-dot] td:last-child {
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 14px;
-      background: rgba(255, 255, 255, 0.055);
+      background: #111827;
     }
 
     .detail-card h3 { margin-bottom: 10px; font-size: 16px; }
@@ -654,20 +645,6 @@ tbody tr[data-dot] td:last-child {
       background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
       animation: shimmer 1.2s infinite;
     }
-    /* Keep all CRM table dividers visible before hover */
-body.crm-body table {
-  border-collapse: collapse !important;
-  border-spacing: 0 !important;
-}
-
-body.crm-body th,
-body.crm-body td {
-  border: 1px solid rgba(226, 232, 240, 0.20) !important;
-}
-
-body.crm-body tbody tr:hover td {
-  border-color: rgba(91, 156, 255, 0.36) !important;
-}
 
     @keyframes shimmer { to { transform: translateX(100%); } }
 
@@ -704,8 +681,8 @@ body.crm-body tbody tr:hover td {
     .trial-usage-grid div {
       padding: 10px 12px;
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.78);
-      border: 1px solid rgba(15, 23, 42, 0.07);
+      background: #0B0F17;
+      border: 1px solid rgba(55, 65, 81, 0.9);
     }
     .trial-usage-grid span {
       display: block;
@@ -723,7 +700,6 @@ body.crm-body tbody tr:hover td {
       color: #1565FF;
       font-weight: 700;
     }
-    
   </style>
   <link rel="stylesheet" href="assets/css/enterprise-ui.css?v=enterprise-10" />
   <script defer src="/assets/js/meta-pixel.js?v=meta-pixel-1"></script>

@@ -1,34 +1,31 @@
 :root {
   color-scheme: dark;
-  --mtl-public-bg: #020617;
-  --mtl-public-bg-2: #0f172a;
-  --mtl-public-panel: rgba(17, 24, 39, 0.9);
-  --mtl-public-panel-strong: rgba(31, 41, 55, 0.92);
-  --mtl-public-line: rgba(148, 163, 184, 0.2);
-  --mtl-public-text: #f8fafc;
-  --mtl-public-muted: #cbd5e1;
-  --mtl-public-soft: #94a3b8;
-  --mtl-public-blue: #3b82f6;
-  --mtl-public-blue-strong: #60a5fa;
-  --mtl-public-glow: rgba(59, 130, 246, 0.28);
+  --mtl-public-bg: #0B0F17;
+  --mtl-public-bg-2: #0D1117;
+  --mtl-public-panel: #111827;
+  --mtl-public-panel-strong: #161D2B;
+  --mtl-public-line: rgba(31, 41, 55, 1);
+  --mtl-public-text: #FFFFFF;
+  --mtl-public-muted: #9CA3AF;
+  --mtl-public-soft: #6B7280;
+  --mtl-public-blue: #FFFFFF;
+  --mtl-public-blue-strong: #E5E7EB;
+  --mtl-public-glow: rgba(255, 255, 255, 0);
 }
 
 body:not(.dashboard-body):not(.product-shell):not(.analytics-body):not(.owner-body):not(.marketplace-body):not(.quote-request-body) {
-  background:
-    radial-gradient(circle at 16% -8%, rgba(59, 130, 246, 0.18), transparent 30rem),
-    radial-gradient(circle at 88% 4%, rgba(96, 165, 250, 0.1), transparent 26rem),
-    linear-gradient(180deg, var(--mtl-public-bg) 0%, var(--mtl-public-bg-2) 46%, #111827 100%) !important;
+  background: var(--mtl-public-bg) !important;
   color: var(--mtl-public-text) !important;
 }
 
 body:not(.dashboard-body):not(.product-shell):not(.analytics-body):not(.owner-body):not(.marketplace-body):not(.quote-request-body)::before {
-  opacity: 0.42;
+  opacity: 1;
 }
 
 .navbar,
 .marketing-navbar,
 header:not(.dashboard-topbar):not(.dashboard-header) {
-  background: rgba(2, 6, 23, 0.82) !important;
+  background: rgba(11, 15, 23, 0.88) !important;
   border-bottom: 1px solid var(--mtl-public-line) !important;
   box-shadow: none !important;
   backdrop-filter: blur(18px);
@@ -37,7 +34,7 @@ header:not(.dashboard-topbar):not(.dashboard-header) {
 .navbar :is(.navbar-brand,.nav-link,.brand-lockup),
 .marketing-navbar :is(.navbar-brand,.nav-link,.brand-lockup),
 header :is(a,.nav-links,.brand) {
-  color: var(--mtl-public-text) !important;
+  color: var(--mtl-public-muted) !important;
 }
 
 .navbar .nav-link:hover,
@@ -45,7 +42,7 @@ header :is(a,.nav-links,.brand) {
 .marketing-navbar .nav-link:hover,
 .marketing-navbar .nav-link.active,
 header a:hover {
-  color: var(--mtl-public-blue-strong) !important;
+  color: var(--mtl-public-text) !important;
 }
 
 .brand-icon.brand-logo,
@@ -53,7 +50,7 @@ header a:hover {
 .brand-mark,
 .logo-mark,
 .mobile-logo-mark {
-  filter: drop-shadow(0 14px 28px var(--mtl-public-glow));
+  filter: none;
 }
 
 .bg-light,
@@ -85,11 +82,10 @@ section.bg-light,
 .support-card,
 .status-card,
 .upload-zone {
-  background:
-    linear-gradient(180deg, rgba(17, 24, 39, 0.92), rgba(15, 23, 42, 0.92)) !important;
+  background: var(--mtl-public-panel) !important;
   border: 1px solid var(--mtl-public-line) !important;
   color: var(--mtl-public-text) !important;
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28) !important;
+  box-shadow: none !important;
 }
 
 .bg-primary,
@@ -97,8 +93,7 @@ section.bg-light,
 footer,
 .marketing-footer,
 .cta-banner {
-  background:
-    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(17, 24, 39, 0.96)) !important;
+  background: #0D1117 !important;
   border-color: var(--mtl-public-line) !important;
   color: var(--mtl-public-text) !important;
 }
@@ -137,10 +132,11 @@ small,
 button[type="submit"],
 .theme-button-primary,
 .navbar-cta {
-  background: var(--mtl-public-blue) !important;
-  border-color: var(--mtl-public-blue) !important;
-  color: #ffffff !important;
-  box-shadow: 0 14px 34px var(--mtl-public-glow) !important;
+  background: #FFFFFF !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  color: #0B0F17 !important;
+  box-shadow: none !important;
+  transition: background 0.18s ease, color 0.18s ease !important;
 }
 
 .btn:hover,
@@ -148,17 +144,17 @@ button[type="submit"],
 .btn-accent:hover,
 button[type="submit"]:hover,
 .theme-button-primary:hover {
-  background: var(--mtl-public-blue-strong) !important;
-  border-color: var(--mtl-public-blue-strong) !important;
-  color: #ffffff !important;
+  background: #E5E7EB !important;
+  border-color: rgba(255,255,255,0.15) !important;
+  color: #0B0F17 !important;
 }
 
 .btn-outline-primary,
 .btn-outline-secondary,
 .btn.secondary,
 .theme-button-secondary {
-  background: rgba(15, 23, 42, 0.74) !important;
-  border-color: var(--mtl-public-line) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(55, 65, 81, 0.9) !important;
   color: var(--mtl-public-text) !important;
 }
 
@@ -166,7 +162,7 @@ button[type="submit"]:hover,
 .btn-outline-secondary:hover,
 .btn.secondary:hover,
 .theme-button-secondary:hover {
-  border-color: var(--mtl-public-blue-strong) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
   color: var(--mtl-public-text) !important;
 }
 
@@ -175,8 +171,8 @@ select,
 textarea,
 .form-control,
 .form-select {
-  background: rgba(15, 23, 42, 0.84) !important;
-  border-color: var(--mtl-public-line) !important;
+  background: rgba(11, 15, 23, 0.8) !important;
+  border: 1px solid var(--mtl-public-line) !important;
   color: var(--mtl-public-text) !important;
 }
 
@@ -192,7 +188,7 @@ table,
 }
 
 thead th {
-  background: rgba(15, 23, 42, 0.92) !important;
+  background: rgba(11, 15, 23, 0.8) !important;
   color: var(--mtl-public-muted) !important;
 }
 
@@ -204,9 +200,9 @@ tbody td {
 .theme-badge,
 .preview-filter-row span,
 .source-pill {
-  background: rgba(59, 130, 246, 0.14) !important;
-  border: 1px solid rgba(96, 165, 250, 0.28) !important;
-  color: #bfdbfe !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(55, 65, 81, 0.9) !important;
+  color: var(--mtl-public-muted) !important;
 }
 
 @media (max-width: 720px) {

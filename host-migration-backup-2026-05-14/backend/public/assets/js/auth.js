@@ -52,26 +52,14 @@
     return redirect;
   }
 
-  async function apiCall(endpoint, payloadOrOptions) {
-    const isOptionsObject =
-      payloadOrOptions &&
-      typeof payloadOrOptions === "object" &&
-      (Object.prototype.hasOwnProperty.call(payloadOrOptions, "method") ||
-        Object.prototype.hasOwnProperty.call(payloadOrOptions, "body") ||
-        Object.prototype.hasOwnProperty.call(payloadOrOptions, "headers"));
-
-    const method = isOptionsObject ? payloadOrOptions.method || "POST" : "POST";
-    const headers = {
-      "Content-Type": "application/json",
-      ...(isOptionsObject && payloadOrOptions.headers ? payloadOrOptions.headers : {})
-    };
-    const bodyPayload = isOptionsObject ? payloadOrOptions.body : payloadOrOptions;
-
+  async function apiCall(endpoint, payload) {
     const response = await fetch(`${API_BASE}${endpoint}`, {
-      method,
-      headers,
-      credentials: "include",
-      body: method === "GET" || bodyPayload === undefined ? undefined : JSON.stringify(bodyPayload)
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "include", // Include cookies in request
+      body: JSON.stringify(payload)
     });
 
     const data = await response.json().catch(() => null);
@@ -79,6 +67,7 @@
       throw new Error(data && data.error ? data.error : `HTTP ${response.status}`);
     }
 
+    // Store user data in localStorage for UI state (token is in httpOnly cookie)
     if (data && data.user) {
       localStorage.setItem("user", JSON.stringify(data.user));
     }
@@ -87,10 +76,11 @@
   }
 
   async function checkAuth() {
+    // Verify authentication status with server
     try {
       const response = await fetch(`${API_BASE}/auth/me`, {
         method: "GET",
-        credentials: "include",
+        credentials: "include", // Include cookies
         headers: {
           "Content-Type": "application/json"
         }
@@ -104,6 +94,7 @@
         }
       }
 
+      // Not authenticated
       localStorage.removeItem("user");
       return null;
     } catch {
@@ -112,37 +103,10 @@
     }
   }
 
-  function toggleSignupSection(sectionName, hidden) {
-    document.querySelectorAll(`[data-signup-section="${sectionName}"]`).forEach((element) => {
-      element.classList.toggle("d-none", hidden);
-      element.querySelectorAll("input, select, textarea").forEach((field) => {
-        field.disabled = hidden;
-        if (hidden) {
-          field.dataset.wasRequired = field.required ? "1" : "0";
-          field.required = false;
-        } else if (field.dataset.wasRequired === "1") {
-          field.required = true;
-        }
-      });
-    });
-  }
-
-  function disableSignupForm(form, submitButton, messageElement, message) {
-    form.querySelectorAll("input, select, button").forEach((element) => {
-      element.disabled = true;
-    });
-    if (submitButton) {
-      submitButton.disabled = true;
-    }
-    setMessage(messageElement, "danger", message);
-  }
-
   document.addEventListener("DOMContentLoaded", async function () {
     const params = new URLSearchParams(window.location.search);
-    const inviteToken = String(params.get("invite") || "").trim();
     const isLoginPage = Boolean(document.getElementById("loginForm"));
     const selectedPlan = params.get("plan");
-    let inviteContext = null;
 
     if (["basic", "pro", "premium", "starter", "agency"].includes(selectedPlan)) {
       localStorage.setItem("pendingPlan", selectedPlan);
@@ -151,9 +115,6 @@
     const signupPlanSelect = document.getElementById("signupPlan");
     const signupLeadStateGroup = document.getElementById("signupLeadStateGroup");
     const signupLeadStateSelect = document.getElementById("signupLeadState");
-    const signupTitle = document.getElementById("signupTitle");
-    const signupSubtitle = document.getElementById("signupSubtitle");
-    const inviteBanner = document.getElementById("inviteBanner");
 
     function normalizePlan(plan) {
       if (plan === "starter") return "basic";
@@ -171,37 +132,6 @@
       if (!needsLeadState) signupLeadStateSelect.value = "";
     }
 
-    function applyInviteMode(invite) {
-      inviteContext = invite;
-
-      if (signupTitle) signupTitle.textContent = "Create Your Team Login";
-      if (signupSubtitle) signupSubtitle.textContent = "Set your username and password to join your agency workspace.";
-      if (inviteBanner) {
-        const ownerLabel = invite.agencyName || invite.ownerName || "your agency";
-        inviteBanner.textContent = `You were invited to join ${ownerLabel} on the ${invite.planName || "Agency Unlimited"} account.`;
-        inviteBanner.classList.remove("d-none");
-      }
-
-      toggleSignupSection("billing", true);
-      toggleSignupSection("plan", true);
-
-      const emailField = document.getElementById("signupEmail");
-      if (emailField) {
-        emailField.value = invite.email || "";
-        emailField.readOnly = true;
-      }
-
-      if (signupPlanSelect) {
-        const ownerPlan = normalizePlan(invite.plan || invite.ownerPlan || "premium");
-        signupPlanSelect.value = ownerPlan;
-      }
-
-      const submitButton = document.getElementById("signupSubmit");
-      if (submitButton) {
-        submitButton.textContent = "Create Team Login";
-      }
-    }
-
     if (signupPlanSelect) {
       const pendingPlan = selectedPlan || localStorage.getItem("pendingPlan") || signupPlanSelect.value;
       signupPlanSelect.value = pendingPlan === "starter" ? "basic" : pendingPlan === "agency" ? "premium" : pendingPlan;
@@ -210,8 +140,10 @@
     }
 
     if (params.get("reset") === "1") {
+      // Clear local storage and cookies
       localStorage.removeItem("user");
       localStorage.removeItem("pendingPlan");
+      // Call logout to clear cookie
       fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
         credentials: "include"
@@ -220,6 +152,7 @@
       });
     }
 
+    // If a logged-in user briefly lands on login.html, verify the cookie before showing the form.
     if (isLoginPage && !IS_LOCAL_DEV) {
       const user = await checkAuth();
       if (user) {
@@ -234,15 +167,6 @@
     const loginForm = document.getElementById("loginForm");
     const signupForm = document.getElementById("signupForm");
     const message = document.getElementById("authMessage");
-
-    if (signupForm && inviteToken) {
-      try {
-        const data = await apiCall(`/team/invite/${encodeURIComponent(inviteToken)}`, { method: "GET" });
-        applyInviteMode(data.invite || {});
-      } catch (err) {
-        disableSignupForm(signupForm, document.getElementById("signupSubmit"), message, err.message || "This invitation is not available.");
-      }
-    }
 
     if (loginForm) {
       loginForm.addEventListener("submit", async function (event) {
@@ -262,6 +186,7 @@
         try {
           const data = await apiCall("/auth/login", { identifier, password });
           setMessage(message, "success", "Login successful. Redirecting...");
+          // Small delay to ensure cookie is set
           setTimeout(() => {
             window.location.href = getSafeRedirect(getDashboardForUser(data.user));
           }, 500);
@@ -278,61 +203,41 @@
         event.preventDefault();
 
         const submitButton = document.getElementById("signupSubmit");
+        const chosenPlan = normalizePlan((document.getElementById("signupPlan") || {}).value || selectedPlan || localStorage.getItem("pendingPlan") || "basic");
+        const payload = {
+          firstName: (document.getElementById("signupFirstName") || {}).value?.trim() || "",
+          lastName: (document.getElementById("signupLastName") || {}).value?.trim() || "",
+          username: (document.getElementById("signupUsername") || {}).value?.trim() || "",
+          email: (document.getElementById("signupEmail") || {}).value?.trim() || "",
+          phone: (document.getElementById("signupPhone") || {}).value?.trim() || "",
+          businessName: (document.getElementById("signupBusinessName") || {}).value?.trim() || "",
+          billingAddressLine1: (document.getElementById("signupAddress1") || {}).value?.trim() || "",
+          billingAddressLine2: (document.getElementById("signupAddress2") || {}).value?.trim() || "",
+          billingCity: (document.getElementById("signupCity") || {}).value?.trim() || "",
+          billingState: (document.getElementById("signupState") || {}).value?.trim() || "",
+          billingPostalCode: (document.getElementById("signupPostalCode") || {}).value?.trim() || "",
+          billingCountry: (document.getElementById("signupCountry") || {}).value?.trim() || "US",
+          leadState: ["basic", "pro"].includes(chosenPlan) ? (document.getElementById("signupLeadState") || {}).value?.trim() || "" : "",
+          password: (document.getElementById("signupPassword") || {}).value || "",
+          plan: chosenPlan
+        };
 
-        const payload = inviteContext
-          ? {
-              token: inviteToken,
-              firstName: (document.getElementById("signupFirstName") || {}).value?.trim() || "",
-              lastName: (document.getElementById("signupLastName") || {}).value?.trim() || "",
-              username: (document.getElementById("signupUsername") || {}).value?.trim() || "",
-              email: (document.getElementById("signupEmail") || {}).value?.trim() || "",
-              phone: (document.getElementById("signupPhone") || {}).value?.trim() || "",
-              password: (document.getElementById("signupPassword") || {}).value || ""
-            }
-          : {
-              firstName: (document.getElementById("signupFirstName") || {}).value?.trim() || "",
-              lastName: (document.getElementById("signupLastName") || {}).value?.trim() || "",
-              username: (document.getElementById("signupUsername") || {}).value?.trim() || "",
-              email: (document.getElementById("signupEmail") || {}).value?.trim() || "",
-              phone: (document.getElementById("signupPhone") || {}).value?.trim() || "",
-              businessName: (document.getElementById("signupBusinessName") || {}).value?.trim() || "",
-              billingAddressLine1: (document.getElementById("signupAddress1") || {}).value?.trim() || "",
-              billingAddressLine2: (document.getElementById("signupAddress2") || {}).value?.trim() || "",
-              billingCity: (document.getElementById("signupCity") || {}).value?.trim() || "",
-              billingState: (document.getElementById("signupState") || {}).value?.trim() || "",
-              billingPostalCode: (document.getElementById("signupPostalCode") || {}).value?.trim() || "",
-              billingCountry: (document.getElementById("signupCountry") || {}).value?.trim() || "US",
-              leadState: ["basic", "pro"].includes(normalizePlan((document.getElementById("signupPlan") || {}).value || selectedPlan || localStorage.getItem("pendingPlan") || "basic"))
-                ? (document.getElementById("signupLeadState") || {}).value?.trim() || ""
-                : "",
-              password: (document.getElementById("signupPassword") || {}).value || "",
-              plan: normalizePlan((document.getElementById("signupPlan") || {}).value || selectedPlan || localStorage.getItem("pendingPlan") || "basic")
-            };
-
-        setButtonLoading(submitButton, true, inviteContext ? "Creating login..." : "Creating account...");
+        setButtonLoading(submitButton, true, "Creating account...");
         if (message) {
           message.className = "d-none";
           message.textContent = "";
         }
 
         try {
-          const data = await apiCall(inviteContext ? "/team/invite/accept" : "/auth/signup", payload);
-          setMessage(
-            message,
-            "success",
-            inviteContext
-              ? "Team login created. Redirecting..."
-              : "Account created. Opening secure checkout for your 3-day trial..."
-          );
+          const data = await apiCall("/auth/signup", payload);
+          setMessage(message, "success", "Account created. Opening secure checkout for your 3-day trial...");
           setTimeout(() => {
-            window.location.href = inviteContext
-              ? getSafeRedirect(getDashboardForUser(data.user))
-              : (data.checkoutUrl || getSafeRedirect(getDashboardForUser(data.user)));
+            window.location.href = data.checkoutUrl || getSafeRedirect(getDashboardForUser(data.user));
           }, 500);
         } catch (err) {
-          setMessage(message, "danger", err.message || (inviteContext ? "Unable to create team login." : "Signup failed."));
+          setMessage(message, "danger", err.message || "Signup failed.");
         } finally {
-          setButtonLoading(submitButton, false, inviteContext ? "Creating login..." : "Creating account...");
+          setButtonLoading(submitButton, false, "Creating account...");
         }
       });
     }
