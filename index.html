@@ -23,30 +23,36 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://www.mytruckingleads.com/#organization","name":"MyTruckingLeads","url":"https://www.mytruckingleads.com/","logo":"https://www.mytruckingleads.com/assets/mytruckingleads-logo-icon.png"},{"@type":"WebSite","@id":"https://www.mytruckingleads.com/#website","url":"https://www.mytruckingleads.com/","name":"MyTruckingLeads","publisher":{"@id":"https://www.mytruckingleads.com/#organization"}},{"@type":"SoftwareApplication","@id":"https://www.mytruckingleads.com/#software","name":"MyTruckingLeads","applicationCategory":"BusinessApplication","applicationSubCategory":"Trucking insurance lead generation and carrier intelligence platform","operatingSystem":"Web","url":"https://www.mytruckingleads.com/","publisher":{"@id":"https://www.mytruckingleads.com/#organization"},"offers":{"@type":"Offer","priceCurrency":"USD","price":"79","category":"SaaS subscription"}}]}</script>
   <style>
     :root {
-      color-scheme: dark;
-      --topline-height: 38px;
-      --brand-navy: #0B1320;
-      --brand-blue: #1565FF;
-      --brand-slate: #64748B;
-      --brand-light: #E2E8F0;
-      --brand-white: #FFFFFF;
-      --brand-glow: rgba(21, 101, 255, 0.32);
-      --ink: #f8fbff;
-      --muted: #b9c5d4;
-      --soft: var(--brand-light);
-      --dark: var(--brand-navy);
-      --dark-2: #101f33;
-      --panel: rgba(11, 28, 45, 0.72);
-      --panel-strong: rgba(14, 36, 58, 0.88);
-      --line: rgba(226, 232, 240, 0.16);
-      --line-strong: rgba(226, 232, 240, 0.3);
-      --teal: var(--brand-blue);
-      --blue: #5b9cff;
-      --indigo: #0b49c9;
-      --amber: #8fb7ff;
-      --coral: #5b9cff;
-      --green: #86a9ff;
-      --shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+   :root {
+    color-scheme: dark;
+    --topline-height: 38px;
+    
+    /* 1. Core Brand Architecture (High-Trust Industrial) */
+    --brand-navy: #0B1320;        /* Keep your deep core base */
+    --brand-blue: #F97316;        /* CRITICAL: Changed to Industrial Orange for action metrics */
+    --brand-slate: #64748B;       /* Muted clean metal */
+    --brand-light: #E2E8F0;       /* High-contrast data font */
+    --brand-white: #FFFFFF;
+    
+    /* 2. Glow and UI Accents */
+    --brand-glow: rgba(249, 115, 22, 0.2); /* Soft industrial warning glow */
+    --ink: #F8FAFC;               /* Clean slate white text */
+    --muted: #94A3B8;             /* Readable secondary text */
+    --dark-2: #0F172A;            /* Asphalt Deep Grey for cards */
+    --panel: rgba(15, 23, 42, 0.75); /* Modern translucent glass container */
+    --panel-strong: rgba(30, 41, 59, 0.9);
+    
+    /* 3. System States (Clean & Intentional) */
+    --teal: #F97316;              /* Action buttons turn to High-Conversion Orange */
+    --blue: #FB923C;              /* Vibrant orange hover state */
+    --indigo: #C2410C;            /* Pressed/active deep amber */
+    --green: #10B981;             /* Dynamic live data feed light (Green for GO) */
+    --line: rgba(148, 163, 184, 0.12);
+    --line-strong: rgba(148, 163, 184, 0.25);
+    
+    --shadow: 0 30px 100px rgba(0, 0, 0, 0.6);
+}
+
     }
 
     * { box-sizing: border-box; }
