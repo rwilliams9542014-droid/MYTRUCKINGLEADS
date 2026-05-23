@@ -709,6 +709,20 @@ tbody tr[data-dot] td:last-child {
       color: #1565FF;
       font-weight: 700;
     }
+    /* Keep all CRM table dividers visible before hover */
+body.crm-body table {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+body.crm-body th,
+body.crm-body td {
+  border: 1px solid rgba(226, 232, 240, 0.20) !important;
+}
+
+body.crm-body tbody tr:hover td {
+  border-color: rgba(91, 156, 255, 0.36) !important;
+}
   </style>
   <link rel="stylesheet" href="assets/css/enterprise-ui.css?v=enterprise-10" />
   <script defer src="/assets/js/meta-pixel.js?v=meta-pixel-1"></script>
