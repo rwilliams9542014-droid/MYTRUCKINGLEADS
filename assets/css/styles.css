@@ -3065,6 +3065,34 @@ body.sheet-column-resizing * {
   white-space: normal;
   line-height: 1.1;
 }
+/* Active navigation/tab highlight */
+.sidebar-link.is-active,
+.nav-link.is-active,
+.home-link.is-active,
+.top-nav a.is-active,
+.main-nav a.is-active,
+.dashboard-sidebar a.is-active,
+nav a.is-active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--primary, #2563eb), var(--primary-hover, #1d4ed8)) !important;
+  border-color: color-mix(in srgb, var(--primary, #2563eb) 70%, #ffffff 10%) !important;
+  box-shadow: 0 10px 28px var(--logo-glow, rgba(37, 99, 235, 0.28)) !important;
+  font-weight: 800 !important;
+}
+
+.sidebar-link.is-active svg,
+.nav-link.is-active svg,
+.dashboard-sidebar a.is-active svg,
+nav a.is-active svg {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.sidebar-link.is-active::before,
+.nav-link.is-active::before,
+.dashboard-sidebar a.is-active::before {
+  opacity: 1 !important;
+}
 
 /* Cards */
 .card {
