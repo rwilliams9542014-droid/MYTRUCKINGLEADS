@@ -127,6 +127,30 @@
   }
 
   document.addEventListener("DOMContentLoaded", async function () {
+    const isLocalDashboardPreview =
+      ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+      document.body.classList.contains("producer-dashboard");
+
+    if (isLocalDashboardPreview) {
+      const previewUser = {
+        name: "Local Preview",
+        email: "preview@mytruckingleads.local",
+        plan: "premium",
+        subscription_status: "active"
+      };
+      localStorage.setItem("user", JSON.stringify(previewUser));
+
+      const nameElement = document.getElementById("currentUserName");
+      const logoutButton = document.getElementById("logoutBtn");
+      if (nameElement) {
+        nameElement.textContent = `${previewUser.name} (${getPlanLabel(previewUser.plan)})`;
+      }
+      if (logoutButton) {
+        logoutButton.addEventListener("click", logout);
+      }
+      return;
+    }
+
     await syncCheckoutSessionIfPresent();
 
     const user = await verifyAuthentication();
