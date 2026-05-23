@@ -6,25 +6,31 @@
   <title>Carrier Profile - MyTruckingLeads</title>
   <style>
     :root {
-      color-scheme: light;
+      color-scheme: dark;
       --brand-navy: #0B1320;
       --brand-blue: #1565FF;
       --brand-slate: #64748B;
       --brand-light: #E2E8F0;
       --brand-white: #FFFFFF;
       --brand-glow: rgba(21, 101, 255, 0.24);
-      --ink: var(--brand-navy);
-      --muted: var(--brand-slate);
-      --soft: #f7faff;
-      --line: var(--brand-light);
-      --line-strong: #bfd4ff;
-      --panel: var(--brand-white);
+      --bg: #0B0F17;
+      --panel: #111827;
+      --line: rgba(31, 41, 55, 1);
+      --line-strong: rgba(55, 65, 81, 0.9);
+      --ink: #FFFFFF;
+      --muted: #9CA3AF;
+      --btn-bg: #FFFFFF;
+      --btn-text: #0B0F17;
+      --btn-hover: #E5E7EB;
+      --teal: #FFFFFF;
+      --blue: #E5E7EB;
+      --soft: #0B0F17;
       --brand: var(--brand-blue);
       --brand-strong: #0b49c9;
-      --blue-soft: #eaf2ff;
-      --bad: #b91c1c;
-      --warn: #b45309;
-      --shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
+      --blue-soft: rgba(55, 65, 81, 0.3);
+      --bad: #ef4444;
+      --warn: #f59e0b;
+      --shadow: 0 18px 55px rgba(0, 0, 0, 0.3);
     }
 
     * { box-sizing: border-box; }
@@ -33,10 +39,7 @@
       margin: 0;
       font-family: Arial, Helvetica, sans-serif;
       color: var(--ink);
-      background:
-        radial-gradient(circle at 18% 0%, rgba(21, 101, 255, 0.15), transparent 35%),
-        radial-gradient(circle at 82% 18%, rgba(91, 156, 255, 0.11), transparent 32%),
-        linear-gradient(180deg, #fbfdff 0%, var(--soft) 58%, #eef4f7 100%);
+      background: #0B0F17;
       min-height: 100vh;
     }
 
@@ -46,7 +49,7 @@
       position: sticky;
       top: 0;
       z-index: 20;
-      background: rgba(255, 255, 255, 0.92);
+      background: #111827;
       backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--line);
     }
@@ -105,27 +108,27 @@
       border-radius: 8px;
       border: 0;
       padding: 0 14px;
-      color: #fff;
-      background: var(--brand);
+      color: #0B0F17;
+      background: #FFFFFF;
       font-size: 14px;
       font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 12px 28px rgba(21, 101, 255, 0.12);
+      box-shadow: none;
       transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease;
     }
 
     button:hover,
     .home-link:hover {
-      background: var(--brand-strong);
-      box-shadow: 0 16px 36px rgba(21, 101, 255, 0.2);
+      background: #E5E7EB;
       transform: translateY(-1px);
     }
 
-    button.secondary { background: var(--brand-navy); }
+    button.secondary { background: #111827; color: #FFFFFF; }
     button.ghost,
     .home-link.ghost {
-      background: #e7eef5;
-      color: var(--ink);
+      background: #111827;
+      color: #FFFFFF;
+      border: 1px solid rgba(55, 65, 81, 0.9);
       box-shadow: none;
     }
 
@@ -138,13 +141,11 @@
     .profile-hero {
       overflow: hidden;
       position: relative;
-      border: 1px solid rgba(21, 101, 255, 0.32);
+      border: 1px solid rgba(55, 65, 81, 0.9);
       border-radius: 14px;
       padding: 26px;
       color: #fff;
-      background:
-        radial-gradient(circle at 18% 0%, rgba(21, 101, 255, 0.34), transparent 36%),
-        linear-gradient(135deg, var(--brand-navy), #101f33);
+      background: #0D1117;
       box-shadow: 0 28px 84px rgba(11, 19, 32, 0.25);
     }
 
@@ -211,7 +212,7 @@
       margin-top: 18px;
       border: 1px solid var(--line);
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.96);
+      background: #111827;
       box-shadow: var(--shadow);
       padding: 18px;
     }
@@ -237,7 +238,7 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 8px 10px;
-      background: #fff;
+      background: rgba(11, 15, 23, 0.8);
       color: var(--ink);
       font: inherit;
       transition: border-color 0.16s ease, box-shadow 0.16s ease;
@@ -274,9 +275,9 @@
     }
 
     .profile-tabs button.active {
-      background: linear-gradient(135deg, var(--brand-blue), #0b49c9);
-      color: #fff;
-      box-shadow: 0 0 24px rgba(21, 101, 255, 0.24);
+      background: #FFFFFF;
+      color: #0B0F17;
+      box-shadow: none;
     }
 
     .profile-tab { display: none; }
@@ -295,7 +296,7 @@
     .oos-rate-row {
       border: 1px solid var(--line);
       border-radius: 10px;
-      background: #f8fbff;
+      background: #111827;
       padding: 12px;
       transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
     }
@@ -343,10 +344,10 @@
     .profile-field.full { grid-column: 1 / -1; }
 
     .company-overview-card {
-      border-color: #bfdbfe;
-      background: linear-gradient(135deg, #f8fbff, #eef5ff);
+      border-color: rgba(55, 65, 81, 0.9);
+      background: #111827;
       margin-bottom: 12px;
-      color: #1e3a8a;
+      color: #FFFFFF;
       font-weight: 850;
       line-height: 1.5;
     }
@@ -369,8 +370,8 @@
       align-items: center;
       border-radius: 8px;
       padding: 0 12px;
-      background: linear-gradient(135deg, var(--brand-blue), #0b49c9);
-      color: #fff;
+      background: #FFFFFF;
+      color: #0B0F17;
       font-size: 12px;
       font-weight: 950;
       transition: transform 0.16s ease, box-shadow 0.16s ease;
@@ -378,7 +379,7 @@
 
     .official-links a:hover,
     .contact-action-row a:hover {
-      box-shadow: 0 0 24px rgba(21, 101, 255, 0.28);
+      background: #E5E7EB;
       transform: translateY(-1px);
     }
 
@@ -425,9 +426,9 @@
       gap: 10px;
       margin: 14px 0;
       padding: 14px 16px;
-      border: 1px solid rgba(21, 101, 255, 0.18);
+      border: 1px solid rgba(55, 65, 81, 0.9);
       border-radius: 14px;
-      background: rgba(21, 101, 255, 0.05);
+      background: #111827;
     }
     .trial-banner.hidden { display: none; }
     .trial-banner p { margin: 0; color: var(--muted); }
@@ -439,8 +440,8 @@
     .trial-usage-grid div {
       padding: 10px 12px;
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.78);
-      border: 1px solid rgba(15, 23, 42, 0.07);
+      background: #0B0F17;
+      border: 1px solid rgba(55, 65, 81, 0.9);
     }
     .trial-usage-grid span {
       display: block;

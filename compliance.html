@@ -12,16 +12,24 @@
       --brand-light: #e2e8f0;
       --brand-white: #ffffff;
       --brand-glow: rgba(21, 101, 255, 0.26);
+      --bg: #0B0F17;
+      --panel: #111827;
+      --line: rgba(31, 41, 55, 1);
+      --ink: #FFFFFF;
+      --muted: #9CA3AF;
+      --btn-bg: #FFFFFF;
+      --btn-text: #0B0F17;
+      --btn-hover: #E5E7EB;
+      --teal: #FFFFFF;
+      --blue: #E5E7EB;
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      color: var(--brand-navy);
-      background:
-        radial-gradient(circle at top left, rgba(21, 101, 255, 0.14), transparent 32rem),
-        linear-gradient(180deg, #f8fbff 0%, #ffffff 45%, #f3f6fb 100%);
+      color: var(--ink);
+      background: #0B0F17;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.6;
     }
@@ -35,8 +43,8 @@
       position: sticky;
       top: 0;
       z-index: 10;
-      border-bottom: 1px solid rgba(100, 116, 139, 0.18);
-      background: rgba(255, 255, 255, 0.86);
+      border-bottom: 1px solid rgba(31, 41, 55, 1);
+      background: #111827;
       backdrop-filter: blur(18px);
     }
 
@@ -72,21 +80,21 @@
     }
 
     nav a {
-      color: #334155;
-      border: 1px solid rgba(100, 116, 139, 0.18);
+      color: #9CA3AF;
+      border: 1px solid rgba(55, 65, 81, 0.9);
       border-radius: 999px;
       padding: 9px 13px;
       text-decoration: none;
       font-size: 13px;
       font-weight: 800;
-      background: rgba(255, 255, 255, 0.72);
+      background: #111827;
     }
 
     nav a.primary {
-      color: #ffffff;
+      color: #0B0F17;
       border-color: transparent;
-      background: linear-gradient(135deg, var(--brand-blue), #003eaf);
-      box-shadow: 0 14px 32px var(--brand-glow);
+      background: #FFFFFF;
+      box-shadow: none;
     }
 
     main {
@@ -96,9 +104,9 @@
     .hero {
       margin-bottom: 24px;
       padding: 34px;
-      border: 1px solid rgba(100, 116, 139, 0.16);
+      border: 1px solid rgba(55, 65, 81, 0.9);
       border-radius: 24px;
-      background: rgba(255, 255, 255, 0.78);
+      background: #111827;
       box-shadow: 0 24px 70px rgba(11, 19, 32, 0.1);
     }
 
@@ -144,9 +152,9 @@
 
     section.card {
       padding: 24px;
-      border: 1px solid rgba(100, 116, 139, 0.16);
+      border: 1px solid rgba(55, 65, 81, 0.9);
       border-radius: 18px;
-      background: rgba(255, 255, 255, 0.88);
+      background: #111827;
       box-shadow: 0 16px 40px rgba(11, 19, 32, 0.07);
     }
 

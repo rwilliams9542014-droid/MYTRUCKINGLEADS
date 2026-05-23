@@ -10,13 +10,23 @@
   <link rel="stylesheet" href="assets/css/styles.css" />
   <style>
     :root {
-      --owner-ink: #0b1320;
+      --owner-ink: #FFFFFF;
       --owner-blue: #1565ff;
-      --owner-line: rgba(148, 163, 184, 0.24);
-      --owner-soft: #f6f9ff;
+      --owner-line: rgba(31, 41, 55, 1);
+      --owner-soft: #111827;
+      --bg: #0B0F17;
+      --panel: #111827;
+      --line: rgba(31, 41, 55, 1);
+      --ink: #FFFFFF;
+      --muted: #9CA3AF;
+      --btn-bg: #FFFFFF;
+      --btn-text: #0B0F17;
+      --btn-hover: #E5E7EB;
+      --teal: #FFFFFF;
+      --blue: #E5E7EB;
     }
     body {
-      background: linear-gradient(135deg, #eef5ff 0%, #f8fafc 46%, #edf7f3 100%);
+      background: #0B0F17;
       color: var(--owner-ink);
       min-height: 100vh;
     }
@@ -71,10 +81,10 @@
       max-width: 1440px;
     }
     .owner-card {
-      background: rgba(255, 255, 255, 0.88);
+      background: #111827;
       border: 1px solid var(--owner-line);
       border-radius: 26px;
-      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.10);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
       overflow: hidden;
     }
     .owner-card-header {
@@ -154,17 +164,17 @@
     }
     .sync-user-btn,
     .owner-btn {
-      background: #0b1320;
+      background: #FFFFFF;
       border: 0;
       border-radius: 999px;
-      color: #fff;
+      color: #0B0F17;
       font-weight: 900;
       padding: 0.62rem 0.92rem;
     }
     .owner-btn.secondary {
-      background: #fff;
+      background: #111827;
       border: 1px solid var(--owner-line);
-      color: var(--owner-ink);
+      color: #FFFFFF;
     }
     .health-summary {
       display: grid;
