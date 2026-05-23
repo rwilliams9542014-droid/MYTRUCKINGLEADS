@@ -26,3 +26,4 @@ dist-ssr
 # Private migration backups
 host-migration-backup-2026-05-14/secrets/
 host-migration-backup-2026-05-14/db-backups/
+.env
