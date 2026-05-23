@@ -59,12 +59,32 @@
           <input id="dashboardSearch" type="search" placeholder="Search leads, DOT, carrier name..." autocomplete="off" />
         </form>
         <div class="topbar-actions">
-          <button class="icon-button" type="button" aria-label="Notifications">
+          <div class="notification-menu">
+          <button id="notificationButton" class="icon-button" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="notificationPanel">
             <i class="bi bi-bell"></i>
-            <span class="notification-dot"></span>
+            <span id="notificationDot" class="notification-dot"></span>
           </button>
+            <div id="notificationPanel" class="command-menu notification-panel" hidden>
+              <div class="command-menu-head">
+                <strong>Notifications</strong>
+                <button id="markNotificationsRead" type="button">Mark read</button>
+              </div>
+              <a href="trucking-renewal-leads.html">
+                <i class="bi bi-calendar2-check"></i>
+                <span><strong>Renewal watch</strong><small>Review carriers entering renewal range.</small></span>
+              </a>
+              <a href="lead-desk.html">
+                <i class="bi bi-radar"></i>
+                <span><strong>Lead desk ready</strong><small>New DOT and saved lead workflows are available.</small></span>
+              </a>
+              <a href="dot-analytics.html">
+                <i class="bi bi-activity"></i>
+                <span><strong>Safety intelligence</strong><small>Open DOT Analytics for carrier risk checks.</small></span>
+              </a>
+            </div>
+          </div>
           <div class="profile-menu">
-            <button class="profile-button" type="button" aria-label="Profile menu">
+            <button id="profileMenuButton" class="profile-button" type="button" aria-label="Profile menu" aria-expanded="false" aria-controls="profileMenuPanel">
               <span id="profileInitials">MT</span>
               <span>
                 <strong id="currentUserName">Checking account...</strong>
@@ -72,6 +92,13 @@
               </span>
               <i class="bi bi-chevron-down"></i>
             </button>
+            <div id="profileMenuPanel" class="command-menu profile-panel-menu" hidden>
+              <a href="settings.html"><i class="bi bi-sliders"></i><span>Settings</span></a>
+              <a href="lead-desk.html"><i class="bi bi-radar"></i><span>Leads</span></a>
+              <a href="trucking-renewal-leads.html"><i class="bi bi-calendar2-check"></i><span>Renewals</span></a>
+              <a href="new-dot-leads.html"><i class="bi bi-truck-front"></i><span>New Venture Leads</span></a>
+              <button id="profileLogoutBtn" type="button"><i class="bi bi-box-arrow-left"></i><span>Logout</span></button>
+            </div>
           </div>
         </div>
       </header>
@@ -420,7 +447,62 @@
       `).join("");
     }
 
+    function setupCommandMenus() {
+      const menus = [
+        {
+          button: document.getElementById("notificationButton"),
+          panel: document.getElementById("notificationPanel")
+        },
+        {
+          button: document.getElementById("profileMenuButton"),
+          panel: document.getElementById("profileMenuPanel")
+        }
+      ];
+
+      function closeAll(exceptPanel = null) {
+        menus.forEach(({ button, panel }) => {
+          if (!button || !panel || panel === exceptPanel) return;
+          panel.hidden = true;
+          button.setAttribute("aria-expanded", "false");
+        });
+      }
+
+      menus.forEach(({ button, panel }) => {
+        if (!button || !panel) return;
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const shouldOpen = panel.hidden;
+          closeAll(panel);
+          panel.hidden = !shouldOpen;
+          button.setAttribute("aria-expanded", String(shouldOpen));
+        });
+      });
+
+      document.addEventListener("click", () => closeAll());
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeAll();
+      });
+
+      document.getElementById("profileLogoutBtn")?.addEventListener("click", () => {
+        document.getElementById("logoutBtn")?.click();
+      });
+
+      const readKey = "mtlDashboardNotificationsRead";
+      const dot = document.getElementById("notificationDot");
+      const markRead = document.getElementById("markNotificationsRead");
+      const hasUnread = localStorage.getItem(readKey) !== "true";
+      dot?.classList.toggle("is-hidden", !hasUnread);
+      markRead?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        localStorage.setItem(readKey, "true");
+        dot?.classList.add("is-hidden");
+      });
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
+      setupCommandMenus();
+
       try {
         renderUser(JSON.parse(localStorage.getItem("user") || "null"));
       } catch (err) {

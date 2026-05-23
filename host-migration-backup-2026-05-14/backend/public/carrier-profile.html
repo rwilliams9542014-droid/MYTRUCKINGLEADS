@@ -461,6 +461,7 @@
     }
   </style>
   <script defer src="/assets/js/meta-pixel.js?v=meta-pixel-1"></script>
+  <link rel="stylesheet" href="assets/css/brand-unified.css?v=slate-1" />
 </head>
 <body>
   <header>
@@ -646,22 +647,15 @@
       return `<div class="profile-summary-grid">${items.map((item) => stat(item[0], item[1])).join("")}</div>`;
     }
 
-    const MOTUS_PORTAL_URL = "https://motus.dot.gov/";
-    const FMCSA_TRANSITION_NOTICE = "FMCSA is transitioning registration services to Motus. Some legacy SAFER registration functions may move to Motus over time.";
-
     function officialLinksHtml(links = {}, dotNumber = "") {
       const dot = encodeURIComponent(dotNumber || "");
       const linkItems = [
-        ["SAFER Snapshot (Legacy)", links.safer || (dot ? `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dot}` : "")],
+        ["FMCSA Carrier Profile", links.safer || (dot ? `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dot}` : "")],
         ["Licensing & Insurance", links.licensingInsurance || (dot ? `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${dot}` : "")],
-        ["SMS Safety Data", links.sms],
-        ["Motus Registration Portal", links.motus || MOTUS_PORTAL_URL]
+        ["SMS Safety Data", links.sms]
       ].filter((item) => item[1]);
       if (!linkItems.length) return "";
-      return `
-        <div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>
-        <p>${escapeHtml(links.notice || FMCSA_TRANSITION_NOTICE)}</p>
-      `;
+      return `<div class="official-links">${linkItems.map(([label, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}</div>`;
     }
 
     function contactActionLinks(carrier = {}) {
@@ -895,9 +889,6 @@
         let dotNumber = cleanQuery;
         if (!/^\d+$/.test(cleanQuery)) {
           const searchData = await fetchJson(`${API_BASE}/carriers/search?query=${encodeURIComponent(cleanQuery)}&limit=1`);
-          if (searchData?.multipleMatches) {
-            throw new Error("Multiple carriers matched that name. Use the DOT Analytics search or enter a DOT / MC number to open the correct profile.");
-          }
           dotNumber = searchData?.results?.[0]?.dotNumber || "";
           if (!dotNumber) throw new Error("No carrier profile found for that search.");
         }

@@ -99,81 +99,6 @@ function renderAccess(access, usedLogins) {
   `).join("");
 }
 
-const schemeMeta = {
-  clean: ["#0d9fb0", "#18d4c3", "#f5b21b"],
-  ocean: ["#1e40af", "#0d9488", "#dbeafe"],
-  harvest: ["#b45309", "#d97706", "#fef3c7"],
-  slate: ["#1d4ed8", "#2563eb", "#dbeafe"],
-  midnight: ["#115e59", "#0f766e", "#111827"],
-  evergreen: ["#124034", "#2f7d62", "#b7791f"],
-  plum: ["#5b21b6", "#7c3aed", "#0f766e"]
-};
-
-function renderAppearanceControls() {
-  if (!window.MyTruckingLeadsTheme) return;
-
-  const displayCards = document.getElementById("displayModeCards");
-  const displayModeSelect = document.getElementById("displayModeSelect");
-  const colorSchemeCards = document.getElementById("colorSchemeCards");
-  const colorSchemeSelect = document.getElementById("colorSchemeSelect");
-
-  function syncDisplayCards() {
-    const active = window.MyTruckingLeadsTheme.getDisplayMode();
-    if (displayModeSelect) displayModeSelect.value = active;
-    displayCards?.querySelectorAll("[data-display-mode-card]").forEach((card) => {
-      card.classList.toggle("active", card.dataset.displayModeCard === active);
-    });
-  }
-
-  function syncSchemeCards() {
-    const active = window.MyTruckingLeadsTheme.getScheme();
-    if (colorSchemeSelect) colorSchemeSelect.value = active;
-    colorSchemeCards?.querySelectorAll("[data-scheme-card]").forEach((card) => {
-      card.classList.toggle("active", card.dataset.schemeCard === active);
-    });
-  }
-
-  displayCards?.querySelectorAll("[data-display-mode-card]").forEach((card) => {
-    card.addEventListener("click", () => {
-      window.MyTruckingLeadsTheme.setDisplayMode(card.dataset.displayModeCard);
-      syncDisplayCards();
-      syncSchemeCards();
-    });
-  });
-
-  if (colorSchemeCards && !colorSchemeCards.dataset.rendered) {
-    colorSchemeCards.dataset.rendered = "true";
-    colorSchemeCards.innerHTML = Object.entries(window.MyTruckingLeadsTheme.schemes).map(([key, scheme]) => {
-      const swatches = schemeMeta[key] || [scheme.primary, scheme.accent, scheme.accentSoft];
-      return `
-        <button class="scheme-card" type="button" data-scheme-card="${escapeHtml(key)}">
-          <div>
-            <strong>${escapeHtml(scheme.label)}</strong>
-            <div class="small text-muted">Balanced for tables, dashboards, and CRM work.</div>
-          </div>
-          <div class="scheme-swatches" aria-hidden="true">
-            ${swatches.map((color) => `<span style="background:${escapeHtml(color)}"></span>`).join("")}
-          </div>
-          <div class="scheme-preview" aria-hidden="true">
-            <div class="scheme-lines"><span></span><span style="width:72%"></span><span style="width:48%"></span></div>
-            <div class="scheme-cta" style="background:${escapeHtml(swatches[1])}"></div>
-          </div>
-        </button>
-      `;
-    }).join("");
-    colorSchemeCards.querySelectorAll("[data-scheme-card]").forEach((card) => {
-      card.addEventListener("click", () => {
-        window.MyTruckingLeadsTheme.setScheme(card.dataset.schemeCard);
-        syncSchemeCards();
-        syncDisplayCards();
-      });
-    });
-  }
-
-  syncDisplayCards();
-  syncSchemeCards();
-}
-
 function renderTeam(members) {
   const tbody = document.getElementById("teamMembersBody");
   if (!tbody) return;
@@ -213,8 +138,6 @@ async function loadTeam() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  renderAppearanceControls();
-
   if (!isAuthenticated()) {
     const user = await refreshCurrentUser().catch(() => null);
     if (!user) {

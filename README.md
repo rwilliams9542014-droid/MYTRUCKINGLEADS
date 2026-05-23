@@ -1,16 +1,68 @@
-# React + Vite
+# MyTruckingLeads Local/GitHub Sync
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Use these commands from the project folder:
 
-Currently, two official plugins are available:
+```powershell
+cd "C:\Users\RONNY W\Desktop\MYTRUCKINGLEADS.COM\mytruckingleads.com"
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Check Status First
 
-## React Compiler
+Always run this before pulling or pushing:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```powershell
+git status
+```
 
-## Expanding the ESLint configuration
+If it says `working tree clean`, your local files have no uncommitted changes.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## GitHub To Local
+
+Use this when you changed files on GitHub and want those changes on this computer:
+
+```powershell
+git pull origin main
+```
+
+If Git says there are local modified files, stop and review them before pulling.
+
+## Local To GitHub
+
+Use this when you changed files locally and want them on GitHub:
+
+```powershell
+git status
+git add .
+git commit -m "Describe what changed"
+git push origin main
+```
+
+Railway deploys from GitHub, so pushing to `main` is what sends the code live.
+
+## Safe Daily Workflow
+
+Before editing:
+
+```powershell
+git status
+git pull origin main
+```
+
+After editing:
+
+```powershell
+git status
+git add .
+git commit -m "Describe what changed"
+git push origin main
+```
+
+## If You Are Unsure
+
+If `git status` shows modified files and you do not know what they are, do not run `git add .` yet. Review first:
+
+```powershell
+git diff
+```
+
+Then decide whether to keep, commit, or discard those changes.
