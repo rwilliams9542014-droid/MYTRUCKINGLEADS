@@ -34,7 +34,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-6 pt-24 pb-12">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/10 p-2">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-white/95 to-blue-50/90 p-2.5 shadow-lg shadow-brand-500/10">
             <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white">Welcome back</h1>

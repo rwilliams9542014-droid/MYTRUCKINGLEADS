@@ -38,6 +38,13 @@ const mockHotLeads = [
 const cargoOptions = ["General Freight", "Household Goods", "Building Materials", "Machinery", "Refrigerated Food", "Intermodal Cont.", "Grain", "Livestock", "Logs/Poles", "Metal/Sheets", "Hazardous Materials"];
 const ratingOptions = ["Any", "Satisfactory", "Conditional", "None/Unrated"];
 const stateOptions = ["Any","AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+const fleetSizePresets = [
+  { label: "1-5 trucks", min: 1, max: 5 },
+  { label: "6-15 trucks", min: 6, max: 15 },
+  { label: "16-50 trucks", min: 16, max: 50 },
+  { label: "50+ trucks", min: 50, max: "" },
+];
+const operationTypes = ["Interstate", "Intrastate (Non-HM)", "Intrastate (HM)"];
 
 const tabs = [
   { id: "new_dot", label: "New DOT", count: mockNewDotLeads.length },
@@ -88,7 +95,7 @@ export default function LeadDeskPage() {
   const [renewalDateTo, setRenewalDateTo] = useState(() => getRenewalDateFromPreset("30_days").to);
 
   // Shared filters
-  const [filters, setFilters] = useState({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false });
+  const [filters, setFilters] = useState({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false, operationType: "Any" });
   const [showFilters, setShowFilters] = useState(false);
 
   function handleDotPreset(preset) {
@@ -334,7 +341,7 @@ export default function LeadDeskPage() {
       {/* Advanced Filters Panel */}
       {showFilters && activeTab !== "hot" && (
         <Card className="animate-slide-up">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-navy-400 mb-1.5">State</label>
               <select className="input-field text-sm py-2" value={filters.state} onChange={(e) => setFilters((p) => ({ ...p, state: e.target.value }))}>
@@ -348,14 +355,34 @@ export default function LeadDeskPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-navy-400 mb-1.5">Min Trucks</label>
-              <input type="number" className="input-field text-sm py-2" placeholder="e.g. 1" value={filters.minTrucks} onChange={(e) => setFilters((p) => ({ ...p, minTrucks: e.target.value }))} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-navy-400 mb-1.5">Max Trucks</label>
-              <input type="number" className="input-field text-sm py-2" placeholder="e.g. 50" value={filters.maxTrucks} onChange={(e) => setFilters((p) => ({ ...p, maxTrucks: e.target.value }))} />
+              <label className="block text-xs font-medium text-navy-400 mb-1.5">Operation Type</label>
+              <select className="input-field text-sm py-2" value={filters.operationType} onChange={(e) => setFilters((p) => ({ ...p, operationType: e.target.value }))}>
+                <option value="Any" className="bg-navy-900">Any</option>
+                {operationTypes.map((o) => <option key={o} value={o} className="bg-navy-900">{o}</option>)}
+              </select>
             </div>
           </div>
+
+          <div className="mt-4">
+            <label className="block text-xs font-medium text-navy-400 mb-2">Fleet Size</label>
+            <div className="flex flex-wrap gap-2">
+              {fleetSizePresets.map((preset) => {
+                const active = filters.minTrucks === String(preset.min) && filters.maxTrucks === String(preset.max);
+                return (
+                  <button
+                    key={preset.label}
+                    onClick={() => setFilters((p) => active ? { ...p, minTrucks: "", maxTrucks: "" } : { ...p, minTrucks: String(preset.min), maxTrucks: String(preset.max) })}
+                    className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
+                      active ? "bg-brand-500/20 text-brand-300 border border-brand-500/30" : "bg-navy-800 text-navy-400 border border-transparent hover:text-white"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="mt-4">
             <label className="block text-xs font-medium text-navy-400 mb-2">Cargo Types</label>
             <div className="flex flex-wrap gap-2">
@@ -372,13 +399,14 @@ export default function LeadDeskPage() {
               ))}
             </div>
           </div>
+
           <div className="mt-4 flex items-center gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={filters.hasEmail} onChange={(e) => setFilters((p) => ({ ...p, hasEmail: e.target.checked }))} className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30" />
               <span className="text-sm text-navy-300">Has email on file</span>
             </label>
-            <button onClick={() => setFilters({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false })} className="text-xs text-navy-500 hover:text-white ml-auto">
-              Clear Filters
+            <button onClick={() => setFilters({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false, operationType: "Any" })} className="text-xs text-navy-500 hover:text-white ml-auto">
+              Clear All
             </button>
           </div>
         </Card>

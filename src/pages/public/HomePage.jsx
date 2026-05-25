@@ -98,12 +98,13 @@ export default function HomePage() {
 
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="max-w-4xl mx-auto text-center">
-            <img
-              src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png"
-              alt="MyTruckingLeads"
-              className="h-14 sm:h-16 lg:h-20 mx-auto mb-8 object-contain"
-              style={{ filter: "brightness(1.4) contrast(1.1) drop-shadow(0 4px 20px rgba(59, 147, 255, 0.3))" }}
-            />
+            <div className="mx-auto mb-8 inline-block px-6 py-3 rounded-2xl bg-gradient-to-r from-white/95 via-blue-50/90 to-white/95 shadow-xl shadow-brand-500/10">
+              <img
+                src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png"
+                alt="MyTruckingLeads"
+                className="h-12 sm:h-14 lg:h-16 object-contain"
+              />
+            </div>
             <Badge variant="brand" className="mb-6">
               Trusted by 500+ Commercial Insurance Agents
             </Badge>
