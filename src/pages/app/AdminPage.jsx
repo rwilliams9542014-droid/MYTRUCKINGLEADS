@@ -1,5 +1,9 @@
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { Card, Badge, Button } from "@/components/ui";
+import { useAuth } from "@/hooks/useAuth";
+
+const OWNER_EMAIL = "owner@mytruckingleads.com";
 
 const mockSubscribers = [
   { id: 1, email: "marcus.r@safehaul.com", name: "Marcus Rivera", plan: "pro", status: "active", joined: "2026-03-12", lastLogin: "2 hours ago" },
@@ -40,7 +44,12 @@ const mockActivity = [
 ];
 
 export default function AdminPage() {
+  const { user, isDemo } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
+
+  if (!isDemo && user?.email !== OWNER_EMAIL) {
+    return <Navigate to="/app/dashboard" replace />;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

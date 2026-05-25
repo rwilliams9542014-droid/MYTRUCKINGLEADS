@@ -39,8 +39,10 @@ export function PublicLayout() {
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5 group">
-            <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-10 h-10 object-contain drop-shadow-lg group-hover:scale-105 transition-transform" />
-            <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-8 object-contain hidden sm:block drop-shadow-md" />
+            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm p-1 group-hover:bg-white/15 transition-all group-hover:scale-105">
+              <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
+            </div>
+            <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-9 object-contain hidden sm:block brightness-110 contrast-110" style={{ filter: "brightness(1.3) contrast(1.1)" }} />
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -107,8 +109,10 @@ export function PublicLayout() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-9 h-9 object-contain drop-shadow-lg" />
-                <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-7 object-contain" />
+                <div className="w-9 h-9 rounded-lg bg-white/10 p-1">
+                  <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
+                </div>
+                <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-7 object-contain" style={{ filter: "brightness(1.3) contrast(1.1)" }} />
               </div>
               <p className="text-sm text-navy-400 leading-relaxed">
                 The #1 platform for commercial insurance agents to find and close trucking leads.

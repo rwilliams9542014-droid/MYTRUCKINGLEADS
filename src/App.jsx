@@ -10,6 +10,8 @@ const PricingPage = lazy(() => import("@/pages/public/PricingPage"));
 const LoginPage = lazy(() => import("@/pages/public/LoginPage"));
 const SignupPage = lazy(() => import("@/pages/public/SignupPage"));
 const QuoteRequestPage = lazy(() => import("@/pages/public/QuoteRequestPage"));
+const TermsPage = lazy(() => import("@/pages/public/TermsPage"));
+const PrivacyPage = lazy(() => import("@/pages/public/PrivacyPage"));
 const DashboardPage = lazy(() => import("@/pages/app/DashboardPage"));
 const LeadDeskPage = lazy(() => import("@/pages/app/LeadDeskPage"));
 const CrmPage = lazy(() => import("@/pages/app/CrmPage"));
@@ -37,6 +39,8 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/quote-request" element={<QuoteRequestPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
           </Route>
 
           <Route
