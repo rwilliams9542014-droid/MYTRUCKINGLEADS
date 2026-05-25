@@ -1,31 +1,38 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Badge, Button, Card } from "@/components/ui";
 
 const mockNewDotLeads = [
-  { id: 1, name: "Martinez Trucking LLC", dot: "4102847", mc: "MC-1298374", state: "TX", city: "Houston", trucks: 4, drivers: 5, type: "new_dot", date: "2026-05-23", phone: "(713) 555-0142", rating: "None", cargo: ["General Freight"], hasEmail: true },
-  { id: 2, name: "Bayou Express LLC", dot: "4110923", mc: "MC-1310482", state: "LA", city: "Baton Rouge", trucks: 2, drivers: 2, type: "new_dot", date: "2026-05-24", phone: "(225) 555-0143", rating: "None", cargo: ["Household Goods"], hasEmail: true },
-  { id: 3, name: "Heartland Freight Co", dot: "4098331", mc: "MC-1301892", state: "OH", city: "Columbus", trucks: 3, drivers: 3, type: "new_dot", date: "2026-05-22", phone: "(614) 555-0167", rating: "None", cargo: ["Building Materials"], hasEmail: false },
-  { id: 4, name: "Blue Ridge Carriers", dot: "4105882", mc: "MC-1305519", state: "NC", city: "Charlotte", trucks: 6, drivers: 7, type: "new_dot", date: "2026-05-21", phone: "(704) 555-0189", rating: "None", cargo: ["General Freight", "Machinery"], hasEmail: true },
-  { id: 5, name: "Desert Sun Transport", dot: "4099102", mc: "MC-1302847", state: "AZ", city: "Phoenix", trucks: 5, drivers: 5, type: "new_dot", date: "2026-05-23", phone: "(602) 555-0177", rating: "None", cargo: ["Refrigerated Food"], hasEmail: true },
-  { id: 6, name: "Mountain Pass Freight", dot: "4112003", mc: "MC-1311920", state: "CO", city: "Denver", trucks: 3, drivers: 4, type: "new_dot", date: "2026-05-24", phone: "(303) 555-0199", rating: "None", cargo: ["General Freight"], hasEmail: false },
+  { id: 1, name: "Martinez Trucking LLC", dot: "4102847", mc: "MC-1298374", state: "TX", city: "Houston", trucks: 4, drivers: 5, addDate: "2026-05-23", phone: "(713) 555-0142", rating: "None", cargo: ["General Freight"], hasEmail: true },
+  { id: 2, name: "Bayou Express LLC", dot: "4110923", mc: "MC-1310482", state: "LA", city: "Baton Rouge", trucks: 2, drivers: 2, addDate: "2026-05-24", phone: "(225) 555-0143", rating: "None", cargo: ["Household Goods"], hasEmail: true },
+  { id: 3, name: "Heartland Freight Co", dot: "4098331", mc: "MC-1301892", state: "OH", city: "Columbus", trucks: 3, drivers: 3, addDate: "2026-05-22", phone: "(614) 555-0167", rating: "None", cargo: ["Building Materials"], hasEmail: false },
+  { id: 4, name: "Blue Ridge Carriers", dot: "4105882", mc: "MC-1305519", state: "NC", city: "Charlotte", trucks: 6, drivers: 7, addDate: "2026-05-21", phone: "(704) 555-0189", rating: "None", cargo: ["General Freight", "Machinery"], hasEmail: true },
+  { id: 5, name: "Desert Sun Transport", dot: "4099102", mc: "MC-1302847", state: "AZ", city: "Phoenix", trucks: 5, drivers: 5, addDate: "2026-05-20", phone: "(602) 555-0177", rating: "None", cargo: ["Refrigerated Food"], hasEmail: true },
+  { id: 6, name: "Mountain Pass Freight", dot: "4112003", mc: "MC-1311920", state: "CO", city: "Denver", trucks: 3, drivers: 4, addDate: "2026-05-25", phone: "(303) 555-0199", rating: "None", cargo: ["General Freight"], hasEmail: false },
+  { id: 7, name: "Prairie Wind LLC", dot: "4113201", mc: "MC-1312445", state: "OK", city: "Tulsa", trucks: 2, drivers: 2, addDate: "2026-05-19", phone: "(918) 555-0144", rating: "None", cargo: ["Livestock"], hasEmail: true },
+  { id: 8, name: "Coastal Haul Inc", dot: "4114500", mc: "MC-1313812", state: "SC", city: "Charleston", trucks: 4, drivers: 5, addDate: "2026-05-15", phone: "(843) 555-0166", rating: "None", cargo: ["General Freight"], hasEmail: true },
+  { id: 9, name: "Red Rock Transport", dot: "4115002", mc: "MC-1314210", state: "NM", city: "Albuquerque", trucks: 3, drivers: 3, addDate: "2026-05-10", phone: "(505) 555-0133", rating: "None", cargo: ["Building Materials"], hasEmail: false },
+  { id: 10, name: "Great Lakes Movers", dot: "4116088", mc: "MC-1315320", state: "MI", city: "Detroit", trucks: 8, drivers: 10, addDate: "2026-04-28", phone: "(313) 555-0199", rating: "None", cargo: ["Machinery", "Metal/Sheets"], hasEmail: true },
 ];
 
 const mockRenewalLeads = [
-  { id: 7, name: "Pacific Ridge Transport", dot: "3891024", mc: "MC-982114", state: "CA", city: "Fresno", trucks: 12, drivers: 14, type: "renewal", date: "2026-05-28", phone: "(559) 555-0198", rating: "Satisfactory", cargo: ["General Freight", "Machinery"], hasEmail: true },
-  { id: 8, name: "Summit Logistics Inc", dot: "3774219", mc: "MC-891203", state: "IL", city: "Chicago", trucks: 22, drivers: 28, type: "renewal", date: "2026-06-01", phone: "(312) 555-0234", rating: "Satisfactory", cargo: ["Intermodal Cont.", "General Freight"], hasEmail: true },
-  { id: 9, name: "Great Plains Haul Co", dot: "3920174", mc: "MC-1011284", state: "KS", city: "Wichita", trucks: 8, drivers: 9, type: "renewal", date: "2026-05-30", phone: "(316) 555-0156", rating: "Conditional", cargo: ["Grain", "Livestock"], hasEmail: true },
-  { id: 10, name: "Cascade Freight Lines", dot: "3845201", mc: "MC-945623", state: "WA", city: "Seattle", trucks: 15, drivers: 18, type: "renewal", date: "2026-05-26", phone: "(206) 555-0211", rating: "Satisfactory", cargo: ["Logs/Poles", "Building Materials"], hasEmail: true },
-  { id: 11, name: "Iron Horse Logistics", dot: "3801456", mc: "MC-923501", state: "PA", city: "Pittsburgh", trucks: 18, drivers: 22, type: "renewal", date: "2026-06-03", phone: "(412) 555-0192", rating: "Satisfactory", cargo: ["Metal/Sheets", "Machinery"], hasEmail: true },
-  { id: 12, name: "Gulf Coast Express", dot: "3867102", mc: "MC-958412", state: "FL", city: "Tampa", trucks: 9, drivers: 11, type: "renewal", date: "2026-06-05", phone: "(813) 555-0188", rating: "Satisfactory", cargo: ["General Freight"], hasEmail: false },
+  { id: 11, name: "Pacific Ridge Transport", dot: "3891024", mc: "MC-982114", state: "CA", city: "Fresno", trucks: 12, drivers: 14, expirationDate: "2026-05-28", phone: "(559) 555-0198", rating: "Satisfactory", cargo: ["General Freight", "Machinery"], hasEmail: true },
+  { id: 12, name: "Summit Logistics Inc", dot: "3774219", mc: "MC-891203", state: "IL", city: "Chicago", trucks: 22, drivers: 28, expirationDate: "2026-06-01", phone: "(312) 555-0234", rating: "Satisfactory", cargo: ["Intermodal Cont.", "General Freight"], hasEmail: true },
+  { id: 13, name: "Great Plains Haul Co", dot: "3920174", mc: "MC-1011284", state: "KS", city: "Wichita", trucks: 8, drivers: 9, expirationDate: "2026-05-30", phone: "(316) 555-0156", rating: "Conditional", cargo: ["Grain", "Livestock"], hasEmail: true },
+  { id: 14, name: "Cascade Freight Lines", dot: "3845201", mc: "MC-945623", state: "WA", city: "Seattle", trucks: 15, drivers: 18, expirationDate: "2026-05-26", phone: "(206) 555-0211", rating: "Satisfactory", cargo: ["Logs/Poles", "Building Materials"], hasEmail: true },
+  { id: 15, name: "Iron Horse Logistics", dot: "3801456", mc: "MC-923501", state: "PA", city: "Pittsburgh", trucks: 18, drivers: 22, expirationDate: "2026-06-15", phone: "(412) 555-0192", rating: "Satisfactory", cargo: ["Metal/Sheets", "Machinery"], hasEmail: true },
+  { id: 16, name: "Gulf Coast Express", dot: "3867102", mc: "MC-958412", state: "FL", city: "Tampa", trucks: 9, drivers: 11, expirationDate: "2026-06-20", phone: "(813) 555-0188", rating: "Satisfactory", cargo: ["General Freight"], hasEmail: false },
+  { id: 17, name: "Southern Cross Haul", dot: "3902811", mc: "MC-993104", state: "GA", city: "Atlanta", trucks: 6, drivers: 7, expirationDate: "2026-07-10", phone: "(404) 555-0211", rating: "Satisfactory", cargo: ["Household Goods"], hasEmail: true },
+  { id: 18, name: "Lone Star Heavy", dot: "3831002", mc: "MC-938201", state: "TX", city: "San Antonio", trucks: 25, drivers: 30, expirationDate: "2026-07-25", phone: "(210) 555-0244", rating: "Satisfactory", cargo: ["Machinery", "Building Materials"], hasEmail: true },
+  { id: 19, name: "Midway Freight Corp", dot: "3855120", mc: "MC-951882", state: "MO", city: "St. Louis", trucks: 11, drivers: 14, expirationDate: "2026-08-01", phone: "(314) 555-0177", rating: "Conditional", cargo: ["General Freight"], hasEmail: true },
 ];
 
 const mockHotLeads = [
-  { id: 13, name: "JR Transport Services", dot: "4108821", state: "TX", city: "Dallas", trucks: 3, phone: "(214) 555-0245", email: "jr@jrtransport.com", coverage: "Full Package", tier: "premium", price: "$45", submitted: "2 hours ago", completeness: 95 },
-  { id: 14, name: "Midwest Carrier Inc", dot: "3998102", state: "MO", city: "Kansas City", trucks: 7, phone: "(816) 555-0177", email: "ops@midwestcarrier.com", coverage: "Auto Liability", tier: "standard", price: "$25", submitted: "4 hours ago", completeness: 72 },
-  { id: 15, name: "Sunrise Hauling", dot: "", state: "GA", city: "Atlanta", trucks: 1, phone: "(404) 555-0133", email: "", coverage: "Auto Liability", tier: "basic", price: "$10", submitted: "6 hours ago", completeness: 35 },
-  { id: 16, name: "Valley Fresh Logistics", dot: "4101293", state: "CA", city: "Bakersfield", trucks: 5, phone: "(661) 555-0209", email: "valleyfresh@gmail.com", coverage: "Full Package", tier: "premium", price: "$45", submitted: "8 hours ago", completeness: 98 },
-  { id: 17, name: "Thunder Road LLC", dot: "4099877", state: "OK", city: "Oklahoma City", trucks: 2, phone: "(405) 555-0162", email: "thunderroad@yahoo.com", coverage: "Cargo", tier: "standard", price: "$25", submitted: "1 day ago", completeness: 68 },
+  { id: 20, name: "JR Transport Services", dot: "4108821", state: "TX", city: "Dallas", trucks: 3, phone: "(214) 555-0245", email: "jr@jrtransport.com", coverage: "Full Package", tier: "premium", price: "$45", submitted: "2 hours ago", completeness: 95 },
+  { id: 21, name: "Midwest Carrier Inc", dot: "3998102", state: "MO", city: "Kansas City", trucks: 7, phone: "(816) 555-0177", email: "ops@midwestcarrier.com", coverage: "Auto Liability", tier: "standard", price: "$25", submitted: "4 hours ago", completeness: 72 },
+  { id: 22, name: "Sunrise Hauling", dot: "", state: "GA", city: "Atlanta", trucks: 1, phone: "(404) 555-0133", email: "", coverage: "Auto Liability", tier: "basic", price: "$10", submitted: "6 hours ago", completeness: 35 },
+  { id: 23, name: "Valley Fresh Logistics", dot: "4101293", state: "CA", city: "Bakersfield", trucks: 5, phone: "(661) 555-0209", email: "valleyfresh@gmail.com", coverage: "Full Package", tier: "premium", price: "$45", submitted: "8 hours ago", completeness: 98 },
+  { id: 24, name: "Thunder Road LLC", dot: "4099877", state: "OK", city: "Oklahoma City", trucks: 2, phone: "(405) 555-0162", email: "thunderroad@yahoo.com", coverage: "Cargo", tier: "standard", price: "$25", submitted: "1 day ago", completeness: 68 },
 ];
 
 const cargoOptions = ["General Freight", "Household Goods", "Building Materials", "Machinery", "Refrigerated Food", "Intermodal Cont.", "Grain", "Livestock", "Logs/Poles", "Metal/Sheets", "Hazardous Materials"];
@@ -38,26 +45,89 @@ const tabs = [
   { id: "hot", label: "Hot Leads", count: mockHotLeads.length },
 ];
 
+function getDateFromPreset(preset) {
+  const today = new Date();
+  switch (preset) {
+    case "today": return { from: formatDate(today), to: formatDate(today) };
+    case "yesterday": { const d = new Date(today); d.setDate(d.getDate() - 1); return { from: formatDate(d), to: formatDate(d) }; }
+    case "last_week": { const d = new Date(today); d.setDate(d.getDate() - 7); return { from: formatDate(d), to: formatDate(today) }; }
+    case "last_month": { const d = new Date(today); d.setMonth(d.getMonth() - 1); return { from: formatDate(d), to: formatDate(today) }; }
+    default: return { from: "", to: "" };
+  }
+}
+
+function getRenewalDateFromPreset(preset) {
+  const today = new Date();
+  switch (preset) {
+    case "7_days": { const d = new Date(today); d.setDate(d.getDate() + 7); return { from: formatDate(today), to: formatDate(d) }; }
+    case "30_days": { const d = new Date(today); d.setDate(d.getDate() + 30); return { from: formatDate(today), to: formatDate(d) }; }
+    case "60_days": { const d = new Date(today); d.setDate(d.getDate() + 60); return { from: formatDate(today), to: formatDate(d) }; }
+    case "90_days": { const d = new Date(today); d.setDate(d.getDate() + 90); return { from: formatDate(today), to: formatDate(d) }; }
+    default: return { from: "", to: "" };
+  }
+}
+
+function formatDate(d) {
+  return d.toISOString().split("T")[0];
+}
+
 export default function LeadDeskPage() {
   const [activeTab, setActiveTab] = useState("new_dot");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [sortField, setSortField] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
 
-  function getLeads() {
-    if (activeTab === "hot") return mockHotLeads;
-    const source = activeTab === "new_dot" ? mockNewDotLeads : mockRenewalLeads;
-    let result = [...source];
+  // New DOT date filters
+  const [dotDatePreset, setDotDatePreset] = useState("last_week");
+  const [dotDateFrom, setDotDateFrom] = useState(() => getDateFromPreset("last_week").from);
+  const [dotDateTo, setDotDateTo] = useState(() => getDateFromPreset("last_week").to);
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((l) =>
-        l.name.toLowerCase().includes(q) || l.dot.includes(q) || l.city.toLowerCase().includes(q) || l.state.toLowerCase().includes(q)
-      );
+  // Renewal date filters
+  const [renewalPreset, setRenewalPreset] = useState("30_days");
+  const [renewalDateFrom, setRenewalDateFrom] = useState(() => getRenewalDateFromPreset("30_days").from);
+  const [renewalDateTo, setRenewalDateTo] = useState(() => getRenewalDateFromPreset("30_days").to);
+
+  // Shared filters
+  const [filters, setFilters] = useState({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false });
+  const [showFilters, setShowFilters] = useState(false);
+
+  function handleDotPreset(preset) {
+    setDotDatePreset(preset);
+    if (preset !== "custom") {
+      const { from, to } = getDateFromPreset(preset);
+      setDotDateFrom(from);
+      setDotDateTo(to);
     }
+  }
+
+  function handleRenewalPreset(preset) {
+    setRenewalPreset(preset);
+    if (preset !== "custom") {
+      const { from, to } = getRenewalDateFromPreset(preset);
+      setRenewalDateFrom(from);
+      setRenewalDateTo(to);
+    }
+  }
+
+  const leads = useMemo(() => {
+    if (activeTab === "hot") return mockHotLeads;
+
+    let source;
+    if (activeTab === "new_dot") {
+      source = mockNewDotLeads.filter((l) => {
+        if (dotDateFrom && l.addDate < dotDateFrom) return false;
+        if (dotDateTo && l.addDate > dotDateTo) return false;
+        return true;
+      });
+    } else {
+      source = mockRenewalLeads.filter((l) => {
+        if (renewalDateFrom && l.expirationDate < renewalDateFrom) return false;
+        if (renewalDateTo && l.expirationDate > renewalDateTo) return false;
+        return true;
+      });
+    }
+
+    let result = [...source];
     if (filters.state !== "Any") result = result.filter((l) => l.state === filters.state);
     if (filters.rating !== "Any") {
       if (filters.rating === "None/Unrated") result = result.filter((l) => l.rating === "None");
@@ -68,9 +138,10 @@ export default function LeadDeskPage() {
     if (filters.maxTrucks) result = result.filter((l) => l.trucks <= parseInt(filters.maxTrucks));
     if (filters.hasEmail) result = result.filter((l) => l.hasEmail);
 
+    const dateField = activeTab === "new_dot" ? "addDate" : "expirationDate";
     result.sort((a, b) => {
       let cmp = 0;
-      if (sortField === "date") cmp = a.date.localeCompare(b.date);
+      if (sortField === "date") cmp = a[dateField].localeCompare(b[dateField]);
       else if (sortField === "name") cmp = a.name.localeCompare(b.name);
       else if (sortField === "trucks") cmp = a.trucks - b.trucks;
       else if (sortField === "state") cmp = a.state.localeCompare(b.state);
@@ -78,9 +149,7 @@ export default function LeadDeskPage() {
     });
 
     return result;
-  }
-
-  const leads = getLeads();
+  }, [activeTab, dotDateFrom, dotDateTo, renewalDateFrom, renewalDateTo, filters, sortField, sortDir]);
 
   function toggleSort(field) {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -118,7 +187,7 @@ export default function LeadDeskPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Lead Desk</h1>
           <p className="text-navy-400 text-sm mt-1">
-            {activeTab === "hot" ? "Purchase hot leads from truckers requesting quotes" : `${leads.length} leads matching your criteria`}
+            {activeTab === "hot" ? "Purchase hot leads from truckers requesting quotes" : `${leads.length} leads matching your date range`}
           </p>
         </div>
         {activeTab !== "hot" && selectedIds.size > 0 && (
@@ -136,7 +205,7 @@ export default function LeadDeskPage() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => { setActiveTab(tab.id); setSelectedIds(new Set()); setSearchQuery(""); }}
+            onClick={() => { setActiveTab(tab.id); setSelectedIds(new Set()); }}
             className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all flex items-center gap-2 ${
               activeTab === tab.id
                 ? "text-white bg-white/5 border-b-2 border-brand-500"
@@ -150,85 +219,169 @@ export default function LeadDeskPage() {
         ))}
       </div>
 
-      {/* Search & Filters (not for hot leads) */}
-      {activeTab !== "hot" && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search by company, DOT, city, or state..."
-                className="input-field pl-10 py-2.5"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+      {/* New DOT Date Controls */}
+      {activeTab === "new_dot" && (
+        <Card className="space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <svg className="w-4 h-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="text-sm font-medium text-white">Search by DOT Registration Date</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: "today", label: "Today" },
+              { value: "yesterday", label: "Yesterday" },
+              { value: "last_week", label: "Last 7 Days" },
+              { value: "last_month", label: "Last 30 Days" },
+              { value: "custom", label: "Custom Range" },
+            ].map((p) => (
+              <button
+                key={p.value}
+                onClick={() => handleDotPreset(p.value)}
+                className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                  dotDatePreset === p.value
+                    ? "bg-brand-500/20 text-brand-300 border border-brand-500/30"
+                    : "bg-navy-800 text-navy-400 border border-transparent hover:text-white hover:border-white/10"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {dotDatePreset === "custom" && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="block text-xs text-navy-400 mb-1">From</label>
+                <input type="date" className="input-field text-sm py-2" value={dotDateFrom} onChange={(e) => setDotDateFrom(e.target.value)} />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-navy-400 mb-1">To</label>
+                <input type="date" className="input-field text-sm py-2" value={dotDateTo} onChange={(e) => setDotDateTo(e.target.value)} />
+              </div>
             </div>
+          )}
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`btn-secondary text-sm ${showFilters ? "border-brand-500/30 text-brand-300" : ""}`}
+              className={`text-xs font-medium flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${showFilters ? "bg-brand-500/10 text-brand-300" : "text-navy-400 hover:text-white"}`}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
-              Filters {filters.state !== "Any" || filters.rating !== "Any" || filters.cargo.length > 0 || filters.hasEmail ? "(Active)" : ""}
+              More Filters {filters.state !== "Any" || filters.cargo.length > 0 || filters.hasEmail ? "(Active)" : ""}
             </button>
           </div>
+        </Card>
+      )}
 
-          {showFilters && (
-            <Card className="animate-slide-up">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-navy-400 mb-1.5">State</label>
-                  <select className="input-field text-sm py-2" value={filters.state} onChange={(e) => setFilters((p) => ({ ...p, state: e.target.value }))}>
-                    {stateOptions.map((s) => <option key={s} value={s} className="bg-navy-900">{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-navy-400 mb-1.5">Safety Rating</label>
-                  <select className="input-field text-sm py-2" value={filters.rating} onChange={(e) => setFilters((p) => ({ ...p, rating: e.target.value }))}>
-                    {ratingOptions.map((r) => <option key={r} value={r} className="bg-navy-900">{r}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-navy-400 mb-1.5">Min Trucks</label>
-                  <input type="number" className="input-field text-sm py-2" placeholder="e.g. 1" value={filters.minTrucks} onChange={(e) => setFilters((p) => ({ ...p, minTrucks: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-navy-400 mb-1.5">Max Trucks</label>
-                  <input type="number" className="input-field text-sm py-2" placeholder="e.g. 50" value={filters.maxTrucks} onChange={(e) => setFilters((p) => ({ ...p, maxTrucks: e.target.value }))} />
-                </div>
+      {/* Renewal Date Controls */}
+      {activeTab === "renewal" && (
+        <Card className="space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <svg className="w-4 h-4 text-warning-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-sm font-medium text-white">Search by Insurance Expiration / Cancellation Date</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: "7_days", label: "Next 7 Days" },
+              { value: "30_days", label: "Next 30 Days" },
+              { value: "60_days", label: "Next 60 Days" },
+              { value: "90_days", label: "Next 90 Days" },
+              { value: "custom", label: "Custom Range" },
+            ].map((p) => (
+              <button
+                key={p.value}
+                onClick={() => handleRenewalPreset(p.value)}
+                className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
+                  renewalPreset === p.value
+                    ? "bg-warning-500/20 text-warning-300 border border-warning-500/30"
+                    : "bg-navy-800 text-navy-400 border border-transparent hover:text-white hover:border-white/10"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {renewalPreset === "custom" && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="block text-xs text-navy-400 mb-1">Expiring From</label>
+                <input type="date" className="input-field text-sm py-2" value={renewalDateFrom} onChange={(e) => setRenewalDateFrom(e.target.value)} />
               </div>
-              <div className="mt-4">
-                <label className="block text-xs font-medium text-navy-400 mb-2">Cargo Types</label>
-                <div className="flex flex-wrap gap-2">
-                  {cargoOptions.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => toggleCargo(c)}
-                      className={`px-2.5 py-1 text-xs rounded-lg transition-all ${
-                        filters.cargo.includes(c) ? "bg-brand-500/20 text-brand-300 border border-brand-500/30" : "bg-navy-800 text-navy-400 border border-transparent hover:text-white"
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex-1">
+                <label className="block text-xs text-navy-400 mb-1">Expiring To</label>
+                <input type="date" className="input-field text-sm py-2" value={renewalDateTo} onChange={(e) => setRenewalDateTo(e.target.value)} />
               </div>
-              <div className="mt-4 flex items-center gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={filters.hasEmail} onChange={(e) => setFilters((p) => ({ ...p, hasEmail: e.target.checked }))} className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30" />
-                  <span className="text-sm text-navy-300">Has email on file</span>
-                </label>
-                <button onClick={() => setFilters({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false })} className="text-xs text-navy-500 hover:text-white ml-auto">
-                  Clear Filters
-                </button>
-              </div>
-            </Card>
+            </div>
           )}
-        </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`text-xs font-medium flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${showFilters ? "bg-brand-500/10 text-brand-300" : "text-navy-400 hover:text-white"}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              More Filters {filters.state !== "Any" || filters.rating !== "Any" || filters.cargo.length > 0 || filters.hasEmail ? "(Active)" : ""}
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {/* Advanced Filters Panel */}
+      {showFilters && activeTab !== "hot" && (
+        <Card className="animate-slide-up">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-navy-400 mb-1.5">State</label>
+              <select className="input-field text-sm py-2" value={filters.state} onChange={(e) => setFilters((p) => ({ ...p, state: e.target.value }))}>
+                {stateOptions.map((s) => <option key={s} value={s} className="bg-navy-900">{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-navy-400 mb-1.5">Safety Rating</label>
+              <select className="input-field text-sm py-2" value={filters.rating} onChange={(e) => setFilters((p) => ({ ...p, rating: e.target.value }))}>
+                {ratingOptions.map((r) => <option key={r} value={r} className="bg-navy-900">{r}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-navy-400 mb-1.5">Min Trucks</label>
+              <input type="number" className="input-field text-sm py-2" placeholder="e.g. 1" value={filters.minTrucks} onChange={(e) => setFilters((p) => ({ ...p, minTrucks: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-navy-400 mb-1.5">Max Trucks</label>
+              <input type="number" className="input-field text-sm py-2" placeholder="e.g. 50" value={filters.maxTrucks} onChange={(e) => setFilters((p) => ({ ...p, maxTrucks: e.target.value }))} />
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="block text-xs font-medium text-navy-400 mb-2">Cargo Types</label>
+            <div className="flex flex-wrap gap-2">
+              {cargoOptions.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => toggleCargo(c)}
+                  className={`px-2.5 py-1 text-xs rounded-lg transition-all ${
+                    filters.cargo.includes(c) ? "bg-brand-500/20 text-brand-300 border border-brand-500/30" : "bg-navy-800 text-navy-400 border border-transparent hover:text-white"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={filters.hasEmail} onChange={(e) => setFilters((p) => ({ ...p, hasEmail: e.target.checked }))} className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30" />
+              <span className="text-sm text-navy-300">Has email on file</span>
+            </label>
+            <button onClick={() => setFilters({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false })} className="text-xs text-navy-500 hover:text-white ml-auto">
+              Clear Filters
+            </button>
+          </div>
+        </Card>
       )}
 
       {/* Hot Leads Tab */}
@@ -300,9 +453,7 @@ export default function LeadDeskPage() {
                       </td>
                       <td className="px-4 py-4 text-xs text-navy-400">{lead.submitted}</td>
                       <td className="px-6 py-4 text-right">
-                        <Button size="sm" className="text-xs">
-                          Buy {lead.price}
-                        </Button>
+                        <Button size="sm" className="text-xs">Buy {lead.price}</Button>
                       </td>
                     </tr>
                   ))}
@@ -334,7 +485,9 @@ export default function LeadDeskPage() {
                   <th className="text-left text-xs font-medium text-navy-400 uppercase px-4 py-4">Rating</th>
                   <th className="text-left text-xs font-medium text-navy-400 uppercase px-4 py-4">Cargo</th>
                   <th className="text-left text-xs font-medium text-navy-400 uppercase px-4 py-4 cursor-pointer select-none" onClick={() => toggleSort("date")}>
-                    <span className="flex items-center gap-1">Date <SortIcon field="date" /></span>
+                    <span className="flex items-center gap-1">
+                      {activeTab === "new_dot" ? "Registered" : "Expires"} <SortIcon field="date" />
+                    </span>
                   </th>
                   <th className="text-right text-xs font-medium text-navy-400 uppercase px-6 py-4">Actions</th>
                 </tr>
@@ -370,7 +523,7 @@ export default function LeadDeskPage() {
                         {lead.cargo.length > 2 && <span className="text-[10px] text-navy-500">+{lead.cargo.length - 2}</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-navy-400">{lead.date}</td>
+                    <td className="px-4 py-3 text-xs text-navy-400">{activeTab === "new_dot" ? lead.addDate : lead.expirationDate}</td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Link to={`/app/carrier/${lead.dot}`} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>
@@ -384,8 +537,8 @@ export default function LeadDeskPage() {
           </div>
           {leads.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-navy-400 text-sm">No leads match your filters.</p>
-              <button onClick={() => setFilters({ state: "Any", rating: "Any", cargo: [], minTrucks: "", maxTrucks: "", hasEmail: false })} className="text-brand-400 text-sm mt-2 hover:text-brand-300">Clear all filters</button>
+              <p className="text-navy-400 text-sm">No leads in this date range.</p>
+              <p className="text-navy-600 text-xs mt-2">Try expanding your date range or adjusting filters.</p>
             </div>
           )}
         </Card>

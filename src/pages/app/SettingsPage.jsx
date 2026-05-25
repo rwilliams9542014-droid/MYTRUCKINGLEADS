@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Card, Button, Input, Badge } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { theme, setTheme, accentColor, setAccentColor, crmLayout, setCrmLayout } = useTheme();
   const [activeTab, setActiveTab] = useState("profile");
-  const [theme, setTheme] = useState("dark");
-  const [accentColor, setAccentColor] = useState("blue");
-  const [crmLayout, setCrmLayout] = useState("kanban");
 
   const tabs = [
     { id: "profile", label: "Profile" },
@@ -202,8 +201,9 @@ export default function SettingsPage() {
             </div>
           </Card>
 
-          <div className="pt-2">
-            <Button>Save Appearance Settings</Button>
+          <div className="pt-2 flex items-center gap-3">
+            <div className="w-2 h-2 bg-accent-500 rounded-full animate-pulse" />
+            <span className="text-xs text-navy-400">Changes apply instantly</span>
           </div>
         </div>
       )}

@@ -34,11 +34,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-6 pt-24 pb-12">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-brand-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
+          <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-14 h-14 mx-auto mb-4 drop-shadow-lg" />
           <h1 className="text-2xl font-bold text-white">Welcome back</h1>
           <p className="text-navy-400 mt-2 text-sm">Sign in to your MyTruckingLeads account</p>
         </div>

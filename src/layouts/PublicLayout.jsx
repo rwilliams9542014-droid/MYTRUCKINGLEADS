@@ -38,9 +38,9 @@ export function PublicLayout() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 group">
-            <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MyTruckingLeads" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" />
-            <span className="text-lg font-bold text-white hidden sm:block">MyTruckingLeads</span>
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-10 h-10 object-contain drop-shadow-lg group-hover:scale-105 transition-transform" />
+            <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-8 object-contain hidden sm:block drop-shadow-md" />
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -106,9 +106,9 @@ export function PublicLayout() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-8 h-8 object-contain" />
-                <span className="font-bold text-white">MyTruckingLeads</span>
+              <div className="flex items-center gap-3 mb-4">
+                <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-9 h-9 object-contain drop-shadow-lg" />
+                <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-7 object-contain" />
               </div>
               <p className="text-sm text-navy-400 leading-relaxed">
                 The #1 platform for commercial insurance agents to find and close trucking leads.

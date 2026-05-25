@@ -84,11 +84,13 @@ export function AppLayout() {
         <div className={`p-4 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
           <div
             onClick={handleLogoClick}
-            className="w-9 h-9 flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-110 active:scale-95 transition-transform"
+            className="w-10 h-10 flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform rounded-xl overflow-hidden"
           >
-            <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-9 h-9 object-contain" />
+            <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-10 h-10 object-contain drop-shadow-lg" />
           </div>
-          {!collapsed && <span className="font-bold text-white text-sm">MyTruckingLeads</span>}
+          {!collapsed && (
+            <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-7 object-contain" />
+          )}
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">

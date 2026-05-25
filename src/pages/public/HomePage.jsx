@@ -101,7 +101,7 @@ export default function HomePage() {
             <img
               src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png"
               alt="MyTruckingLeads"
-              className="h-16 sm:h-20 mx-auto mb-8 object-contain"
+              className="h-14 sm:h-16 lg:h-20 mx-auto mb-8 object-contain drop-shadow-2xl"
             />
             <Badge variant="brand" className="mb-6">
               Trusted by 500+ Commercial Insurance Agents

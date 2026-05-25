@@ -4,6 +4,12 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --accent-brand-400: #3B93FF;
+  --accent-brand-500: #1570EF;
+  --accent-brand-600: #1252B5;
+}
+
 @layer base {
   html {
     @apply scroll-smooth antialiased;
@@ -11,6 +17,31 @@
 
   body {
     @apply bg-navy-950 text-white font-sans;
+  }
+
+  .theme-light body,
+  [data-theme="light"] body {
+    @apply bg-gray-50 text-gray-900;
+  }
+
+  .theme-light .glass,
+  [data-theme="light"] .glass {
+    @apply bg-white/80 border-gray-200;
+  }
+
+  .theme-light .glass-card,
+  [data-theme="light"] .glass-card {
+    @apply bg-white border-gray-200 shadow-sm;
+  }
+
+  .theme-light .input-field,
+  [data-theme="light"] .input-field {
+    @apply bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500;
+  }
+
+  .theme-light .card-surface,
+  [data-theme="light"] .card-surface {
+    @apply bg-white border-gray-200 shadow-sm;
   }
 
   ::selection {
@@ -25,8 +56,18 @@
     @apply bg-navy-900;
   }
 
+  .theme-light ::-webkit-scrollbar-track,
+  [data-theme="light"] ::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+  }
+
   ::-webkit-scrollbar-thumb {
     @apply bg-navy-600 rounded-full hover:bg-navy-500;
+  }
+
+  .theme-light ::-webkit-scrollbar-thumb,
+  [data-theme="light"] ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full hover:bg-gray-400;
   }
 }
 
