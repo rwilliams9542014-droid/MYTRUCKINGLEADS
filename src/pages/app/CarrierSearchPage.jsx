@@ -1,46 +1,59 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Button, Card, Badge, Input } from "@/components/ui";
-
-const mockResults = [
-  { dot: "4102847", name: "Martinez Trucking LLC", city: "Houston", state: "TX", trucks: 4, drivers: 5, status: "AUTHORIZED", rating: "Satisfactory" },
-  { dot: "3891024", name: "Pacific Ridge Transport Inc", city: "Fresno", state: "CA", trucks: 12, drivers: 14, status: "AUTHORIZED", rating: "Satisfactory" },
-  { dot: "4098331", name: "Heartland Freight Company", city: "Columbus", state: "OH", trucks: 3, drivers: 3, status: "AUTHORIZED", rating: "None" },
-  { dot: "3774219", name: "Summit Logistics Inc", city: "Chicago", state: "IL", trucks: 22, drivers: 28, status: "AUTHORIZED", rating: "Satisfactory" },
-  { dot: "3920174", name: "Great Plains Haul Co LLC", city: "Wichita", state: "KS", trucks: 8, drivers: 9, status: "AUTHORIZED", rating: "Conditional" },
-];
+import { Button, Card, Badge } from "@/components/ui";
+import { useAuth } from "@/hooks/useAuth";
 
 const easterEggResults = [
-  { dot: "0000001", name: "Jerry Maguire Trucking Inc", city: "Los Angeles", state: "CA", trucks: 1, drivers: 1, status: "AUTHORIZED", rating: "Legendary" },
-  { dot: "7777777", name: "Show Me The Money Express LLC", city: "Jackpot", state: "NV", trucks: 777, drivers: 777, status: "AUTHORIZED", rating: "Satisfactory" },
-  { dot: "1000000", name: "Million Dollar Freight Co", city: "Richville", state: "TX", trucks: 100, drivers: 200, status: "AUTHORIZED", rating: "Satisfactory" },
+  { dot_number: "0000001", legal_name: "Jerry Maguire Trucking Inc", city: "Los Angeles", state: "CA", vehicle_count: 1, driver_count: 1, operating_status: "AUTHORIZED", safety_rating: "Legendary" },
+  { dot_number: "7777777", legal_name: "Show Me The Money Express LLC", city: "Jackpot", state: "NV", vehicle_count: 777, driver_count: 777, operating_status: "AUTHORIZED", safety_rating: "Satisfactory" },
+  { dot_number: "1000000", legal_name: "Million Dollar Freight Co", city: "Richville", state: "TX", vehicle_count: 100, driver_count: 200, operating_status: "AUTHORIZED", safety_rating: "Satisfactory" },
 ];
 
 export default function CarrierSearchPage() {
+  const { session, isDemo } = useAuth();
   const [query, setQuery] = useState("");
   const [searchType, setSearchType] = useState("name");
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleSearch(e) {
+  async function handleSearch(e) {
     e.preventDefault();
     if (!query.trim()) return;
+
+    if (query.toLowerCase().replace(/\s/g, "") === "showmethemoney") {
+      setResults(easterEggResults);
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      if (query.toLowerCase().replace(/\s/g, "") === "showmethemoney") {
-        setResults(easterEggResults);
-      } else {
-        setResults(mockResults);
-      }
+    setError("");
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fmcsa-search?type=${searchType}&query=${encodeURIComponent(query.trim())}`;
+      const headers = {
+        "Authorization": `Bearer ${isDemo ? import.meta.env.VITE_SUPABASE_ANON_KEY : session?.access_token}`,
+        "Content-Type": "application/json",
+      };
+
+      const res = await fetch(apiUrl, { headers });
+      if (!res.ok) throw new Error("Search request failed");
+
+      const data = await res.json();
+      setResults(data.results || []);
+    } catch (err) {
+      setError("Search failed. Please try again.");
+      setResults([]);
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-white">Carrier Search</h1>
-        <p className="text-navy-400 text-sm mt-1">Look up any carrier using the FMCSA database</p>
+        <p className="text-navy-400 text-sm mt-1">Look up any carrier using the FMCSA database (live data)</p>
       </div>
 
       {/* Search Form */}
@@ -89,8 +102,14 @@ export default function CarrierSearchPage() {
         </form>
       </Card>
 
+      {error && (
+        <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-3 text-sm text-danger-300">
+          {error}
+        </div>
+      )}
+
       {/* Results */}
-      {results && (
+      {results && results.length > 0 && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-6 py-4 border-b border-white/5">
             <p className="text-sm text-navy-300">
@@ -100,8 +119,8 @@ export default function CarrierSearchPage() {
           <div className="divide-y divide-white/[0.03]">
             {results.map((carrier) => (
               <Link
-                key={carrier.dot}
-                to={`/app/carrier/${carrier.dot}`}
+                key={carrier.dot_number}
+                to={`/app/carrier/${carrier.dot_number}`}
                 className="flex items-center gap-6 px-6 py-4 hover:bg-white/[0.02] transition-colors group"
               >
                 <div className="w-12 h-12 bg-navy-800 rounded-xl flex items-center justify-center text-navy-300 flex-shrink-0">
@@ -111,26 +130,29 @@ export default function CarrierSearchPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white group-hover:text-brand-300 transition-colors">
-                    {carrier.name}
+                    {carrier.legal_name}
                   </p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-navy-400">
-                    <span className="font-mono">DOT {carrier.dot}</span>
+                    <span className="font-mono">DOT {carrier.dot_number}</span>
+                    {carrier.mc_number && <><span>&middot;</span><span className="font-mono">MC-{carrier.mc_number}</span></>}
                     <span>&middot;</span>
                     <span>{carrier.city}, {carrier.state}</span>
                     <span>&middot;</span>
-                    <span>{carrier.trucks} trucks, {carrier.drivers} drivers</span>
+                    <span>{carrier.vehicle_count} trucks, {carrier.driver_count} drivers</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant={carrier.status === "AUTHORIZED" ? "success" : "danger"}>
-                    {carrier.status}
+                  <Badge variant={carrier.operating_status === "AUTHORIZED" ? "success" : "danger"}>
+                    {carrier.operating_status}
                   </Badge>
-                  <Badge variant={
-                    carrier.rating === "Satisfactory" ? "success" :
-                    carrier.rating === "Conditional" ? "warning" : "outline"
-                  }>
-                    {carrier.rating}
-                  </Badge>
+                  {carrier.safety_rating && carrier.safety_rating !== "None" && (
+                    <Badge variant={
+                      carrier.safety_rating === "Satisfactory" ? "success" :
+                      carrier.safety_rating === "Conditional" ? "warning" : "outline"
+                    }>
+                      {carrier.safety_rating}
+                    </Badge>
+                  )}
                 </div>
                 <svg className="w-4 h-4 text-navy-600 group-hover:text-brand-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -139,6 +161,13 @@ export default function CarrierSearchPage() {
             ))}
           </div>
         </Card>
+      )}
+
+      {results && results.length === 0 && !error && (
+        <div className="text-center py-12">
+          <p className="text-navy-400 text-sm">No carriers found matching your search.</p>
+          <p className="text-navy-600 text-xs mt-2">Try a different search term or type.</p>
+        </div>
       )}
 
       {/* Empty State */}
@@ -150,7 +179,7 @@ export default function CarrierSearchPage() {
             </svg>
           </div>
           <p className="text-navy-400 text-sm">Search for any carrier by company name, DOT number, or MC number</p>
-          <p className="text-navy-600 text-xs mt-2">Data sourced from the FMCSA Safety and Fitness Electronic Records System</p>
+          <p className="text-navy-600 text-xs mt-2">Live data from the FMCSA Safety and Fitness Electronic Records System</p>
         </div>
       )}
     </div>

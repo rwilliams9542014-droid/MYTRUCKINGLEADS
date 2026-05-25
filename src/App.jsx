@@ -16,6 +16,7 @@ const CrmPage = lazy(() => import("@/pages/app/CrmPage"));
 const CarrierSearchPage = lazy(() => import("@/pages/app/CarrierSearchPage"));
 const CarrierProfilePage = lazy(() => import("@/pages/app/CarrierProfilePage"));
 const SettingsPage = lazy(() => import("@/pages/app/SettingsPage"));
+const AdminPage = lazy(() => import("@/pages/app/AdminPage"));
 
 function PageLoader() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="carrier-search" element={<CarrierSearchPage />} />
             <Route path="carrier/:id" element={<CarrierProfilePage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="admin" element={<AdminPage />} />
           </Route>
         </Routes>
       </Suspense>

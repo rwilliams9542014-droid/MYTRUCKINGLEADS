@@ -4,10 +4,18 @@ const KONAMI = ["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRi
 
 function TruckAnimation() {
   return (
-    <div className="fixed bottom-4 left-0 z-[9999] animate-truck-drive pointer-events-none">
-      <div className="text-4xl transform -scale-x-100">
+    <div className="fixed bottom-6 z-[9999] pointer-events-none" style={{ animation: "truckDriveCSS 5s linear forwards" }}>
+      <div className="text-4xl" style={{ transform: "scaleX(-1)" }}>
         <span role="img" aria-label="truck">&#x1F69B;</span>
       </div>
+      <style>{`
+        @keyframes truckDriveCSS {
+          0% { left: -60px; opacity: 0; }
+          5% { opacity: 1; }
+          95% { opacity: 1; }
+          100% { left: calc(100vw + 60px); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }

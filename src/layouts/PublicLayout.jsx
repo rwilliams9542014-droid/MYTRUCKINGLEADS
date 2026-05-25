@@ -38,13 +38,9 @@ export function PublicLayout() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 bg-brand-500 rounded-lg flex items-center justify-center group-hover:shadow-glow transition-shadow">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <span className="text-lg font-bold text-white">MyTruckingLeads</span>
+          <Link to="/" className="flex items-center gap-2 group">
+            <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MyTruckingLeads" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" />
+            <span className="text-lg font-bold text-white hidden sm:block">MyTruckingLeads</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -111,11 +107,7 @@ export function PublicLayout() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
+                <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-8 h-8 object-contain" />
                 <span className="font-bold text-white">MyTruckingLeads</span>
               </div>
               <p className="text-sm text-navy-400 leading-relaxed">

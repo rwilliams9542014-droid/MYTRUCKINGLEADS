@@ -98,6 +98,11 @@ export default function HomePage() {
 
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="max-w-4xl mx-auto text-center">
+            <img
+              src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png"
+              alt="MyTruckingLeads"
+              className="h-16 sm:h-20 mx-auto mb-8 object-contain"
+            />
             <Badge variant="brand" className="mb-6">
               Trusted by 500+ Commercial Insurance Agents
             </Badge>
