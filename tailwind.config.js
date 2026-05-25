@@ -1,7 +1,118 @@
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
-    extend: {}
+    extend: {
+      colors: {
+        brand: {
+          50: "#EBF5FF",
+          100: "#D6EAFF",
+          200: "#ADD5FF",
+          300: "#70B5FF",
+          400: "#3B93FF",
+          500: "#1570EF",
+          600: "#0B57D0",
+          700: "#0842A0",
+          800: "#063070",
+          900: "#041E49",
+          950: "#021028",
+        },
+        navy: {
+          50: "#F0F4F8",
+          100: "#D9E2EC",
+          200: "#BCCCDC",
+          300: "#9FB3C8",
+          400: "#829AB1",
+          500: "#627D98",
+          600: "#486581",
+          700: "#334E68",
+          800: "#243B53",
+          900: "#102A43",
+          950: "#0A1929",
+        },
+        accent: {
+          50: "#ECFDF5",
+          100: "#D1FAE5",
+          200: "#A7F3D0",
+          300: "#6EE7B7",
+          400: "#34D399",
+          500: "#10B981",
+          600: "#059669",
+          700: "#047857",
+          800: "#065F46",
+          900: "#064E3B",
+        },
+        warning: {
+          50: "#FFFBEB",
+          100: "#FEF3C7",
+          200: "#FDE68A",
+          300: "#FCD34D",
+          400: "#FBBF24",
+          500: "#F59E0B",
+          600: "#D97706",
+          700: "#B45309",
+        },
+        danger: {
+          50: "#FEF2F2",
+          100: "#FEE2E2",
+          200: "#FECACA",
+          300: "#FCA5A5",
+          400: "#F87171",
+          500: "#EF4444",
+          600: "#DC2626",
+          700: "#B91C1C",
+        },
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+      },
+      spacing: {
+        18: "4.5rem",
+        88: "22rem",
+        112: "28rem",
+        128: "32rem",
+      },
+      borderRadius: {
+        "4xl": "2rem",
+      },
+      boxShadow: {
+        glow: "0 0 20px rgba(21, 112, 239, 0.15)",
+        "glow-lg": "0 0 40px rgba(21, 112, 239, 0.2)",
+        card: "0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.04)",
+        "card-hover": "0 4px 12px rgba(0,0,0,0.1), 0 16px 40px rgba(0,0,0,0.08)",
+        panel: "0 20px 60px rgba(0,0,0,0.3)",
+      },
+      animation: {
+        "fade-in": "fadeIn 0.5s ease-out",
+        "slide-up": "slideUp 0.5s ease-out",
+        "slide-in-right": "slideInRight 0.3s ease-out",
+        "scale-in": "scaleIn 0.2s ease-out",
+        "pulse-slow": "pulse 3s ease-in-out infinite",
+        float: "float 6s ease-in-out infinite",
+      },
+      keyframes: {
+        fadeIn: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        slideUp: {
+          "0%": { opacity: "0", transform: "translateY(20px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        slideInRight: {
+          "0%": { opacity: "0", transform: "translateX(20px)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+        scaleIn: {
+          "0%": { opacity: "0", transform: "scale(0.95)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };
