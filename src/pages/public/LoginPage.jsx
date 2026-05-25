@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button, Input } from "@/components/ui";
 
 export default function LoginPage() {
-  const { signIn } = useAuth();
+  const { signIn, demoSignIn } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,6 +23,11 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleDemoLogin() {
+    demoSignIn();
+    navigate("/app/dashboard");
   }
 
   return (
@@ -75,6 +80,19 @@ export default function LoginPage() {
 
           <Button type="submit" loading={loading} className="w-full">
             Sign In
+          </Button>
+
+          <div className="relative my-2">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-2 bg-navy-900 text-navy-500">or</span>
+            </div>
+          </div>
+
+          <Button type="button" variant="secondary" className="w-full" onClick={handleDemoLogin}>
+            Try Demo (No Account Needed)
           </Button>
         </form>
 
