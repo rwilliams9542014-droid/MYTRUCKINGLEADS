@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useLogoEasterEgg } from "@/components/EasterEggs";
 
 const navItems = [
   {
@@ -57,6 +58,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const handleLogoClick = useLogoEasterEgg();
 
   async function handleSignOut() {
     await signOut();
@@ -78,7 +80,10 @@ export function AppLayout() {
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         <div className={`p-4 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-          <div className="w-9 h-9 bg-brand-500 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div
+            onClick={handleLogoClick}
+            className="w-9 h-9 bg-brand-500 rounded-lg flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-110 active:scale-95 transition-transform"
+          >
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>

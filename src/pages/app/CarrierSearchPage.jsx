@@ -10,6 +10,12 @@ const mockResults = [
   { dot: "3920174", name: "Great Plains Haul Co LLC", city: "Wichita", state: "KS", trucks: 8, drivers: 9, status: "AUTHORIZED", rating: "Conditional" },
 ];
 
+const easterEggResults = [
+  { dot: "0000001", name: "Jerry Maguire Trucking Inc", city: "Los Angeles", state: "CA", trucks: 1, drivers: 1, status: "AUTHORIZED", rating: "Legendary" },
+  { dot: "7777777", name: "Show Me The Money Express LLC", city: "Jackpot", state: "NV", trucks: 777, drivers: 777, status: "AUTHORIZED", rating: "Satisfactory" },
+  { dot: "1000000", name: "Million Dollar Freight Co", city: "Richville", state: "TX", trucks: 100, drivers: 200, status: "AUTHORIZED", rating: "Satisfactory" },
+];
+
 export default function CarrierSearchPage() {
   const [query, setQuery] = useState("");
   const [searchType, setSearchType] = useState("name");
@@ -21,7 +27,11 @@ export default function CarrierSearchPage() {
     if (!query.trim()) return;
     setLoading(true);
     setTimeout(() => {
-      setResults(mockResults);
+      if (query.toLowerCase().replace(/\s/g, "") === "showmethemoney") {
+        setResults(easterEggResults);
+      } else {
+        setResults(mockResults);
+      }
       setLoading(false);
     }, 600);
   }

@@ -1,7 +1,38 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Card, Badge } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
+
+function AnimatedNumber({ value, duration = 1000 }) {
+  const [display, setDisplay] = useState("0");
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const numericValue = parseInt(value.replace(/[^0-9]/g, ""));
+    if (isNaN(numericValue)) {
+      setDisplay(value);
+      return;
+    }
+    const prefix = value.match(/^[^0-9]*/)?.[0] || "";
+    const suffix = value.match(/[^0-9]*$/)?.[0] || "";
+    let start = 0;
+    const startTime = performance.now();
+
+    function tick(now) {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.floor(eased * numericValue);
+      setDisplay(`${prefix}${current.toLocaleString()}${suffix}`);
+      if (progress < 1) {
+        ref.current = requestAnimationFrame(tick);
+      }
+    }
+    ref.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(ref.current);
+  }, [value, duration]);
+
+  return <span>{display}</span>;
+}
 
 const metrics = [
   {
@@ -98,7 +129,7 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-navy-400">{m.label}</p>
-                <p className="text-2xl font-bold text-white mt-1">{m.value}</p>
+                <p className="text-2xl font-bold text-white mt-1"><AnimatedNumber value={m.value} /></p>
               </div>
               <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center text-brand-400 group-hover:bg-brand-500/20 transition-colors">
                 {m.icon}
