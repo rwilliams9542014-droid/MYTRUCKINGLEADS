@@ -1,84 +1,153 @@
-import { createContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-export const AuthContext = createContext(null);
+const AuthContext = createContext(null);
 
-const DEMO_USER = {
-  id: "demo-user-001",
-  email: "demo@mytruckingleads.com",
-  user_metadata: { full_name: "Demo Agent", agency_name: "Demo Insurance Agency", plan: "pro" },
-};
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  window.MY_TRUCKING_LEADS_API_BASE ||
+  "";
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      data?.message ||
+      data?.error ||
+      `Request failed with status ${response.status}`;
+
+    throw new Error(message);
+  }
+
+  return data;
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isDemo, setIsDemo] = useState(false);
 
-  useEffect(() => {
-    const savedDemo = sessionStorage.getItem("mtl_demo");
-    if (savedDemo) {
-      setUser(DEMO_USER);
-      setSession({ user: DEMO_USER });
-      setIsDemo(true);
+  const refreshUser = useCallback(async () => {
+    try {
+      const data = await apiRequest("/api/auth/me");
+
+      const currentUser = data?.user || data || null;
+
+      setUser(currentUser);
+      setSession(currentUser ? { user: currentUser } : null);
+
+      return currentUser;
+    } catch {
+      setUser(null);
+      setSession(null);
+      return null;
+    } finally {
       setLoading(false);
-      return;
     }
-
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, s) => {
-        setSession(s);
-        setUser(s?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
   }, []);
 
-  async function signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    return data;
-  }
+  useEffect(() => {
+    refreshUser();
+  }, [refreshUser]);
 
-  function demoSignIn() {
-    sessionStorage.setItem("mtl_demo", "true");
-    setUser(DEMO_USER);
-    setSession({ user: DEMO_USER });
-    setIsDemo(true);
-  }
-
-  async function signUp(email, password, metadata = {}) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: metadata },
+  const login = useCallback(async ({ email, password }) => {
+    const data = await apiRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
     });
-    if (error) throw error;
-    return data;
-  }
 
-  async function signOut() {
-    sessionStorage.removeItem("mtl_demo");
-    if (!isDemo) {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+    const loggedInUser = data?.user || data || null;
+
+    setUser(loggedInUser);
+    setSession(loggedInUser ? { user: loggedInUser } : null);
+
+    return data;
+  }, []);
+
+  const register = useCallback(async (payload) => {
+    const data = await apiRequest("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    const registeredUser = data?.user || data || null;
+
+    setUser(registeredUser);
+    setSession(registeredUser ? { user: registeredUser } : null);
+
+    return data;
+  }, []);
+
+  const signup = register;
+  const signUp = register;
+
+  const logout = useCallback(async () => {
+    try {
+      await apiRequest("/api/auth/logout", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    } catch {
+      // Still clear local auth state even if logout endpoint fails.
     }
+
     setUser(null);
     setSession(null);
-    setIsDemo(false);
+    window.location.href = "/login.html";
+  }, []);
+
+  const signOut = logout;
+
+  const value = useMemo(
+    () => ({
+      user,
+      session,
+      loading,
+      isAuthenticated: Boolean(user),
+      login,
+      register,
+      signup,
+      signUp,
+      logout,
+      signOut,
+      refreshUser,
+    }),
+    [user, session, loading, login, register, signup, logout, refreshUser]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth must be used inside an AuthProvider");
   }
 
-  return (
-    <AuthContext.Provider value={{ user, session, loading, isDemo, signIn, signUp, signOut, demoSignIn }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return context;
 }
+
+export default AuthContext;
