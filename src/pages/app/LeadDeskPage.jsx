@@ -83,6 +83,8 @@ export default function LeadDeskPage() {
   const [saveMessage, setSaveMessage] = useState("");
   const [expandedDot, setExpandedDot] = useState("");
   const [safetyDetails, setSafetyDetails] = useState({});
+  const [hasSearched, setHasSearched] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("");
 
   const range = useMemo(() => {
     if (datePreset === "custom") return { from: customFrom, to: customTo };
@@ -109,13 +111,34 @@ export default function LeadDeskPage() {
     return 7;
   }, [datePreset]);
 
-  useEffect(() => {
-    setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
-  }, [activeTab]);
+  const filteredLeads = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return leads;
+    return leads.filter((lead) => [
+      lead.name,
+      lead.dot,
+      lead.mc,
+      lead.city,
+      lead.state,
+      lead.phone,
+      lead.email,
+    ].some((value) => String(value || "").toLowerCase().includes(term)));
+  }, [leads, search]);
 
   useEffect(() => {
-    let active = true;
+    setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
+    setLeads([]);
+    setError("");
+    setSaveMessage("");
+    setExpandedDot("");
+    setHasSearched(false);
+    setLastUpdated("");
+  }, [activeTab]);
+
+  async function runSearch(event) {
+    event?.preventDefault();
     const params = {
+      q: search.trim(),
       from: range.from,
       to: range.to,
       days: windowDays,
@@ -126,42 +149,50 @@ export default function LeadDeskPage() {
 
     setLoading(true);
     setError("");
+    setSaveMessage("");
+    setExpandedDot("");
 
-    const request = activeTab === "hot"
-      ? api.getMarketplaceLeads({ search, state: state === "Any" ? "" : state })
-      : activeTab === "renewal"
-        ? api.getRenewalLeads(params)
-        : api.getNewDotLeads(params);
+    try {
+      const data = activeTab === "hot"
+        ? await api.getMarketplaceLeads({ search, state: state === "Any" ? "" : state })
+        : activeTab === "renewal"
+          ? await api.getRenewalLeads(params)
+          : await api.getNewDotLeads(params);
+      const rows = activeTab === "hot"
+        ? (data?.leads || data?.results || [])
+        : (data?.leads || data?.carriers || data?.results || []);
 
-    request
-      .then((data) => {
-        if (!active) return;
-        const rows = activeTab === "hot"
-          ? (data?.leads || data?.results || [])
-          : (data?.leads || data?.carriers || data?.results || []);
-        if (import.meta.env.DEV) {
-          console.debug("[LeadDesk] endpoint result", {
-            mode: activeTab,
-            source: data?.source,
-            rowCount: rows.length,
-            firstRowKeys: rows[0] ? Object.keys(rows[0]) : [],
-            hasInsuranceFields: Boolean(rows[0]?.insuranceCancelDate || rows[0]?.insuranceEffectiveDate || rows[0]?.insurance_expiration),
-            hasInspectionFields: Boolean(rows[0]?.totalInspections || rows[0]?.smsSafety || rows[0]?.safety),
-          });
-        }
-        setLeads(rows.map((lead) => normalizeLead(lead, activeTab)));
-      })
-      .catch((err) => {
-        if (active) setError(err.message || "Leads could not be loaded.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      if (import.meta.env.DEV) {
+        console.debug("[LeadDesk] endpoint result", {
+          mode: activeTab,
+          endpoint: activeTab === "renewal" ? "/api/leads/renewals" : activeTab === "hot" ? "/api/marketplace/leads" : "/api/leads/new",
+          source: data?.source,
+          rowCount: rows.length,
+          firstRowKeys: rows[0] ? Object.keys(rows[0]) : [],
+          hasInsuranceFields: Boolean(rows[0]?.insuranceCancelDate || rows[0]?.insuranceEffectiveDate || rows[0]?.insurance_expiration),
+          hasInspectionFields: Boolean(rows[0]?.totalInspections || rows[0]?.smsSafety || rows[0]?.safety),
+        });
+      }
 
-    return () => {
-      active = false;
-    };
-  }, [activeTab, range.from, range.to, search, state, windowDays]);
+      setLeads(rows.map((lead) => normalizeLead(lead, activeTab)));
+      setHasSearched(true);
+      setLastUpdated(new Date().toLocaleString());
+    } catch (err) {
+      setHasSearched(true);
+      setLeads([]);
+      setError(err.message || "Leads could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetFilters() {
+    setSearch("");
+    setState("Any");
+    setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
+    setCustomFrom(dateRange(7).from);
+    setCustomTo(dateRange(7).to);
+  }
 
   async function loadSafetyDetails(lead, { force = false } = {}) {
     if (!lead.dot) return;
@@ -200,20 +231,6 @@ export default function LeadDeskPage() {
     if (nextDot) await loadSafetyDetails(lead);
   }
 
-  const filteredLeads = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return leads;
-    return leads.filter((lead) => [
-      lead.name,
-      lead.dot,
-      lead.mc,
-      lead.city,
-      lead.state,
-      lead.phone,
-      lead.email,
-    ].some((value) => String(value || "").toLowerCase().includes(term)));
-  }, [leads, search]);
-
   async function saveLead(lead) {
     setSaveMessage("Saving lead...");
     try {
@@ -237,9 +254,97 @@ export default function LeadDeskPage() {
     }
   }
 
+  function csvValue(value) {
+    const text = value === undefined || value === null ? "" : String(value);
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  function safetyIndicator(lead) {
+    const { totalInspections, bars } = buildInspectionBars(lead);
+    if (totalInspections) return `${totalInspections} inspections`;
+    if (bars.length) return "Public inspection ratios available";
+    return "";
+  }
+
+  function exportCsv() {
+    if (!filteredLeads.length) return;
+    const headers = [
+      "DOT Number",
+      "MC Number",
+      "Carrier Name",
+      "State",
+      "Phone",
+      "Email",
+      "Power Units",
+      "Drivers",
+      "Cargo Hauled",
+      "MCS-150 Updated",
+      "Added / First Seen Date",
+      "Lead Type",
+      "Authority Status",
+      "Insurance Filing Status",
+      "Insurance Filing Effective Date",
+      "Insurance Filing Cancellation Date",
+      "Renewal / Filing Date",
+      "Renewal / Filing Date Source",
+      "Safety Indicator",
+      "Status",
+      "Last Refreshed",
+    ];
+    const rows = filteredLeads.map((lead) => [
+      lead.dot,
+      lead.mc,
+      lead.name,
+      lead.state,
+      lead.phone,
+      lead.email,
+      lead.trucks,
+      lead.drivers,
+      lead.cargo.join(", "),
+      lead.mcs150Date,
+      lead.addedDate,
+      activeTab === "renewal" ? "Renewal Lead" : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
+      lead.authorityStatus,
+      lead.insuranceFilingStatus,
+      lead.insuranceEffectiveDate,
+      lead.insuranceCancelDate,
+      lead.renewalDisplay?.date || "",
+      lead.renewalDisplay?.label || "",
+      safetyIndicator(safetyDetails[lead.dot] || lead),
+      lead.rating,
+      lastUpdated,
+    ].map(csvValue).join(","));
+    const csv = [headers.map(csvValue).join(","), ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const today = formatDate(new Date());
+    const type = activeTab === "renewal" ? "renewal-leads" : activeTab === "new_dot" ? "new-dot-leads" : "marketplace-leads";
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `mytruckingleads-${type}-${today}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function copyValues(kind) {
+    const values = filteredLeads
+      .map((lead) => kind === "email" ? lead.email : lead.phone)
+      .filter(Boolean);
+    if (!values.length) {
+      setSaveMessage(`No ${kind === "email" ? "emails" : "phone numbers"} available in current results.`);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(values.join("\n"));
+      setSaveMessage(`${values.length} ${kind === "email" ? "email" : "phone number"}${values.length === 1 ? "" : "s"} copied.`);
+    } catch {
+      setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
+    }
+  }
+
   const tabs = [
     { id: "new_dot", label: "New DOT Leads" },
-    { id: "renewal", label: "Renewal Leads" },
+    { id: "renewal", label: "Renewal Opportunities" },
     { id: "hot", label: "Hot Leads" },
   ];
 
@@ -249,9 +354,10 @@ export default function LeadDeskPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Lead Desk</h1>
           <p className="text-navy-400 text-sm mt-1">
-            {loading ? "Loading live leads..." : `${filteredLeads.length} live lead${filteredLeads.length === 1 ? "" : "s"} found`}
+            {loading ? "Searching..." : hasSearched ? `${filteredLeads.length} result${filteredLeads.length === 1 ? "" : "s"} found` : "Choose filters, then search leads."}
           </p>
         </div>
+        {lastUpdated && <p className="text-xs text-navy-500">Last updated {lastUpdated}</p>}
       </div>
 
       <div className="flex gap-1 border-b border-white/5">
@@ -268,49 +374,66 @@ export default function LeadDeskPage() {
         ))}
       </div>
 
-      <Card className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_220px] gap-3">
-          <div className="relative">
-            <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="search"
-              className="input-field pl-10"
-              placeholder="Search company, DOT, city, phone, or email"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <select className="input-field" value={state} onChange={(e) => setState(e.target.value)}>
-            {stateOptions.map((item) => <option key={item} value={item} className="bg-navy-900">{item}</option>)}
-          </select>
-          {activeTab !== "hot" && (
-            <select className="input-field" value={datePreset} onChange={(e) => setDatePreset(e.target.value)}>
-              {activeTab === "renewal" ? (
-                <>
-                  <option value="next_7" className="bg-navy-900">Next 7 Days</option>
-                  <option value="next_30" className="bg-navy-900">Next 30 Days</option>
-                  <option value="next_60" className="bg-navy-900">Next 60 Days</option>
-                  <option value="next_90" className="bg-navy-900">Next 90 Days</option>
-                </>
-              ) : (
-                <>
-                  <option value="today" className="bg-navy-900">Today</option>
-                  <option value="last_7" className="bg-navy-900">Last 7 Days</option>
-                  <option value="last_30" className="bg-navy-900">Last 30 Days</option>
-                </>
-              )}
-              <option value="custom" className="bg-navy-900">Custom Range</option>
+      <Card>
+        <form onSubmit={runSearch} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_220px] gap-3">
+            <div className="relative">
+              <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="search"
+                className="input-field pl-10"
+                placeholder="Search company, DOT, city, phone, or email"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <select className="input-field" value={state} onChange={(e) => setState(e.target.value)}>
+              {stateOptions.map((item) => <option key={item} value={item} className="bg-navy-900">{item}</option>)}
             </select>
-          )}
-        </div>
-        {activeTab !== "hot" && datePreset === "custom" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input type="date" className="input-field" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-            <input type="date" className="input-field" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+            {activeTab !== "hot" && (
+              <select className="input-field" value={datePreset} onChange={(e) => setDatePreset(e.target.value)}>
+                {activeTab === "renewal" ? (
+                  <>
+                    <option value="next_7" className="bg-navy-900">Next 7 Days</option>
+                    <option value="next_30" className="bg-navy-900">Next 30 Days</option>
+                    <option value="next_60" className="bg-navy-900">Next 60 Days</option>
+                    <option value="next_90" className="bg-navy-900">Next 90 Days</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="today" className="bg-navy-900">Today</option>
+                    <option value="last_7" className="bg-navy-900">Last 7 Days</option>
+                    <option value="last_30" className="bg-navy-900">Last 30 Days</option>
+                  </>
+                )}
+                <option value="custom" className="bg-navy-900">Custom Range</option>
+              </select>
+            )}
           </div>
-        )}
+
+          {activeTab !== "hot" && datePreset === "custom" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input type="date" className="input-field" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+              <input type="date" className="input-field" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+            </div>
+          )}
+
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" loading={loading}>
+                {loading ? "Searching..." : activeTab === "renewal" ? "Search Renewal Opportunities" : activeTab === "new_dot" ? "Search New DOT Leads" : "Search Leads"}
+              </Button>
+              <button type="button" onClick={resetFilters} className="btn-secondary px-4 py-2 text-sm">Reset Filters</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={exportCsv} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
+              <button type="button" onClick={() => copyValues("email")} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
+              <button type="button" onClick={() => copyValues("phone")} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Copy Phone Numbers</button>
+            </div>
+          </div>
+        </form>
       </Card>
 
       {error && <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-3 text-sm text-danger-300">{error}</div>}
@@ -318,7 +441,7 @@ export default function LeadDeskPage() {
 
       <Card className="!p-0 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1100px]">
             <thead>
               <tr className="border-b border-white/5">
                 {["Company", "DOT / MC", "Location", "Fleet", "Cargo", "MCS-150", activeTab === "new_dot" ? "Added / First Seen" : activeTab === "renewal" ? "Renewal / Filing Date" : "Submitted", "Status", "Actions"].map((heading) => (
@@ -411,10 +534,14 @@ export default function LeadDeskPage() {
             </tbody>
           </table>
         </div>
-        {!loading && filteredLeads.length === 0 && (
+        {!loading && hasSearched && filteredLeads.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-navy-400 text-sm">No leads match this search.</p>
-            <p className="text-navy-600 text-xs mt-2">Try a different state, date range, or search term.</p>
+            <p className="text-navy-400 text-sm">No leads found. Try widening your date range or removing filters.</p>
+          </div>
+        )}
+        {!loading && !hasSearched && (
+          <div className="text-center py-12">
+            <p className="text-navy-400 text-sm">No search has been run yet.</p>
           </div>
         )}
       </Card>

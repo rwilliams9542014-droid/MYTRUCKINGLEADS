@@ -17,7 +17,7 @@ export async function runMonthlyRenewalUpdate(options = {}) {
 
   try {
     await connectMongo({ required: true });
-    console.log(`[RenewalCron] Monthly renewal update started at ${startedAt.toISOString()}`);
+    console.log(`[RenewalCron] Renewal update started at ${startedAt.toISOString()}`);
 
     const stats = await importInsuranceExpirations({
       batchSize: Number(process.env.FMCSA_INSURANCE_IMPORT_BATCH_SIZE || 1000),
@@ -34,10 +34,10 @@ export async function runMonthlyRenewalUpdate(options = {}) {
         limit: Number(process.env.FULL_ENRICHMENT_BATCH_LIMIT || 100)
       });
 
-    console.log("[RenewalCron] Monthly renewal update finished:", { renewalStats: stats, enrichmentStats });
+    console.log("[RenewalCron] Renewal update finished:", { renewalStats: stats, enrichmentStats });
     return { renewalStats: stats, enrichmentStats };
   } catch (err) {
-    console.error("[RenewalCron] Monthly renewal update failed:", err);
+    console.error("[RenewalCron] Renewal update failed:", err);
     throw err;
   } finally {
     running = false;
@@ -47,7 +47,7 @@ export async function runMonthlyRenewalUpdate(options = {}) {
 export function startRenewalUpdateCron() {
   if (scheduledTask) return scheduledTask;
 
-  const schedule = process.env.RENEWAL_CRON_SCHEDULE || "0 3 1 * *";
+  const schedule = process.env.RENEWAL_CRON_SCHEDULE || "0 3 * * *";
   const timezone = process.env.RENEWAL_CRON_TIMEZONE || process.env.CARRIER_CRON_TIMEZONE || "America/New_York";
 
   scheduledTask = cron.schedule(
