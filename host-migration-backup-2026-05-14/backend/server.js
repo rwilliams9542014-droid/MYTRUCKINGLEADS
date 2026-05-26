@@ -57,6 +57,8 @@ const publicLeadRoutesEnabled =
 const canonicalHost = String(process.env.CANONICAL_HOST || "www.mytruckingleads.com").trim().toLowerCase();
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  ...(process.env.FRONTEND_URLS || "").split(",").map((origin) => origin.trim()),
+  "https://mytruckingleads-production.up.railway.app",
   "http://127.0.0.1:5500",
   "http://localhost:5500",
   "http://127.0.0.1:5173",

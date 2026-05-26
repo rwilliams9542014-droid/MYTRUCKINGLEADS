@@ -1,7 +1,17 @@
+function previewApiBase() {
+  if (typeof window === "undefined") return "";
+  const host = window.location.hostname;
+  if (host.endsWith(".up.railway.app")) {
+    return "https://www.mytruckingleads.com";
+  }
+  return "";
+}
+
 const configuredBase =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
   window.MY_TRUCKING_LEADS_API_BASE ||
+  previewApiBase() ||
   "";
 
 export const API_BASE = String(configuredBase).replace(/\/$/, "");
@@ -99,46 +109,54 @@ export const api = {
   logout: () => apiRequest("/api/auth/logout", { method: "POST" }),
   getMe: () => apiRequest("/api/auth/me"),
 
-  getDashboard: () => apiRequest("/api/dashboard"),
+  getDashboard: () => apiRequest("/api/dashboard/producer-summary"),
+  getDashboardSummary: () => apiRequest("/api/dashboard/producer-summary"),
 
   searchCarriers: (params) => {
     const search = queryString(params);
-    return apiRequest(`/api/carrier/search${search ? `?${search}` : ""}`);
+    return apiRequest(`/api/carriers${search ? `?${search}` : ""}`);
+  },
+  searchCarrierIntelligence: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/carriers/search${search ? `?${search}` : ""}`);
   },
   searchFmcsaCarrier: (params) => {
     const search = queryString(params);
     return apiRequest(`/api/fmcsa/carrier-search${search ? `?${search}` : ""}`);
   },
-  getCarrier: (dot) => apiRequest(`/api/carrier/${dot}`),
-  getCarrierProfile: (dot) => apiRequest(`/api/carrier/${dot}`),
+  getCarrier: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}`),
+  getCarrierProfile: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}`),
+  getCarrierInsurance: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}/insurance`),
 
   getNewDotLeads: (params) => apiRequest(`/api/leads/new?${queryString(params)}`),
   getRenewalLeads: (params) => apiRequest(`/api/leads/renewals?${queryString(params)}`),
-  exportLeads: (ids) => apiRequest("/api/leads/export", {
+  getLeads: () => apiRequest("/api/leads"),
+  updateLead: (id, updates) => apiRequest(`/api/leads/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  }),
+  deleteLead: (id) => apiRequest(`/api/leads/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  }),
+  addLead: (payload) => apiRequest("/api/leads", {
     method: "POST",
-    body: JSON.stringify({ ids }),
+    body: JSON.stringify(payload),
   }),
-
-  getPipeline: () => apiRequest("/api/leads/pipeline"),
-  updateLeadStage: (id, stage) => apiRequest(`/api/leads/${id}/stage`, {
-    method: "PATCH",
-    body: JSON.stringify({ stage }),
-  }),
-  addToPipeline: (dot) => apiRequest("/api/leads/add", {
+  addToPipeline: (dot) => apiRequest("/api/leads", {
     method: "POST",
     body: JSON.stringify({ dot }),
   }),
 
-  getSubscription: () => apiRequest("/api/subscription"),
-  createCheckout: (plan) => apiRequest("/api/billing/create-checkout", {
+  getSubscription: () => apiRequest("/api/subscription/me"),
+  createCheckout: (plan) => apiRequest("/api/billing/checkout", {
     method: "POST",
     body: JSON.stringify({ plan }),
   }),
-  getPortalUrl: () => apiRequest("/api/billing/portal"),
 
-  getAdminStats: () => apiRequest("/api/admin/stats"),
+  getAdminStats: () => apiRequest("/api/admin/overview"),
+  getAdminOverview: () => apiRequest("/api/admin/overview"),
   getAdminUsers: () => apiRequest("/api/admin/users"),
-  getAdminHealth: () => apiRequest("/api/admin/health"),
+  getAdminHealth: () => apiRequest("/api/admin/webhook-health"),
 
   updateProfile: (data) => apiRequest("/api/auth/profile", {
     method: "PUT",
@@ -158,5 +176,10 @@ export const api = {
     body: JSON.stringify(data),
   }),
 
-  getReports: (params) => apiRequest(`/api/reports?${queryString(params)}`),
+  getMarketplaceLeads: (params) => apiRequest(`/api/marketplace/leads?${queryString(params)}`),
+  purchaseMarketplaceLead: (id) => apiRequest(`/api/marketplace/leads/${encodeURIComponent(id)}/purchase`, {
+    method: "POST",
+  }),
+
+  getReports: (params) => apiRequest(`/api/reports/summary?${queryString(params)}`),
 };

@@ -31,7 +31,7 @@ export default function CarrierSearchPage() {
     try {
       const value = query.trim();
       const data = searchType === "name"
-        ? await api.searchCarriers({ query: value })
+        ? await api.searchCarrierIntelligence({ query: value, name: value, limit: 25 })
         : await api.searchFmcsaCarrier({ [searchType]: value });
       const carriers = data.results || data.carriers || (data.carrier ? [data.carrier] : []);
       setResults(carriers);

@@ -59,7 +59,7 @@ export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const handleLogoClick = useLogoEasterEgg();
 
-  const showAdmin = user?.isOwner || user?.role === "owner" || user?.email === "owner@mytruckingleads.com";
+  const showAdmin = user?.isOwner || user?.role === "owner" || user?.role === "admin" || user?.email === "owner@mytruckingleads.com";
 
   async function handleSignOut() {
     await signOut();
