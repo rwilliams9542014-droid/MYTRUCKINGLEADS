@@ -1,74 +1,183 @@
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const configuredBase =
+  import.meta.env.DEV
+    ? (import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_API_URL ||
+      window.MY_TRUCKING_LEADS_API_BASE ||
+      "")
+    : "";
 
-function getAuthHeaders() {
-  const token = document.cookie
-    .split("; ")
-    .find((c) => c.startsWith("token="))
-    ?.split("=")[1];
+export const API_BASE = String(configuredBase).replace(/\/$/, "");
 
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+function buildUrl(path) {
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalizedPath}`;
 }
 
-async function request(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    credentials: "include",
-    headers: getAuthHeaders(),
-    ...options,
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || body.error || `Request failed: ${res.status}`);
+async function parseResponse(response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json().catch(() => null);
   }
 
-  return res.json();
+  const text = await response.text().catch(() => "");
+  return text || null;
+}
+
+function errorMessage(status, data) {
+  if (data?.message) return data.message;
+  if (data?.error) return data.error;
+  if (status === 400) return "Please check the form and try again.";
+  if (status === 401) return "Invalid email or password.";
+  if (status === 403) return "You do not have access to that page.";
+  if (status >= 500) return "The server had a problem. Please try again in a moment.";
+  return `Request failed with status ${status}.`;
+}
+
+export async function apiRequest(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  const hasBody = options.body != null;
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+
+  if (hasBody && !isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+
+  let response;
+  try {
+    response = await fetch(buildUrl(path), {
+      ...options,
+      credentials: "include",
+      headers,
+    });
+  } catch {
+    throw new Error("Network error. Please check your connection and try again.");
+  }
+
+  const data = await parseResponse(response);
+  if (!response.ok) {
+    const err = new Error(errorMessage(response.status, data));
+    err.status = response.status;
+    err.data = data;
+    throw err;
+  }
+
+  return data;
+}
+
+async function requestWithFallback(primaryPath, fallbackPath, options) {
+  try {
+    return await apiRequest(primaryPath, options);
+  } catch (err) {
+    if (err.status === 404 && fallbackPath) {
+      return apiRequest(fallbackPath, options);
+    }
+    throw err;
+  }
+}
+
+function queryString(params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, value);
+    }
+  });
+  return search.toString();
 }
 
 export const api = {
-  // Auth
-  login: (email, password) => request("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
-  register: (data) => request("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
-  logout: () => request("/api/auth/logout", { method: "POST" }),
-  getMe: () => request("/api/auth/me"),
+  login: (payload) => apiRequest("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  register: (payload) => requestWithFallback("/api/auth/signup", "/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  logout: () => apiRequest("/api/auth/logout", { method: "POST" }),
+  getMe: () => apiRequest("/api/auth/me"),
 
-  // Dashboard
-  getDashboard: () => request("/api/dashboard"),
+  getDashboard: () => apiRequest("/api/dashboard/producer-summary"),
+  getDashboardSummary: () => apiRequest("/api/dashboard/producer-summary"),
 
-  // Carriers / FMCSA
-  searchCarriers: (params) => request(`/api/fmcsa/search?${new URLSearchParams(params)}`),
-  getCarrier: (dot) => request(`/api/carrier/${dot}`),
-  getCarrierProfile: (dot) => request(`/api/fmcsa/carrier/${dot}`),
+  searchCarriers: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/carriers${search ? `?${search}` : ""}`);
+  },
+  searchCarrierIntelligence: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/carriers/search${search ? `?${search}` : ""}`);
+  },
+  searchFmcsaCarrier: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/fmcsa/carrier-search${search ? `?${search}` : ""}`);
+  },
+  getCarrier: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}`),
+  getCarrierProfile: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}`),
+  getCarrierInsurance: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}/insurance`),
 
-  // Leads
-  getNewDotLeads: (params) => request(`/api/leads/new-ventures?${new URLSearchParams(params)}`),
-  getRenewalLeads: (params) => request(`/api/leads/renewals?${new URLSearchParams(params)}`),
-  exportLeads: (ids) => request("/api/leads/export", { method: "POST", body: JSON.stringify({ ids }) }),
+  getNewDotLeads: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/leads/new${search ? `?${search}` : ""}`);
+  },
+  getRenewalLeads: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/leads/renewals${search ? `?${search}` : ""}`);
+  },
+  getLeads: () => apiRequest("/api/leads"),
+  updateLead: (id, updates) => apiRequest(`/api/leads/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  }),
+  deleteLead: (id) => apiRequest(`/api/leads/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  }),
+  addLead: (payload) => apiRequest("/api/leads", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  addToPipeline: (dot) => apiRequest("/api/leads", {
+    method: "POST",
+    body: JSON.stringify({ dot }),
+  }),
 
-  // CRM / Pipeline
-  getPipeline: () => request("/api/leads/pipeline"),
-  updateLeadStage: (id, stage) => request(`/api/leads/${id}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) }),
-  addToPipeline: (dot) => request("/api/leads/add", { method: "POST", body: JSON.stringify({ dot }) }),
+  getSubscription: () => apiRequest("/api/subscription/me"),
+  createCheckout: (plan) => apiRequest("/api/billing/checkout", {
+    method: "POST",
+    body: JSON.stringify({ plan }),
+  }),
 
-  // Subscription / Billing
-  getSubscription: () => request("/api/subscription"),
-  createCheckout: (plan) => request("/api/billing/create-checkout", { method: "POST", body: JSON.stringify({ plan }) }),
-  getPortalUrl: () => request("/api/billing/portal"),
+  getAdminStats: () => apiRequest("/api/admin/overview"),
+  getAdminOverview: () => apiRequest("/api/admin/overview"),
+  getAdminUsers: () => apiRequest("/api/admin/users"),
+  getAdminHealth: () => apiRequest("/api/admin/webhook-health"),
 
-  // Admin (owner only)
-  getAdminStats: () => request("/api/admin/stats"),
-  getAdminUsers: () => request("/api/admin/users"),
-  getAdminHealth: () => request("/api/admin/health"),
+  updateProfile: (data) => apiRequest("/api/auth/profile", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }),
+  updateNotifications: (data) => apiRequest("/api/auth/notifications", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }),
 
-  // Settings
-  updateProfile: (data) => request("/api/auth/profile", { method: "PUT", body: JSON.stringify(data) }),
-  updateNotifications: (data) => request("/api/auth/notifications", { method: "PUT", body: JSON.stringify(data) }),
+  sendContactRequest: (data) => apiRequest("/api/contact-request", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }),
+  submitQuoteRequest: (data) => apiRequest("/api/marketplace/quote-requests", {
+    method: "POST",
+    body: data instanceof FormData ? data : JSON.stringify(data),
+  }),
 
-  // Contact
-  sendContactRequest: (data) => request("/api/contact-request", { method: "POST", body: JSON.stringify(data) }),
+  getMarketplaceLeads: (params) => apiRequest(`/api/marketplace/leads?${queryString(params)}`),
+  purchaseMarketplaceLead: (id) => apiRequest(`/api/marketplace/leads/${encodeURIComponent(id)}/purchase`, {
+    method: "POST",
+  }),
 
-  // Reports
-  getReports: (params) => request(`/api/reports?${new URLSearchParams(params)}`),
+  getReports: (params) => apiRequest(`/api/reports/summary?${queryString(params)}`),
 };

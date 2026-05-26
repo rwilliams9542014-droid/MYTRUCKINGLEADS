@@ -4,9 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button, Input } from "@/components/ui";
 
 const plans = [
-  { value: "starter", label: "Starter - $79/mo", stateLimit: 1 },
+  { value: "basic", label: "Starter - $79/mo", stateLimit: 1 },
   { value: "pro", label: "Pro - $199/mo (Most Popular)", stateLimit: 1 },
-  { value: "agency", label: "Agency - $499/mo", stateLimit: 5 },
+  { value: "premium", label: "Agency - $499/mo", stateLimit: 5 },
 ];
 
 const US_STATES = [
@@ -20,9 +20,15 @@ export default function SignupPage() {
     email: "",
     password: "",
     fullName: "",
+    username: "",
+    phone: "",
     agencyName: "",
     plan: "pro",
     states: [],
+    billingAddressLine1: "",
+    billingCity: "",
+    billingState: "",
+    billingPostalCode: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,12 +59,31 @@ export default function SignupPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    const nameParts = form.fullName.trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+    if (!firstName || !lastName) {
+      setError("Enter your first and last name.");
+      return;
+    }
+    if (!form.username.trim()) {
+      setError("Choose a username.");
+      return;
+    }
+    if (form.password.length < 8 || !/[A-Z]/.test(form.password) || !/[0-9]/.test(form.password)) {
+      setError("Password must be at least 8 characters and include one uppercase letter and one number.");
+      return;
+    }
+    if (!form.phone.trim()) {
+      setError("Enter a phone number.");
       return;
     }
     if (form.states.length === 0) {
       setError("Please select at least one state for your lead territory.");
+      return;
+    }
+    if (!form.billingAddressLine1 || !form.billingCity || !form.billingState || !form.billingPostalCode) {
+      setError("Enter your billing address so the account can be created.");
       return;
     }
     if (!agreedTerms) {
@@ -71,13 +96,27 @@ export default function SignupPage() {
     }
     setLoading(true);
     try {
-      await signUp(form.email, form.password, {
-        full_name: form.fullName,
-        agency_name: form.agencyName,
+      const result = await signUp({
+        firstName,
+        lastName,
+        username: form.username,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+        businessName: form.agencyName,
         plan: form.plan,
-        lead_states: form.states,
+        leadState: form.states[0],
+        billingAddressLine1: form.billingAddressLine1,
+        billingCity: form.billingCity,
+        billingState: form.billingState,
+        billingPostalCode: form.billingPostalCode,
+        billingCountry: "US",
       });
-      navigate("/app/dashboard");
+      if (result?.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
+      navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -130,10 +169,29 @@ export default function SignupPage() {
             required
           />
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Username"
+              type="text"
+              placeholder="youragency"
+              value={form.username}
+              onChange={(e) => updateField("username", e.target.value)}
+              required
+            />
+            <Input
+              label="Phone"
+              type="tel"
+              placeholder="(555) 123-4567"
+              value={form.phone}
+              onChange={(e) => updateField("phone", e.target.value)}
+              required
+            />
+          </div>
+
           <Input
             label="Password"
             type="password"
-            placeholder="Minimum 6 characters"
+            placeholder="8+ chars, uppercase, number"
             value={form.password}
             onChange={(e) => updateField("password", e.target.value)}
             required
@@ -152,6 +210,49 @@ export default function SignupPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="space-y-4">
+            <Input
+              label="Billing Address"
+              type="text"
+              placeholder="123 Main St"
+              value={form.billingAddressLine1}
+              onChange={(e) => updateField("billingAddressLine1", e.target.value)}
+              required
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                label="City"
+                type="text"
+                placeholder="Dallas"
+                value={form.billingCity}
+                onChange={(e) => updateField("billingCity", e.target.value)}
+                required
+              />
+              <div>
+                <label className="block text-sm font-medium text-navy-200 mb-2">State</label>
+                <select
+                  className="input-field"
+                  value={form.billingState}
+                  onChange={(e) => updateField("billingState", e.target.value)}
+                  required
+                >
+                  <option value="" className="bg-navy-900">State</option>
+                  {US_STATES.map((state) => (
+                    <option key={state} value={state} className="bg-navy-900">{state}</option>
+                  ))}
+                </select>
+              </div>
+              <Input
+                label="ZIP"
+                type="text"
+                placeholder="75001"
+                value={form.billingPostalCode}
+                onChange={(e) => updateField("billingPostalCode", e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           {/* State Selection */}

@@ -1,93 +1,86 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Badge, Card, Button } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
+import { api } from "@/lib/api";
 
-const initialColumns = [
-  {
-    id: "new",
-    title: "New",
-    color: "bg-brand-500",
-    cards: [
-      { id: 1, name: "Martinez Trucking LLC", dot: "4102847", state: "TX", trucks: 4, value: "$8,200", daysInStage: 1, phone: "(713) 555-0142", lastActivity: "Added from Lead Desk" },
-      { id: 2, name: "Desert Sun Transport", dot: "4099102", state: "AZ", trucks: 5, value: "$9,800", daysInStage: 2, phone: "(602) 555-0177", lastActivity: "Imported from FMCSA" },
-      { id: 3, name: "Bayou Express LLC", dot: "4110923", state: "LA", trucks: 2, value: "$4,500", daysInStage: 1, phone: "(225) 555-0143", lastActivity: "New DOT registration" },
-    ],
-  },
-  {
-    id: "contacted",
-    title: "Contacted",
-    color: "bg-warning-500",
-    cards: [
-      { id: 4, name: "Heartland Freight Co", dot: "4098331", state: "OH", trucks: 3, value: "$6,200", daysInStage: 3, phone: "(614) 555-0167", lastActivity: "Left voicemail" },
-      { id: 5, name: "Cascade Freight Lines", dot: "3845201", state: "WA", trucks: 15, value: "$22,400", daysInStage: 5, phone: "(206) 555-0211", lastActivity: "Email sent - awaiting reply" },
-    ],
-  },
-  {
-    id: "quoted",
-    title: "Quoted",
-    color: "bg-accent-500",
-    cards: [
-      { id: 6, name: "Great Plains Haul Co", dot: "3920174", state: "KS", trucks: 8, value: "$14,600", daysInStage: 4, phone: "(316) 555-0156", lastActivity: "Quote sent via email" },
-      { id: 7, name: "Pacific Ridge Transport", dot: "3891024", state: "CA", trucks: 12, value: "$18,900", daysInStage: 2, phone: "(559) 555-0198", lastActivity: "Reviewing quote package" },
-    ],
-  },
-  {
-    id: "won",
-    title: "Won",
-    color: "bg-accent-600",
-    cards: [
-      { id: 8, name: "Iron Horse Logistics", dot: "3801456", state: "PA", trucks: 18, value: "$28,500", daysInStage: 0, phone: "(412) 555-0192", lastActivity: "Policy bound!" },
-    ],
-  },
-  {
-    id: "lost",
-    title: "Lost",
-    color: "bg-navy-600",
-    cards: [
-      { id: 9, name: "Lone Star Haul Inc", dot: "3910223", state: "TX", trucks: 6, value: "$11,200", daysInStage: 7, phone: "(817) 555-0133", lastActivity: "Went with competitor" },
-    ],
-  },
+const stages = [
+  { id: "New", title: "New", color: "bg-brand-500" },
+  { id: "Called", title: "Contacted", color: "bg-warning-500" },
+  { id: "Quoted", title: "Quoted", color: "bg-accent-500" },
+  { id: "Follow Up", title: "Follow Up", color: "bg-brand-300" },
+  { id: "Negotiation", title: "Negotiation", color: "bg-warning-400" },
+  { id: "Won", title: "Won", color: "bg-accent-600" },
+  { id: "Lost", title: "Lost", color: "bg-navy-600" },
 ];
 
+function normalizeLead(lead) {
+  const status = lead.status === "Contacted" ? "Called" : (lead.status || "New");
+  return {
+    ...lead,
+    status,
+    name: lead.carrier_name || lead.carrierName || "Unknown carrier",
+    dot: lead.dot_number || lead.dot || "",
+    mc: lead.mc_number || lead.mc || "",
+    state: lead.state || "",
+    phone: lead.phone || "",
+    trucks: lead.vehicle_count || lead.fleetSize || "",
+    value: lead.estimated_value || "",
+    lastActivity: lead.notes || "Saved lead",
+  };
+}
+
 export default function CrmPage() {
-  const [columns, setColumns] = useState(initialColumns);
-  const [draggedCard, setDraggedCard] = useState(null);
-  const [dragOverColumn, setDragOverColumn] = useState(null);
+  const [leads, setLeads] = useState([]);
+  const [draggedLead, setDraggedLead] = useState(null);
+  const [dragOverStage, setDragOverStage] = useState(null);
   const [viewMode, setViewMode] = useState("kanban");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  function handleDragStart(card, columnId) {
-    setDraggedCard({ card, fromColumn: columnId });
-  }
-
-  function handleDragOver(e, columnId) {
-    e.preventDefault();
-    setDragOverColumn(columnId);
-  }
-
-  function handleDrop(e, toColumnId) {
-    e.preventDefault();
-    if (!draggedCard || draggedCard.fromColumn === toColumnId) {
-      setDraggedCard(null);
-      setDragOverColumn(null);
-      return;
-    }
-    setColumns((prev) =>
-      prev.map((col) => {
-        if (col.id === draggedCard.fromColumn) {
-          return { ...col, cards: col.cards.filter((c) => c.id !== draggedCard.card.id) };
-        }
-        if (col.id === toColumnId) {
-          return { ...col, cards: [...col.cards, { ...draggedCard.card, daysInStage: 0 }] };
-        }
-        return col;
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api.getLeads()
+      .then((data) => {
+        if (active) setLeads((data?.leads || []).map(normalizeLead));
       })
-    );
-    setDraggedCard(null);
-    setDragOverColumn(null);
-  }
+      .catch((err) => {
+        if (active) setError(err.message || "Saved clients could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const columns = useMemo(() => stages.map((stage) => ({
+    ...stage,
+    cards: leads.filter((lead) => lead.status === stage.id || (stage.id === "New" && lead.status === "New Lead")),
+  })), [leads]);
 
   const allCards = columns.flatMap((col) => col.cards.map((card) => ({ ...card, stage: col.title, stageColor: col.color })));
-  const totalValue = allCards.reduce((sum, c) => sum + parseInt(c.value.replace(/[$,]/g, "")), 0);
+
+  async function moveLead(lead, toStatus) {
+    const previous = leads;
+    setLeads((current) => current.map((item) => item.id === lead.id ? { ...item, status: toStatus } : item));
+    try {
+      await api.updateLead(lead.id, { status: toStatus });
+    } catch (err) {
+      setLeads(previous);
+      setError(err.message || "Lead status could not be updated.");
+    }
+  }
+
+  function handleDrop(e, toStatus) {
+    e.preventDefault();
+    if (draggedLead && draggedLead.status !== toStatus) {
+      moveLead(draggedLead, toStatus);
+    }
+    setDraggedLead(null);
+    setDragOverStage(null);
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -95,34 +88,29 @@ export default function CrmPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">CRM Pipeline</h1>
           <p className="text-navy-400 text-sm mt-1">
-            {allCards.length} deals &middot; ${totalValue.toLocaleString()} pipeline value
+            {loading ? "Loading saved clients..." : `${allCards.length} saved client${allCards.length === 1 ? "" : "s"}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setViewMode("kanban")}
-            className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-              viewMode === "kanban" ? "bg-brand-500/20 text-brand-300 border border-brand-500/30" : "text-navy-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <svg className="w-4 h-4 inline mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
-            </svg>
-            Kanban
-          </button>
-          <button
-            onClick={() => setViewMode("table")}
-            className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-              viewMode === "table" ? "bg-brand-500/20 text-brand-300 border border-brand-500/30" : "text-navy-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <svg className="w-4 h-4 inline mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-            </svg>
-            Table
-          </button>
+          {["kanban", "table"].map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={`px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                viewMode === mode ? "bg-brand-500/20 text-brand-300 border border-brand-500/30" : "text-navy-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              {mode === "kanban" ? "Kanban" : "Table"}
+            </button>
+          ))}
         </div>
       </div>
+
+      {error && (
+        <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-3 text-sm text-danger-300">
+          {error}
+        </div>
+      )}
 
       {viewMode === "kanban" ? (
         <div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6">
@@ -130,49 +118,39 @@ export default function CrmPage() {
             <div
               key={column.id}
               className={`flex-shrink-0 w-80 flex flex-col rounded-2xl transition-all duration-200 ${
-                dragOverColumn === column.id ? "ring-2 ring-brand-500/40" : ""
+                dragOverStage === column.id ? "ring-2 ring-brand-500/40" : ""
               }`}
-              onDragOver={(e) => handleDragOver(e, column.id)}
-              onDragLeave={() => setDragOverColumn(null)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOverStage(column.id);
+              }}
+              onDragLeave={() => setDragOverStage(null)}
               onDrop={(e) => handleDrop(e, column.id)}
             >
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className={`w-2.5 h-2.5 rounded-full ${column.color}`} />
                 <h3 className="text-sm font-semibold text-white">{column.title}</h3>
-                <span className="text-xs text-navy-500 bg-navy-800 px-2 py-0.5 rounded-full">
-                  {column.cards.length}
-                </span>
+                <span className="text-xs text-navy-500 bg-navy-800 px-2 py-0.5 rounded-full">{column.cards.length}</span>
               </div>
               <div className="space-y-3 px-2 pb-4 min-h-[200px]">
                 {column.cards.map((card) => (
                   <div
                     key={card.id}
                     draggable
-                    onDragStart={() => handleDragStart(card, column.id)}
+                    onDragStart={() => setDraggedLead(card)}
                     className="glass-card p-4 cursor-grab active:cursor-grabbing hover:border-white/10 hover:shadow-card transition-all duration-200 group"
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <Link
-                        to={`/app/carrier/${card.dot}`}
-                        className="text-sm font-medium text-white group-hover:text-brand-300 transition-colors hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} className="text-sm font-medium text-white group-hover:text-brand-300 transition-colors hover:underline">
                         {card.name}
                       </Link>
-                      <Badge variant="outline" className="text-[10px]">{card.state}</Badge>
+                      {card.state && <Badge variant="outline" className="text-[10px]">{card.state}</Badge>}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-navy-400">
-                      <span className="font-mono">DOT {card.dot}</span>
-                      <span>&middot;</span>
-                      <span>{card.trucks} trucks</span>
+                      {card.dot && <span className="font-mono">DOT {card.dot}</span>}
+                      {card.phone && <span>{card.phone}</span>}
                     </div>
-                    <p className="text-[11px] text-navy-500 mt-2 italic">{card.lastActivity}</p>
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
-                      <span className="text-sm font-semibold text-accent-400">{card.value}</span>
-                      <span className="text-[10px] text-navy-500">
-                        {card.daysInStage === 0 ? "Today" : `${card.daysInStage}d in stage`}
-                      </span>
-                    </div>
+                    <p className="text-[11px] text-navy-500 mt-2 line-clamp-2">{card.lastActivity}</p>
                   </div>
                 ))}
               </div>
@@ -185,43 +163,37 @@ export default function CrmPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/5">
-                  <th className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-6 py-4">Company</th>
-                  <th className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-4 py-4">DOT</th>
-                  <th className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-4 py-4">Stage</th>
-                  <th className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-4 py-4">Fleet</th>
-                  <th className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-4 py-4">Value</th>
-                  <th className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-4 py-4">Phone</th>
-                  <th className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-4 py-4">Last Activity</th>
-                  <th className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-4 py-4">Days</th>
+                  {["Company", "DOT", "Stage", "State", "Phone", "Insurance Expiration"].map((heading) => (
+                    <th key={heading} className="text-left text-xs font-medium text-navy-400 uppercase tracking-wider px-6 py-4">{heading}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {allCards.map((card) => (
                   <tr key={card.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-3">
-                      <Link to={`/app/carrier/${card.dot}`} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
+                      <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
                         {card.name}
                       </Link>
-                      <p className="text-xs text-navy-500">{card.state}</p>
                     </td>
-                    <td className="px-4 py-3 text-sm text-navy-300 font-mono">{card.dot}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${card.stageColor}`} />
-                        <span className="text-sm text-navy-300">{card.stage}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-navy-300">{card.trucks}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-accent-400">{card.value}</td>
-                    <td className="px-4 py-3 text-sm text-navy-300">{card.phone}</td>
-                    <td className="px-4 py-3 text-xs text-navy-400">{card.lastActivity}</td>
-                    <td className="px-4 py-3 text-sm text-navy-400">{card.daysInStage}d</td>
+                    <td className="px-6 py-3 text-sm text-navy-300 font-mono">{card.dot || "-"}</td>
+                    <td className="px-6 py-3"><span className="text-sm text-navy-300">{card.stage}</span></td>
+                    <td className="px-6 py-3 text-sm text-navy-300">{card.state || "-"}</td>
+                    <td className="px-6 py-3 text-sm text-navy-300">{card.phone || "-"}</td>
+                    <td className="px-6 py-3 text-sm text-navy-300">{card.insurance_expiration || "-"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </Card>
+      )}
+
+      {!loading && allCards.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-navy-400 text-sm">No saved clients in your pipeline yet.</p>
+          <Link to="/lead-desk" className="text-brand-400 hover:text-brand-300 text-sm mt-2 inline-block">Find leads</Link>
+        </div>
       )}
     </div>
   );

@@ -152,7 +152,7 @@ export default function HomePage() {
                 <div className="w-3 h-3 rounded-full bg-danger-400/60" />
                 <div className="w-3 h-3 rounded-full bg-warning-400/60" />
                 <div className="w-3 h-3 rounded-full bg-accent-400/60" />
-                <span className="ml-4 text-xs text-navy-400 font-mono">mytruckingleads.com/app/lead-desk</span>
+                <span className="ml-4 text-xs text-navy-400 font-mono">mytruckingleads.com/lead-desk</span>
               </div>
               <div className="mt-8 grid grid-cols-4 gap-4 mb-6">
                 {[

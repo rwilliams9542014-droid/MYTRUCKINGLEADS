@@ -72,6 +72,59 @@
   .card-surface {
     @apply bg-navy-900/50 border border-white/[0.06] rounded-2xl p-6;
   }
+
+  .brand-lockup {
+    @apply inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 shadow-card;
+  }
+
+  .brand-mark-shell {
+    @apply flex items-center justify-center rounded-xl bg-white p-1.5 shadow-lg shadow-brand-500/20 ring-1 ring-white/40;
+  }
+
+  .brand-wordmark-shell {
+    @apply flex items-center rounded-lg bg-white px-2.5 py-1.5 shadow-sm ring-1 ring-white/30;
+  }
+
+  .brand-wordmark {
+    @apply object-contain;
+    filter: none;
+  }
+}
+
+html[data-theme-mode="light"] body {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+html[data-theme-mode="light"] .bg-navy-950 {
+  background-color: #f8fafc !important;
+}
+
+html[data-theme-mode="light"] .bg-navy-900\/50,
+html[data-theme-mode="light"] .glass-card,
+html[data-theme-mode="light"] .card-surface {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+html[data-theme-mode="light"] .text-white {
+  color: #0f172a !important;
+}
+
+html[data-theme-mode="light"] .text-navy-300,
+html[data-theme-mode="light"] .text-navy-400 {
+  color: #475569 !important;
+}
+
+html[data-theme-mode="light"] .text-navy-500,
+html[data-theme-mode="light"] .text-navy-600 {
+  color: #64748b !important;
+}
+
+html[data-theme-mode="light"] .input-field {
+  background: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+  color: #0f172a !important;
 }
 
 @layer utilities {

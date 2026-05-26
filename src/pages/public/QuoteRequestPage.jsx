@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Input, Badge } from "@/components/ui";
-import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
 
 const states = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
@@ -19,7 +19,10 @@ export default function QuoteRequestPage() {
     state: "",
     fleetSize: "",
     coverageType: "auto_liability",
+    currentInsuranceCompany: "",
+    renewalDate: "",
     message: "",
+    documents: [],
   });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,18 +37,26 @@ export default function QuoteRequestPage() {
     setError("");
     setLoading(true);
     try {
-      const { error: dbError } = await supabase.from("quote_requests").insert({
-        company_name: form.companyName,
-        dot_number: form.dotNumber || null,
-        contact_name: form.contactName,
-        email: form.email,
-        phone: form.phone || null,
-        state: form.state,
-        fleet_size: form.fleetSize ? parseInt(form.fleetSize) : null,
-        coverage_type: form.coverageType,
-        message: form.message || null,
-      });
-      if (dbError) throw dbError;
+      const payload = new FormData();
+      Object.entries({
+        companyName: form.companyName,
+        dotNumber: form.dotNumber || "",
+        contactName: form.contactName,
+        emailAddress: form.email,
+        phoneNumber: form.phone,
+        yearsInBusiness: "1",
+        powerUnits: form.fleetSize ? Number.parseInt(form.fleetSize, 10) : 1,
+        driverCount: form.fleetSize ? Number.parseInt(form.fleetSize, 10) : 1,
+        cargoHauled: "General Freight",
+        statesOperated: form.state,
+        coverageTypesNeeded: form.coverageType.replace(/_/g, " "),
+        currentInsuranceCompany: form.currentInsuranceCompany,
+        renewalDate: form.renewalDate,
+        coverageNeededWithin: "30 days",
+        additionalComments: form.message || "",
+      }).forEach(([key, value]) => payload.append(key, value));
+      form.documents.forEach((file) => payload.append("documents", file));
+      await api.submitQuoteRequest(payload);
       setSubmitted(true);
     } catch (err) {
       setError(err.message || "Failed to submit. Please try again.");
@@ -122,6 +133,7 @@ export default function QuoteRequestPage() {
               placeholder="(555) 123-4567"
               value={form.phone}
               onChange={(e) => updateField("phone", e.target.value)}
+              required
             />
           </div>
 
@@ -180,6 +192,23 @@ export default function QuoteRequestPage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Current Insurance Company"
+              placeholder="Current carrier or broker"
+              value={form.currentInsuranceCompany}
+              onChange={(e) => updateField("currentInsuranceCompany", e.target.value)}
+              required
+            />
+            <Input
+              label="Renewal Date"
+              type="date"
+              value={form.renewalDate}
+              onChange={(e) => updateField("renewalDate", e.target.value)}
+              required
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-navy-200 mb-2">Additional Details (optional)</label>
             <textarea
@@ -187,6 +216,17 @@ export default function QuoteRequestPage() {
               placeholder="Any specific coverage needs, current carrier info, or questions..."
               value={form.message}
               onChange={(e) => updateField("message", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-navy-200 mb-2">Documents (optional)</label>
+            <input
+              type="file"
+              multiple
+              className="input-field"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+              onChange={(e) => updateField("documents", Array.from(e.target.files || []))}
             />
           </div>
 
