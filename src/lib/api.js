@@ -119,6 +119,7 @@ export const api = {
   getCarrier: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}`),
   getCarrierProfile: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}`),
   getCarrierInsurance: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}/insurance`),
+  getCarrierSafety: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}/safety`),
 
   getNewDotLeads: (params) => {
     const search = queryString(params);

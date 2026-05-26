@@ -137,6 +137,8 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
   const companyOfficer1 = plain.companyOfficer1 || census.company_officer_1 || "";
   const companyOfficer2 = plain.companyOfficer2 || census.company_officer_2 || "";
   const cellPhone = plain.cellPhone || census.cell_phone || "";
+  const smsSafety = plain.smsSafety || plain.raw?.smsSafety || {};
+  const saferData = plain.raw?.saferData || {};
 
   return {
     id: String(plain._id),
@@ -166,6 +168,12 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
     insuranceEffectiveDate: plain.insuranceEffectiveDate
       ? new Date(plain.insuranceEffectiveDate).toISOString().slice(0, 10)
       : "",
+    insuranceCancelDate: plain.insuranceExpirationDate
+      ? new Date(plain.insuranceExpirationDate).toISOString().slice(0, 10)
+      : "",
+    fmcsaInsuranceCancellationDate: plain.insuranceExpirationDate
+      ? new Date(plain.insuranceExpirationDate).toISOString().slice(0, 10)
+      : "",
     insuranceCompany: plain.insuranceCompany || "",
     insurancePolicyNumber: plain.insurancePolicyNumber || "",
     insuranceFormCode: plain.insuranceFormCode || "",
@@ -179,6 +187,19 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
     mcs150_mileage: plain.mcs150Mileage || census.mcs150_mileage || census.mileage || "",
     cargoTypes: plain.cargoTypes || [],
     cargo: (plain.cargoTypes || []).join(", "),
+    totalInspections: saferData.totalInspections || smsSafety.inspections || plain.totalInspections || "",
+    crashTotal: saferData.crashTotal || plain.crashTotal || "",
+    driverOosRate: smsSafety.oosRates?.driver || null,
+    vehicleOosRate: smsSafety.oosRates?.vehicle || null,
+    hazmatOosRate: smsSafety.oosRates?.hazmat || null,
+    smsSafety,
+    safety: {
+      totalInspections: saferData.totalInspections || smsSafety.inspections || plain.totalInspections || "",
+      crashTotal: saferData.crashTotal || plain.crashTotal || "",
+      oosRates: smsSafety.oosRates || null,
+      smsProfileAvailable: Boolean(smsSafety && Object.keys(smsSafety).length),
+      source: smsSafety.source || saferData.source || ""
+    },
     dateCreated: plain.dateCreated,
     isNewLead: plain.isNewLead,
     newLeadSince: plain.newLeadSince,
@@ -584,6 +605,7 @@ async function fetchFmcsaCensusNewLeads(filters = {}) {
 
 function postgresCarrierToApi(row = {}) {
   const address = [row.hq_address, row.hq_city, row.hq_state, row.hq_zip].filter(Boolean).join(", ");
+  const safetyData = row.safety_data || {};
   return {
     id: String(row.id),
     dotNumber: row.dot_number,
@@ -609,9 +631,14 @@ function postgresCarrierToApi(row = {}) {
     operatingStatus: row.operating_status || "",
     insuranceExpirationDate: row.insurance_expiration,
     insuranceExpiration: pgDate(row.insurance_expiration),
+    insuranceCancelDate: pgDate(row.insurance_expiration),
+    fmcsaInsuranceCancellationDate: pgDate(row.insurance_expiration),
+    insuranceEffectiveDate: pgDate(row.insurance_effective_date),
     insuranceCompany: row.insurance_company || "",
     insurancePolicyNumber: row.insurance_policy_number || "",
+    insuranceFilingStatus: row.insurance_filing_status || "",
     insuranceType: row.insurance_filing_status || "",
+    filingType: row.insurance_filing_status || "",
     fleetSize: row.vehicle_count,
     vehicleCount: row.vehicle_count,
     driverCount: row.driver_count,
@@ -621,6 +648,14 @@ function postgresCarrierToApi(row = {}) {
     mcs150_mileage: row.mcs150_mileage || "",
     cargoTypes: row.cargo_types || [],
     cargo: pgCargo(row),
+    totalInspections: safetyData.totalInspections || safetyData.inspections || "",
+    crashTotal: safetyData.crashTotal || safetyData.crashes?.total || "",
+    driverOosRate: safetyData.driverOosRate || safetyData.oosRates?.driver || null,
+    vehicleOosRate: safetyData.vehicleOosRate || safetyData.oosRates?.vehicle || null,
+    hazmatOosRate: safetyData.hazmatOosRate || safetyData.oosRates?.hazmat || null,
+    totalViolations: safetyData.totalViolations || "",
+    oosViolations: safetyData.oosViolations || "",
+    safety: safetyData,
     lastUpdated: pgDate(row.last_updated),
     source: "Postgres carrier database"
   };
@@ -640,9 +675,14 @@ function postgresCarrierToProspectLead(row = {}) {
     hq_zip: row.hq_zip || "",
     safety_rating: apiCarrier.safetyRating,
     insurance_expiration: apiCarrier.insuranceExpiration,
+    insuranceCancelDate: apiCarrier.insuranceCancelDate,
+    fmcsaInsuranceCancellationDate: apiCarrier.fmcsaInsuranceCancellationDate,
+    insuranceEffectiveDate: apiCarrier.insuranceEffectiveDate,
     insurance_company: apiCarrier.insuranceCompany,
     insurance_policy_number: apiCarrier.insurancePolicyNumber,
+    insurance_filing_status: apiCarrier.insuranceFilingStatus,
     insurance_type: apiCarrier.insuranceType,
+    filingType: apiCarrier.filingType,
     vehicle_count: apiCarrier.vehicleCount,
     driver_count: apiCarrier.driverCount,
     mcs150_date: apiCarrier.mcs150Date || "",

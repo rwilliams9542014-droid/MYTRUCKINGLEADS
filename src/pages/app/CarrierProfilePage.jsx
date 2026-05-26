@@ -2,21 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Card, Badge, Button } from "@/components/ui";
 import { api } from "@/lib/api";
-
-function pick(...values) {
-  return values.find((value) => value !== undefined && value !== null && value !== "") || "";
-}
-
-function splitCargo(value) {
-  if (Array.isArray(value)) return value.filter(Boolean);
-  return String(value || "")
-    .split(/[,;|]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
+import {
+  INSPECTION_UNAVAILABLE,
+  UNAVAILABLE,
+  buildInspectionBars,
+  getRenewalDisplay,
+  normalizeLeadRecord,
+  pick,
+  splitCargo,
+} from "@/lib/leadMapping";
 
 function normalizeCarrier(data) {
   const carrier = data?.carrier || data?.profile || data?.result || data || {};
+  const lead = normalizeLeadRecord(carrier, "profile");
   const addressParts = carrier.addressParts || carrier.address || {};
   const addressText = typeof carrier.address === "string"
     ? carrier.address
@@ -52,9 +50,21 @@ function normalizeCarrier(data) {
     cargo: splitCargo(pick(carrier.cargoTypes, carrier.cargo, carrier.cargoHauled, carrier.cargo_hauled, carrier.cargoCarried)),
     insuranceCompany: pick(carrier.insuranceCompany, carrier.insurance_company, carrier.licensingInsurance?.insuranceCompany),
     insuranceExpiration: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration, carrier.licensingInsurance?.insuranceExpirationDate),
+    insuranceEffectiveDate: lead.insuranceEffectiveDate,
+    insuranceCancelDate: lead.insuranceCancelDate,
     insurancePolicyNumber: pick(carrier.insurancePolicyNumber, carrier.insurance_policy_number, carrier.licensingInsurance?.policyNumber),
-    insuranceFilingStatus: pick(carrier.insuranceFilingStatus, carrier.licensingInsurance?.insuranceFilingStatus),
-    totalInspections: pick(carrier.totalInspections, carrier.safety?.totalInspections),
+    insuranceFilingStatus: lead.insuranceFilingStatus,
+    filingType: lead.filingType,
+    renewalDisplay: getRenewalDisplay(lead),
+    totalInspections: lead.totalInspections,
+    inspectionsWithViolations: lead.inspectionsWithViolations,
+    inspectionsWithoutViolations: lead.inspectionsWithoutViolations,
+    totalViolations: lead.totalViolations,
+    oosViolations: lead.oosViolations,
+    driverOosRate: lead.driverOosRate,
+    vehicleOosRate: lead.vehicleOosRate,
+    hazmatOosRate: lead.hazmatOosRate,
+    basicScores: lead.basicScores,
     crashTotal: pick(carrier.crashTotal, carrier.safety?.crashTotal),
     companyRep: pick(carrier.companyRep, carrier.companyOfficer1, carrier.company_rep),
   };
@@ -64,7 +74,35 @@ function InfoItem({ label, value }) {
   return (
     <div>
       <p className="text-xs text-navy-500 uppercase tracking-wide">{label}</p>
-      <p className="text-sm text-white mt-1">{value || "Not available from public FMCSA data."}</p>
+      <p className="text-sm text-white mt-1">{value || UNAVAILABLE}</p>
+    </div>
+  );
+}
+
+function InspectionBars({ carrier }) {
+  const { totalInspections, bars } = buildInspectionBars(carrier);
+  if (!totalInspections && bars.length === 0) {
+    return <p className="text-sm text-navy-400">{INSPECTION_UNAVAILABLE}</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-navy-500">
+        {totalInspections ? `${totalInspections} total inspection${totalInspections === 1 ? "" : "s"}. Public inspection data available.` : "Public inspection data available."}
+      </p>
+      {bars.length > 0 ? bars.map((bar) => (
+        <div key={bar.label}>
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="text-navy-300">{bar.label}</span>
+            <span className="text-white font-medium">{Math.round(bar.value)}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
+            <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.round(bar.value)}%` }} />
+          </div>
+        </div>
+      )) : (
+        <p className="text-xs text-navy-500">Detailed SMS percentile not available from public source.</p>
+      )}
     </div>
   );
 }
@@ -213,7 +251,6 @@ export default function CarrierProfilePage() {
               <InfoItem label="MCS-150 Updated" value={carrier.mcs150Date} />
               <InfoItem label="DOT Issued" value={carrier.addDate} />
               <InfoItem label="Safety Rating" value={carrier.safetyRating} />
-              <InfoItem label="Inspections" value={carrier.totalInspections} />
               <InfoItem label="Crashes" value={carrier.crashTotal} />
             </div>
             {carrier.cargo.length > 0 && (
@@ -243,8 +280,16 @@ export default function CarrierProfilePage() {
               <InfoItem label="Company" value={carrier.insuranceCompany} />
               <InfoItem label="Policy" value={carrier.insurancePolicyNumber} />
               <InfoItem label="Filing Status" value={carrier.insuranceFilingStatus} />
-              <InfoItem label="Expiration" value={carrier.insuranceExpiration} />
+              <InfoItem label="Filing Type" value={carrier.filingType} />
+              <InfoItem label="FMCSA Filing Effective Date" value={carrier.insuranceEffectiveDate} />
+              <InfoItem label="FMCSA Filing Cancellation Date" value={carrier.insuranceCancelDate} />
+              <InfoItem label={carrier.renewalDisplay.label} value={carrier.renewalDisplay.date} />
             </div>
+          </Card>
+
+          <Card>
+            <h2 className="text-lg font-semibold text-white mb-4">Safety / Inspection History</h2>
+            <InspectionBars carrier={carrier} />
           </Card>
         </div>
       </div>

@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge, Button, Card } from "@/components/ui";
 import { api } from "@/lib/api";
+import {
+  INSPECTION_UNAVAILABLE,
+  UNAVAILABLE,
+  buildInspectionBars,
+  getRenewalDisplay,
+  normalizeLeadRecord,
+} from "@/lib/leadMapping";
 
 const stateOptions = ["Any","AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
@@ -23,45 +30,44 @@ function renewalRange(daysAhead = 30) {
   return { from: formatDate(from), to: formatDate(to) };
 }
 
-function pick(...values) {
-  return values.find((value) => value !== undefined && value !== null && value !== "") || "";
-}
-
-function splitCargo(value) {
-  if (Array.isArray(value)) return value.filter(Boolean);
-  return String(value || "")
-    .split(/[,;|]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function normalizeLead(lead, type) {
-  const dot = pick(lead.dotNumber, lead.dot_number, lead.dot);
-  const name = pick(lead.carrierName, lead.carrier_name, lead.legalName, lead.name, "Unknown carrier");
+  const normalized = normalizeLeadRecord(lead, type);
   return {
-    id: pick(lead.id, dot, `${name}-${lead.phone}`),
-    type,
-    name,
-    dot,
-    mc: pick(lead.mcNumber, lead.mc_number, lead.mc),
-    state: pick(lead.state, lead.hq_state),
-    city: pick(lead.city, lead.hq_city),
-    trucks: pick(lead.fleetSize, lead.powerUnits, lead.power_units, lead.vehicle_count, lead.vehicleCount),
-    drivers: pick(lead.drivers, lead.driver_count, lead.driverCount),
-    phone: pick(lead.phone, lead.phoneNumber, lead.cell_phone),
-    email: pick(lead.email),
-    rating: pick(lead.safetyRating, lead.safety_rating, "Not rated"),
-    cargo: splitCargo(pick(lead.cargoHauled, lead.cargo_hauled, lead.cargo, lead.cargoTypes)),
-    mcs150Date: pick(lead.mcs150Date, lead.mcs150_date, lead.mcs_150_date),
-    addedDate: pick(lead.addDate, lead.add_date, lead.dateCreated),
-    date: type === "new_dot"
-      ? pick(lead.addDate, lead.add_date, lead.dateCreated)
-      : pick(lead.insurance_expiration, lead.insuranceExpiration, lead.insuranceExpirationDate),
-    coverage: pick(lead.coverage, lead.coverage_type),
-    price: pick(lead.price, lead.purchasePrice),
-    completeness: pick(lead.data_completeness_percent, lead.completeness),
-    raw: lead,
+    ...normalized,
+    mc: normalized.mcNumber,
+    trucks: normalized.powerUnits,
+    cargo: normalized.cargoHauled,
+    rating: normalized.safetyRating,
+    renewalDisplay: getRenewalDisplay(normalized),
   };
+}
+
+function InspectionBars({ lead }) {
+  const { totalInspections, bars } = buildInspectionBars(lead);
+  if (!totalInspections && bars.length === 0) {
+    return <p className="text-xs text-navy-500">{INSPECTION_UNAVAILABLE}</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-navy-500">
+        {totalInspections ? `${totalInspections} total inspection${totalInspections === 1 ? "" : "s"}. Public inspection data available.` : "Public inspection data available."}
+      </p>
+      {bars.length > 0 ? bars.map((bar) => (
+        <div key={bar.label}>
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="text-navy-300">{bar.label}</span>
+            <span className="text-white font-medium">{Math.round(bar.value)}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
+            <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.round(bar.value)}%` }} />
+          </div>
+        </div>
+      )) : (
+        <p className="text-xs text-navy-500">Detailed SMS percentile not available from public source.</p>
+      )}
+    </div>
+  );
 }
 
 export default function LeadDeskPage() {
@@ -75,6 +81,8 @@ export default function LeadDeskPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [expandedDot, setExpandedDot] = useState("");
+  const [safetyDetails, setSafetyDetails] = useState({});
 
   const range = useMemo(() => {
     if (datePreset === "custom") return { from: customFrom, to: customTo };
@@ -131,6 +139,16 @@ export default function LeadDeskPage() {
         const rows = activeTab === "hot"
           ? (data?.leads || data?.results || [])
           : (data?.leads || data?.carriers || data?.results || []);
+        if (import.meta.env.DEV) {
+          console.debug("[LeadDesk] endpoint result", {
+            mode: activeTab,
+            source: data?.source,
+            rowCount: rows.length,
+            firstRowKeys: rows[0] ? Object.keys(rows[0]) : [],
+            hasInsuranceFields: Boolean(rows[0]?.insuranceCancelDate || rows[0]?.insuranceEffectiveDate || rows[0]?.insurance_expiration),
+            hasInspectionFields: Boolean(rows[0]?.totalInspections || rows[0]?.smsSafety || rows[0]?.safety),
+          });
+        }
         setLeads(rows.map((lead) => normalizeLead(lead, activeTab)));
       })
       .catch((err) => {
@@ -143,7 +161,44 @@ export default function LeadDeskPage() {
     return () => {
       active = false;
     };
-  }, [activeTab, range.from, range.to, search, state]);
+  }, [activeTab, range.from, range.to, search, state, windowDays]);
+
+  async function loadSafetyDetails(lead, { force = false } = {}) {
+    if (!lead.dot) return;
+    if (!force && safetyDetails[lead.dot]) return;
+
+    try {
+      const [profile, safety] = await Promise.allSettled([
+        api.getCarrierProfile(lead.dot),
+        api.getCarrierSafety(lead.dot),
+      ]);
+      const profileLead = profile.status === "fulfilled"
+        ? normalizeLeadRecord(profile.value?.carrier || profile.value?.profile || profile.value, lead.type)
+        : {};
+      const safetyLead = safety.status === "fulfilled"
+        ? normalizeLeadRecord(safety.value?.safety || safety.value?.carrier || safety.value, lead.type)
+        : {};
+      setSafetyDetails((current) => ({
+        ...current,
+        [lead.dot]: {
+          ...lead,
+          ...profileLead,
+          ...safetyLead,
+          dot: lead.dot,
+          name: lead.name,
+        },
+      }));
+    } catch {
+      setSafetyDetails((current) => ({ ...current, [lead.dot]: lead }));
+    }
+  }
+
+  async function toggleDetails(lead) {
+    if (!lead.dot) return;
+    const nextDot = expandedDot === lead.dot ? "" : lead.dot;
+    setExpandedDot(nextDot);
+    if (nextDot) await loadSafetyDetails(lead);
+  }
 
   const filteredLeads = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -168,7 +223,7 @@ export default function LeadDeskPage() {
         mc_number: lead.mc || null,
         state: lead.state || null,
         status: "New",
-        insurance_expiration: activeTab === "renewal" ? lead.date || null : null,
+        insurance_expiration: activeTab === "renewal" ? lead.renewalDisplay.date || null : null,
         notes: [
           lead.state ? `State: ${lead.state}` : "",
           lead.phone ? `Phone: ${lead.phone}` : "",
@@ -183,8 +238,8 @@ export default function LeadDeskPage() {
   }
 
   const tabs = [
-    { id: "new_dot", label: "New DOT" },
-    { id: "renewal", label: "Renewals" },
+    { id: "new_dot", label: "New DOT Leads" },
+    { id: "renewal", label: "Renewal Leads" },
     { id: "hot", label: "Hot Leads" },
   ];
 
@@ -266,45 +321,92 @@ export default function LeadDeskPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/5">
-                {["Company", "DOT / MC", "Location", "Fleet", "Cargo", "MCS-150", activeTab === "new_dot" ? "Added" : activeTab === "renewal" ? "Renewal" : "Submitted", "Status", "Actions"].map((heading) => (
+                {["Company", "DOT / MC", "Location", "Fleet", "Cargo", "MCS-150", activeTab === "new_dot" ? "Added / First Seen" : activeTab === "renewal" ? "Renewal / Filing Date" : "Submitted", "Status", "Actions"].map((heading) => (
                   <th key={heading} className="text-left text-xs font-medium text-navy-400 uppercase px-6 py-4">{heading}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filteredLeads.map((lead) => (
-                <tr key={lead.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
-                  <td className="px-6 py-3">
-                    {lead.dot ? (
-                      <Link to={`/carrier/${lead.dot}`} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">{lead.name}</Link>
-                    ) : (
-                      <p className="text-sm font-medium text-white">{lead.name}</p>
-                    )}
-                    <p className="text-xs text-navy-500">{lead.phone || lead.email || "Contact details unavailable"}</p>
-                  </td>
-                  <td className="px-6 py-3">
-                    <p className="text-sm text-navy-300 font-mono">{lead.dot ? `DOT ${lead.dot}` : "-"}</p>
-                    {lead.mc && <p className="text-xs text-navy-500 font-mono">{lead.mc}</p>}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-navy-300">{[lead.city, lead.state].filter(Boolean).join(", ") || "-"}</td>
-                  <td className="px-6 py-3 text-sm text-navy-300">
-                    {[lead.trucks && `${lead.trucks} trucks`, lead.drivers && `${lead.drivers} drivers`].filter(Boolean).join(", ") || "-"}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-navy-300">{lead.cargo.length ? lead.cargo.slice(0, 2).join(", ") : "Not available from public FMCSA data."}</td>
-                  <td className="px-6 py-3 text-sm text-navy-300">{lead.mcs150Date || "Not available from public FMCSA data."}</td>
-                  <td className="px-6 py-3 text-sm text-navy-300">{lead.date || "-"}</td>
-                  <td className="px-6 py-3"><Badge variant={lead.rating === "Satisfactory" ? "success" : lead.rating === "Conditional" ? "warning" : "outline"}>{lead.rating}</Badge></td>
-                  <td className="px-6 py-3">
-                    <div className="flex items-center gap-3">
-                      {lead.dot && <Link to={`/carrier/${lead.dot}`} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>}
-                      {activeTab === "hot" ? (
-                        <Button size="sm" className="text-xs">Buy</Button>
+                <Fragment key={lead.id}>
+                  <tr className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                    <td className="px-6 py-3">
+                      {lead.dot ? (
+                        <Link to={`/carrier/${lead.dot}`} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">{lead.name}</Link>
                       ) : (
-                        <button onClick={() => saveLead(lead)} className="text-xs text-accent-400 hover:text-accent-300 font-medium">+ CRM</button>
+                        <p className="text-sm font-medium text-white">{lead.name}</p>
                       )}
-                    </div>
-                  </td>
-                </tr>
+                      <p className="text-xs text-navy-500">{lead.phone || lead.email || "Contact details unavailable"}</p>
+                    </td>
+                    <td className="px-6 py-3">
+                      <p className="text-sm text-navy-300 font-mono">{lead.dot ? `DOT ${lead.dot}` : "-"}</p>
+                      {lead.mc && <p className="text-xs text-navy-500 font-mono">{lead.mc}</p>}
+                    </td>
+                    <td className="px-6 py-3 text-sm text-navy-300">{[lead.city, lead.state].filter(Boolean).join(", ") || "-"}</td>
+                    <td className="px-6 py-3 text-sm text-navy-300">
+                      {[lead.trucks && `${lead.trucks} power units`, lead.drivers && `${lead.drivers} drivers`].filter(Boolean).join(", ") || "-"}
+                    </td>
+                    <td className="px-6 py-3 text-sm text-navy-300">{lead.cargo.length ? lead.cargo.slice(0, 2).join(", ") : UNAVAILABLE}</td>
+                    <td className="px-6 py-3 text-sm text-navy-300">{lead.mcs150Date || UNAVAILABLE}</td>
+                    <td className="px-6 py-3 text-sm text-navy-300">
+                      {activeTab === "renewal" ? (
+                        <>
+                          <p>{lead.renewalDisplay.date || UNAVAILABLE}</p>
+                          <p className="text-xs text-navy-500">{lead.renewalDisplay.label}</p>
+                        </>
+                      ) : (
+                        lead.addedDate || UNAVAILABLE
+                      )}
+                    </td>
+                    <td className="px-6 py-3">
+                      <Badge variant={lead.rating === "Satisfactory" ? "success" : lead.rating === "Conditional" ? "warning" : "outline"}>
+                        {lead.authorityStatus || lead.rating}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-3">
+                        {lead.dot && <Link to={`/carrier/${lead.dot}`} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View Carrier Profile</Link>}
+                        {lead.dot && <button onClick={() => toggleDetails(lead)} className="text-xs text-navy-300 hover:text-white font-medium">{expandedDot === lead.dot ? "Hide" : "Details"}</button>}
+                        {activeTab === "hot" ? (
+                          <Button size="sm" className="text-xs">Buy</Button>
+                        ) : (
+                          <button onClick={() => saveLead(lead)} className="text-xs text-accent-400 hover:text-accent-300 font-medium">Add to CRM</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedDot === lead.dot && (
+                    <tr className="border-b border-white/[0.03] bg-navy-950/40">
+                      <td colSpan={9} className="px-6 py-5">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                          <div>
+                            <p className="text-xs text-navy-500 uppercase mb-2">Insurance Filing</p>
+                            <div className="space-y-1 text-sm text-navy-300">
+                              <p>Status: <span className="text-white">{lead.insuranceFilingStatus || UNAVAILABLE}</span></p>
+                              <p>Effective: <span className="text-white">{lead.insuranceEffectiveDate || UNAVAILABLE}</span></p>
+                              <p>Cancellation: <span className="text-white">{lead.insuranceCancelDate || UNAVAILABLE}</span></p>
+                              <p>Company: <span className="text-white">{lead.insuranceCompany || UNAVAILABLE}</span></p>
+                              <p>Filing Type: <span className="text-white">{lead.filingType || UNAVAILABLE}</span></p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs text-navy-500 uppercase mb-2">Safety / Inspection Indicator</p>
+                            <InspectionBars lead={safetyDetails[lead.dot] || lead} />
+                          </div>
+                          <div>
+                            <p className="text-xs text-navy-500 uppercase mb-2">Actions</p>
+                            <div className="flex flex-wrap gap-2">
+                              {lead.dot && <Link to={`/carrier/${lead.dot}`} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">View Carrier Profile</Link>}
+                              <button onClick={() => saveLead(lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Add to CRM</button>
+                              <button onClick={() => loadSafetyDetails(lead, { force: true })} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Refresh FMCSA Data</button>
+                              <span className="text-xs text-navy-500 self-center">Ask AI unavailable unless backend supports it.</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
