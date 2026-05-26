@@ -26,11 +26,11 @@ const mockMetrics = {
 };
 
 const mockHealthChecks = [
-  { name: "Supabase Database", status: "healthy", latency: "12ms" },
+  { name: "Postgres Database", status: "healthy", latency: "12ms" },
   { name: "FMCSA API (QCMobile)", status: "healthy", latency: "340ms" },
   { name: "FMCSA Census (Socrata)", status: "healthy", latency: "180ms" },
   { name: "Auth Service", status: "healthy", latency: "8ms" },
-  { name: "Edge Functions", status: "healthy", latency: "45ms" },
+  { name: "Express API", status: "healthy", latency: "45ms" },
   { name: "SMS Safety Scraper", status: "degraded", latency: "2100ms" },
 ];
 
@@ -44,11 +44,11 @@ const mockActivity = [
 ];
 
 export default function AdminPage() {
-  const { user, isDemo } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
 
-  if (!isDemo && user?.email !== OWNER_EMAIL) {
-    return <Navigate to="/app/dashboard" replace />;
+  if (!user?.isOwner && user?.role !== "owner" && user?.email !== OWNER_EMAIL) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (

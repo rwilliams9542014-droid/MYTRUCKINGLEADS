@@ -52,7 +52,7 @@ export function PublicLayout() {
 
           <div className="hidden md:flex items-center gap-3">
             {user ? (
-              <Link to="/app/dashboard" className="btn-primary text-sm">
+              <Link to="/dashboard" className="btn-primary text-sm">
                 Dashboard
               </Link>
             ) : (
@@ -88,7 +88,7 @@ export function PublicLayout() {
               <Link to="/quote-request" className="text-white font-medium" onClick={() => setMobileOpen(false)}>Get a Quote</Link>
               <hr className="border-white/10" />
               {user ? (
-                <Link to="/app/dashboard" className="btn-primary text-center" onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                <Link to="/dashboard" className="btn-primary text-center" onClick={() => setMobileOpen(false)}>Dashboard</Link>
               ) : (
                 <>
                   <Link to="/login" className="text-white font-medium" onClick={() => setMobileOpen(false)}>Sign In</Link>

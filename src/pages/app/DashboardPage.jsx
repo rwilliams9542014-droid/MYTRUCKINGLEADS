@@ -114,7 +114,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-white">{greeting}</h1>
           <p className="text-navy-400 text-sm mt-1">Here's what's happening with your leads today.</p>
         </div>
-        <Link to="/app/lead-desk" className="btn-primary text-sm">
+        <Link to="/lead-desk" className="btn-primary text-sm">
           View All Leads
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -153,7 +153,7 @@ export default function DashboardPage() {
           <Card>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white">Recent Leads</h2>
-              <Link to="/app/lead-desk" className="text-sm text-brand-400 hover:text-brand-300">View all</Link>
+              <Link to="/lead-desk" className="text-sm text-brand-400 hover:text-brand-300">View all</Link>
             </div>
             <div className="space-y-2">
               {recentLeads.map((lead) => (
@@ -198,7 +198,7 @@ export default function DashboardPage() {
             ))}
           </div>
           <Link
-            to="/app/crm"
+            to="/crm"
             className="block mt-6 text-center text-sm text-brand-400 hover:text-brand-300 font-medium"
           >
             Open CRM Pipeline
@@ -209,9 +209,9 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "Search Carriers", desc: "Look up any carrier by DOT or name", path: "/app/carrier-search", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
-          { label: "New DOT Leads", desc: "Recently registered trucking companies", path: "/app/lead-desk", icon: "M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" },
-          { label: "Renewal Calendar", desc: "Carriers with expiring policies", path: "/app/lead-desk", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+          { label: "Search Carriers", desc: "Look up any carrier by DOT or name", path: "/carrier-search", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
+          { label: "New DOT Leads", desc: "Recently registered trucking companies", path: "/lead-desk", icon: "M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" },
+          { label: "Renewal Calendar", desc: "Carriers with expiring policies", path: "/lead-desk", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
         ].map((action) => (
           <Link key={action.label} to={action.path} className="glass-card p-5 hover:border-brand-500/20 hover:shadow-glow transition-all duration-300 group">
             <div className="flex items-start gap-4">

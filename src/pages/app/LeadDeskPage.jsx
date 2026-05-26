@@ -527,7 +527,7 @@ export default function LeadDeskPage() {
                       <input type="checkbox" checked={selectedIds.has(lead.id)} onChange={() => toggleSelect(lead.id)} className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30" />
                     </td>
                     <td className="px-4 py-3">
-                      <Link to={`/app/carrier/${lead.dot}`} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
+                      <Link to={`/carrier/${lead.dot}`} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
                         {lead.name}
                       </Link>
                       <p className="text-xs text-navy-500">{lead.phone}</p>
@@ -554,7 +554,7 @@ export default function LeadDeskPage() {
                     <td className="px-4 py-3 text-xs text-navy-400">{activeTab === "new_dot" ? lead.addDate : lead.expirationDate}</td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Link to={`/app/carrier/${lead.dot}`} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>
+                        <Link to={`/carrier/${lead.dot}`} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>
                         <button className="text-xs text-accent-400 hover:text-accent-300 font-medium">+ CRM</button>
                       </div>
                     </td>

@@ -6,42 +6,26 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { api } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  window.MY_TRUCKING_LEADS_API_BASE ||
-  "";
+function userFromResponse(data) {
+  return data?.user || data?.data?.user || null;
+}
 
-async function apiRequest(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
-
-  let data = null;
-
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
+function loginPayload(emailOrPayload, password) {
+  if (typeof emailOrPayload === "object" && emailOrPayload !== null) {
+    return emailOrPayload;
   }
+  return { email: emailOrPayload, password };
+}
 
-  if (!response.ok) {
-    const message =
-      data?.message ||
-      data?.error ||
-      `Request failed with status ${response.status}`;
-
-    throw new Error(message);
+function registerPayload(payloadOrEmail, password, metadata = {}) {
+  if (typeof payloadOrEmail === "object" && payloadOrEmail !== null) {
+    return payloadOrEmail;
   }
-
-  return data;
+  return { email: payloadOrEmail, password, ...metadata };
 }
 
 export function AuthProvider({ children }) {
@@ -49,76 +33,49 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const setAuthenticatedUser = useCallback((nextUser) => {
+    setUser(nextUser);
+    setSession(nextUser ? { user: nextUser } : null);
+    return nextUser;
+  }, []);
+
   const refreshUser = useCallback(async () => {
     try {
-      const data = await apiRequest("/api/auth/me");
-
-      const currentUser = data?.user || data || null;
-
-      setUser(currentUser);
-      setSession(currentUser ? { user: currentUser } : null);
-
-      return currentUser;
+      const data = await api.getMe();
+      return setAuthenticatedUser(userFromResponse(data));
     } catch {
-      setUser(null);
-      setSession(null);
-      return null;
+      return setAuthenticatedUser(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setAuthenticatedUser]);
 
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
 
-  const login = useCallback(async ({ email, password }) => {
-    const data = await apiRequest("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-
-    const loggedInUser = data?.user || data || null;
-
-    setUser(loggedInUser);
-    setSession(loggedInUser ? { user: loggedInUser } : null);
-
+  const login = useCallback(async (emailOrPayload, password) => {
+    const data = await api.login(loginPayload(emailOrPayload, password));
+    setAuthenticatedUser(userFromResponse(data));
     return data;
-  }, []);
+  }, [setAuthenticatedUser]);
 
-  const register = useCallback(async (payload) => {
-    const data = await apiRequest("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-
-    const registeredUser = data?.user || data || null;
-
-    setUser(registeredUser);
-    setSession(registeredUser ? { user: registeredUser } : null);
-
+  const register = useCallback(async (payloadOrEmail, password, metadata) => {
+    const data = await api.register(registerPayload(payloadOrEmail, password, metadata));
+    setAuthenticatedUser(userFromResponse(data));
     return data;
-  }, []);
-
-  const signup = register;
-  const signUp = register;
+  }, [setAuthenticatedUser]);
 
   const logout = useCallback(async () => {
     try {
-      await apiRequest("/api/auth/logout", {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
+      await api.logout();
     } catch {
-      // Still clear local auth state even if logout endpoint fails.
+      // Local state still needs to clear if the network drops during logout.
+    } finally {
+      setAuthenticatedUser(null);
+      window.location.assign("/login");
     }
-
-    setUser(null);
-    setSession(null);
-    window.location.href = "/login.html";
-  }, []);
-
-  const signOut = logout;
+  }, [setAuthenticatedUser]);
 
   const value = useMemo(
     () => ({
@@ -127,14 +84,15 @@ export function AuthProvider({ children }) {
       loading,
       isAuthenticated: Boolean(user),
       login,
+      signIn: login,
       register,
-      signup,
-      signUp,
+      signup: register,
+      signUp: register,
       logout,
-      signOut,
+      signOut: logout,
       refreshUser,
     }),
-    [user, session, loading, login, register, signup, logout, refreshUser]
+    [user, session, loading, login, register, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

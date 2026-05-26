@@ -53,7 +53,7 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-white mb-3">4. Information Sharing</h2>
             <p className="mb-3">We do NOT sell your personal information. We may share information with:</p>
             <ul className="list-disc list-inside space-y-2 ml-2">
-              <li><strong className="text-white">Service Providers:</strong> Stripe (payments), Supabase (database), and hosting providers necessary to operate the Service</li>
+              <li><strong className="text-white">Service Providers:</strong> Stripe (payments), database, email, analytics, and hosting providers necessary to operate the Service</li>
               <li><strong className="text-white">Legal Requirements:</strong> When required by law, subpoena, or to protect our rights</li>
               <li><strong className="text-white">Business Transfers:</strong> In connection with a merger, acquisition, or sale of assets</li>
             </ul>

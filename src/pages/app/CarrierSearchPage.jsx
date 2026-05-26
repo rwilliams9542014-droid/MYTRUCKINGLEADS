@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Card, Badge } from "@/components/ui";
-import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
 
 const easterEggResults = [
   { dot_number: "0000001", legal_name: "Jerry Maguire Trucking Inc", city: "Los Angeles", state: "CA", vehicle_count: 1, driver_count: 1, operating_status: "AUTHORIZED", safety_rating: "Legendary" },
@@ -10,7 +10,6 @@ const easterEggResults = [
 ];
 
 export default function CarrierSearchPage() {
-  const { session, isDemo } = useAuth();
   const [query, setQuery] = useState("");
   const [searchType, setSearchType] = useState("name");
   const [results, setResults] = useState(null);
@@ -30,19 +29,14 @@ export default function CarrierSearchPage() {
     setError("");
 
     try {
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fmcsa-search?type=${searchType}&query=${encodeURIComponent(query.trim())}`;
-      const headers = {
-        "Authorization": `Bearer ${isDemo ? import.meta.env.VITE_SUPABASE_ANON_KEY : session?.access_token}`,
-        "Content-Type": "application/json",
-      };
-
-      const res = await fetch(apiUrl, { headers });
-      if (!res.ok) throw new Error("Search request failed");
-
-      const data = await res.json();
-      setResults(data.results || []);
+      const value = query.trim();
+      const data = searchType === "name"
+        ? await api.searchCarriers({ query: value })
+        : await api.searchFmcsaCarrier({ [searchType]: value });
+      const carriers = data.results || data.carriers || (data.carrier ? [data.carrier] : []);
+      setResults(carriers);
     } catch (err) {
-      setError("Search failed. Please try again.");
+      setError(err.message || "Search failed. Please try again.");
       setResults([]);
     } finally {
       setLoading(false);
@@ -119,8 +113,8 @@ export default function CarrierSearchPage() {
           <div className="divide-y divide-white/[0.03]">
             {results.map((carrier) => (
               <Link
-                key={carrier.dot_number}
-                to={`/app/carrier/${carrier.dot_number}`}
+                key={carrier.dot_number || carrier.dotNumber || carrier.dot}
+                to={`/carrier/${carrier.dot_number || carrier.dotNumber || carrier.dot}`}
                 className="flex items-center gap-6 px-6 py-4 hover:bg-white/[0.02] transition-colors group"
               >
                 <div className="w-12 h-12 bg-navy-800 rounded-xl flex items-center justify-center text-navy-300 flex-shrink-0">
@@ -130,20 +124,20 @@ export default function CarrierSearchPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white group-hover:text-brand-300 transition-colors">
-                    {carrier.legal_name}
+                    {carrier.legal_name || carrier.legalName || carrier.carrierName || carrier.name}
                   </p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-navy-400">
-                    <span className="font-mono">DOT {carrier.dot_number}</span>
-                    {carrier.mc_number && <><span>&middot;</span><span className="font-mono">MC-{carrier.mc_number}</span></>}
+                    <span className="font-mono">DOT {carrier.dot_number || carrier.dotNumber || carrier.dot}</span>
+                    {(carrier.mc_number || carrier.mcNumber) && <><span>&middot;</span><span className="font-mono">MC-{carrier.mc_number || carrier.mcNumber}</span></>}
                     <span>&middot;</span>
                     <span>{carrier.city}, {carrier.state}</span>
                     <span>&middot;</span>
-                    <span>{carrier.vehicle_count} trucks, {carrier.driver_count} drivers</span>
+                    <span>{carrier.vehicle_count || carrier.powerUnits || carrier.vehicles || 0} trucks, {carrier.driver_count || carrier.drivers || 0} drivers</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant={carrier.operating_status === "AUTHORIZED" ? "success" : "danger"}>
-                    {carrier.operating_status}
+                  <Badge variant={(carrier.operating_status || carrier.operatingStatus) === "AUTHORIZED" ? "success" : "danger"}>
+                    {carrier.operating_status || carrier.operatingStatus || "Unknown"}
                   </Badge>
                   {carrier.safety_rating && carrier.safety_rating !== "None" && (
                     <Badge variant={

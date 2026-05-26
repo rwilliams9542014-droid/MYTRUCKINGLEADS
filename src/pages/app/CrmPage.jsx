@@ -153,7 +153,7 @@ export default function CrmPage() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <Link
-                        to={`/app/carrier/${card.dot}`}
+                        to={`/carrier/${card.dot}`}
                         className="text-sm font-medium text-white group-hover:text-brand-300 transition-colors hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -199,7 +199,7 @@ export default function CrmPage() {
                 {allCards.map((card) => (
                   <tr key={card.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-3">
-                      <Link to={`/app/carrier/${card.dot}`} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
+                      <Link to={`/carrier/${card.dot}`} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
                         {card.name}
                       </Link>
                       <p className="text-xs text-navy-500">{card.state}</p>

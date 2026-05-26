@@ -1,17 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+const disabledClient = new Proxy({}, {
+  get() {
+    throw new Error("Supabase is disabled. Use the MyTruckingLeads backend API instead.");
+  },
+});
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
-
-let supabase = null;
-
-if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey);
-} else {
-  console.warn(
-    "Supabase is not configured. This app should use the Railway/Express backend instead."
-  );
-}
-
-export { supabase };
-export default supabase;
+export const supabase = disabledClient;
+export default disabledClient;

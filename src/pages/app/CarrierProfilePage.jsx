@@ -126,7 +126,7 @@ export default function CarrierProfilePage() {
     <div className="space-y-6 animate-fade-in">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
-        <Link to="/app/carrier-search" className="text-navy-400 hover:text-white transition-colors">Carrier Search</Link>
+        <Link to="/carrier-search" className="text-navy-400 hover:text-white transition-colors">Carrier Search</Link>
         <svg className="w-3 h-3 text-navy-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>

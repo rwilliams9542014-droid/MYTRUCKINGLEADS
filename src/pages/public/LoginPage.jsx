@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button, Input } from "@/components/ui";
 
 export default function LoginPage() {
-  const { signIn, demoSignIn } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const location = useLocation();
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -14,20 +15,19 @@ export default function LoginPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    if (!identifier || !password) {
+      setError("Enter your username or email and password.");
+      return;
+    }
     setLoading(true);
     try {
-      await signIn(email, password);
-      navigate("/app/dashboard");
+      await login({ identifier, password });
+      navigate(location.state?.redirect || "/dashboard", { replace: true });
     } catch (err) {
       setError(err.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleDemoLogin() {
-    demoSignIn();
-    navigate("/app/dashboard");
   }
 
   return (
@@ -49,11 +49,11 @@ export default function LoginPage() {
           )}
 
           <Input
-            label="Email"
-            type="email"
-            placeholder="you@agency.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            label="Username or Email"
+            type="text"
+            placeholder="username or you@agency.com"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             required
             icon={
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -80,18 +80,6 @@ export default function LoginPage() {
             Sign In
           </Button>
 
-          <div className="relative my-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-2 bg-navy-900 text-navy-500">or</span>
-            </div>
-          </div>
-
-          <Button type="button" variant="secondary" className="w-full" onClick={handleDemoLogin}>
-            Try Demo (No Account Needed)
-          </Button>
         </form>
 
         <p className="text-center text-sm text-navy-400 mt-6">
