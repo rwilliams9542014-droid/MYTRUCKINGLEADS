@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useLogoEasterEgg } from "@/components/EasterEggs";
 
 const navItems = [
   {
@@ -41,6 +40,15 @@ const navItems = [
     ),
   },
   {
+    label: "Marketplace",
+    path: "/lead-marketplace",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7h18M5 7l1 12h12l1-12M9 7V5a3 3 0 016 0v2" />
+      </svg>
+    ),
+  },
+  {
     label: "Settings",
     path: "/settings",
     icon: (
@@ -57,7 +65,6 @@ export function AppLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const handleLogoClick = useLogoEasterEgg();
 
   const showAdmin = user?.isOwner || user?.role === "owner" || user?.role === "admin" || user?.email === "owner@mytruckingleads.com";
 
@@ -81,13 +88,14 @@ export function AppLayout() {
       >
         <div className={`p-4 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
           <div
-            onClick={handleLogoClick}
-            className="w-10 h-10 flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform rounded-xl bg-gradient-to-br from-white/95 to-blue-50/90 p-1.5 shadow-lg shadow-brand-500/10"
+            className="brand-mark-shell w-10 h-10 flex-shrink-0"
           >
             <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
           </div>
           {!collapsed && (
-            <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-7 object-contain" style={{ filter: "brightness(1.6) saturate(1.2)" }} />
+            <span className="brand-wordmark-shell">
+              <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="brand-wordmark h-6" />
+            </span>
           )}
         </div>
 

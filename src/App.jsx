@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
 import { PublicLayout } from "@/layouts/PublicLayout";
 import { AppLayout } from "@/layouts/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -19,9 +19,17 @@ const CarrierSearchPage = lazy(() => import("@/pages/app/CarrierSearchPage"));
 const CarrierProfilePage = lazy(() => import("@/pages/app/CarrierProfilePage"));
 const SettingsPage = lazy(() => import("@/pages/app/SettingsPage"));
 const AdminPage = lazy(() => import("@/pages/app/AdminPage"));
+const LeadMarketplacePage = lazy(() => import("@/pages/app/LeadMarketplacePage"));
 
 function HtmlRedirect({ to }) {
-  return <Navigate to={to} replace />;
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search || ""}`} replace />;
+}
+
+function CarrierProfileRedirect() {
+  const location = useLocation();
+  const dot = new URLSearchParams(location.search).get("dot");
+  return <Navigate to={dot ? `/carrier-profile/${encodeURIComponent(dot)}` : "/carrier-search"} replace />;
 }
 
 function PageLoader() {
@@ -62,13 +70,15 @@ export default function App() {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/lead-desk" element={<LeadDeskPage />} />
-            <Route path="/dot-analytics" element={<LeadDeskPage />} />
+            <Route path="/dot-analytics" element={<CarrierSearchPage />} />
             <Route path="/crm" element={<CrmPage />} />
             <Route path="/carrier-search" element={<CarrierSearchPage />} />
             <Route path="/carrier-profile" element={<CarrierProfilePage />} />
+            <Route path="/carrier-profile/:id" element={<CarrierProfilePage />} />
             <Route path="/carrier/:id" element={<CarrierProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/lead-marketplace" element={<LeadMarketplacePage />} />
             <Route path="/app/dashboard" element={<HtmlRedirect to="/dashboard" />} />
             <Route path="/app/lead-desk" element={<HtmlRedirect to="/lead-desk" />} />
             <Route path="/app/crm" element={<HtmlRedirect to="/crm" />} />
@@ -82,6 +92,8 @@ export default function App() {
             <Route path="/crm.html" element={<HtmlRedirect to="/crm" />} />
             <Route path="/admin.html" element={<HtmlRedirect to="/admin" />} />
             <Route path="/settings.html" element={<HtmlRedirect to="/settings" />} />
+            <Route path="/lead-marketplace.html" element={<HtmlRedirect to="/lead-marketplace" />} />
+            <Route path="/carrier-profile.html" element={<CarrierProfileRedirect />} />
           </Route>
         </Routes>
       </Suspense>

@@ -46,12 +46,14 @@ function normalizeLead(lead, type) {
     mc: pick(lead.mcNumber, lead.mc_number, lead.mc),
     state: pick(lead.state, lead.hq_state),
     city: pick(lead.city, lead.hq_city),
-    trucks: pick(lead.fleetSize, lead.powerUnits, lead.vehicle_count, lead.vehicleCount),
+    trucks: pick(lead.fleetSize, lead.powerUnits, lead.power_units, lead.vehicle_count, lead.vehicleCount),
     drivers: pick(lead.drivers, lead.driver_count, lead.driverCount),
     phone: pick(lead.phone, lead.phoneNumber, lead.cell_phone),
     email: pick(lead.email),
     rating: pick(lead.safetyRating, lead.safety_rating, "Not rated"),
     cargo: splitCargo(pick(lead.cargoHauled, lead.cargo_hauled, lead.cargo, lead.cargoTypes)),
+    mcs150Date: pick(lead.mcs150Date, lead.mcs150_date, lead.mcs_150_date),
+    addedDate: pick(lead.addDate, lead.add_date, lead.dateCreated),
     date: type === "new_dot"
       ? pick(lead.addDate, lead.add_date, lead.dateCreated)
       : pick(lead.insurance_expiration, lead.insuranceExpiration, lead.insuranceExpirationDate),
@@ -90,6 +92,15 @@ export default function LeadDeskPage() {
     return dateRange(7);
   }, [activeTab, customFrom, customTo, datePreset]);
 
+  const windowDays = useMemo(() => {
+    if (datePreset === "next_7") return 7;
+    if (datePreset === "next_60") return 60;
+    if (datePreset === "next_90") return 90;
+    if (datePreset === "last_30" || datePreset === "next_30") return 30;
+    if (datePreset === "today") return 1;
+    return 7;
+  }, [datePreset]);
+
   useEffect(() => {
     setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
   }, [activeTab]);
@@ -99,6 +110,8 @@ export default function LeadDeskPage() {
     const params = {
       from: range.from,
       to: range.to,
+      days: windowDays,
+      daysBack: windowDays,
       state: state === "Any" ? "" : state,
       limit: 100,
     };
@@ -253,7 +266,7 @@ export default function LeadDeskPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/5">
-                {["Company", "DOT / MC", "Location", "Fleet", "Rating", activeTab === "new_dot" ? "Registered" : activeTab === "renewal" ? "Expires" : "Submitted", "Actions"].map((heading) => (
+                {["Company", "DOT / MC", "Location", "Fleet", "Cargo", "MCS-150", activeTab === "new_dot" ? "Added" : activeTab === "renewal" ? "Renewal" : "Submitted", "Status", "Actions"].map((heading) => (
                   <th key={heading} className="text-left text-xs font-medium text-navy-400 uppercase px-6 py-4">{heading}</th>
                 ))}
               </tr>
@@ -277,8 +290,10 @@ export default function LeadDeskPage() {
                   <td className="px-6 py-3 text-sm text-navy-300">
                     {[lead.trucks && `${lead.trucks} trucks`, lead.drivers && `${lead.drivers} drivers`].filter(Boolean).join(", ") || "-"}
                   </td>
-                  <td className="px-6 py-3"><Badge variant={lead.rating === "Satisfactory" ? "success" : lead.rating === "Conditional" ? "warning" : "outline"}>{lead.rating}</Badge></td>
+                  <td className="px-6 py-3 text-sm text-navy-300">{lead.cargo.length ? lead.cargo.slice(0, 2).join(", ") : "Not available from public FMCSA data."}</td>
+                  <td className="px-6 py-3 text-sm text-navy-300">{lead.mcs150Date || "Not available from public FMCSA data."}</td>
                   <td className="px-6 py-3 text-sm text-navy-300">{lead.date || "-"}</td>
+                  <td className="px-6 py-3"><Badge variant={lead.rating === "Satisfactory" ? "success" : lead.rating === "Conditional" ? "warning" : "outline"}>{lead.rating}</Badge></td>
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
                       {lead.dot && <Link to={`/carrier/${lead.dot}`} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>}

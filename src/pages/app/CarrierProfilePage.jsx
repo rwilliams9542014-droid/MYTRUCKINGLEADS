@@ -35,7 +35,7 @@ function normalizeCarrier(data) {
     mc,
     name: pick(carrier.legalName, carrier.legal_name, carrier.carrierName, carrier.carrier_name, carrier.name),
     dbaName: pick(carrier.dbaName, carrier.dba_name),
-    address: addressText,
+    address: addressText || carrier.physicalAddress || carrier.mailingAddress,
     city,
     state,
     zip,
@@ -43,16 +43,19 @@ function normalizeCarrier(data) {
     email,
     entityType: pick(carrier.entityType, carrier.entity_type, carrier.carrierOperation, carrier.carrier_operation),
     operatingStatus: pick(carrier.operatingStatus, carrier.operating_status, carrier.authorityStatus, carrier.authority_status, "Unknown"),
-    safetyRating: pick(carrier.safetyRating, carrier.safety_rating, "Not rated"),
+    safetyRating: pick(carrier.safetyRating, carrier.safety_rating, carrier.safety?.safetyRating, "Not rated"),
     mcNumber: mc ? (String(mc).startsWith("MC") ? mc : `MC-${mc}`) : "",
     mcs150Date: pick(carrier.mcs150Date, carrier.mcs150_date),
     addDate: pick(carrier.addDate, carrier.add_date, carrier.dateCreated),
     trucks: pick(carrier.vehicleCount, carrier.vehicle_count, carrier.fleetSize, carrier.powerUnits),
     drivers: pick(carrier.driverCount, carrier.driver_count, carrier.drivers),
-    cargo: splitCargo(pick(carrier.cargoTypes, carrier.cargo, carrier.cargoHauled, carrier.cargo_hauled)),
-    insuranceCompany: pick(carrier.insuranceCompany, carrier.insurance_company),
-    insuranceExpiration: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration),
-    insurancePolicyNumber: pick(carrier.insurancePolicyNumber, carrier.insurance_policy_number),
+    cargo: splitCargo(pick(carrier.cargoTypes, carrier.cargo, carrier.cargoHauled, carrier.cargo_hauled, carrier.cargoCarried)),
+    insuranceCompany: pick(carrier.insuranceCompany, carrier.insurance_company, carrier.licensingInsurance?.insuranceCompany),
+    insuranceExpiration: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration, carrier.licensingInsurance?.insuranceExpirationDate),
+    insurancePolicyNumber: pick(carrier.insurancePolicyNumber, carrier.insurance_policy_number, carrier.licensingInsurance?.policyNumber),
+    insuranceFilingStatus: pick(carrier.insuranceFilingStatus, carrier.licensingInsurance?.insuranceFilingStatus),
+    totalInspections: pick(carrier.totalInspections, carrier.safety?.totalInspections),
+    crashTotal: pick(carrier.crashTotal, carrier.safety?.crashTotal),
     companyRep: pick(carrier.companyRep, carrier.companyOfficer1, carrier.company_rep),
   };
 }
@@ -61,7 +64,7 @@ function InfoItem({ label, value }) {
   return (
     <div>
       <p className="text-xs text-navy-500 uppercase tracking-wide">{label}</p>
-      <p className="text-sm text-white mt-1">{value || "N/A"}</p>
+      <p className="text-sm text-white mt-1">{value || "Not available from public FMCSA data."}</p>
     </div>
   );
 }
@@ -210,6 +213,8 @@ export default function CarrierProfilePage() {
               <InfoItem label="MCS-150 Updated" value={carrier.mcs150Date} />
               <InfoItem label="DOT Issued" value={carrier.addDate} />
               <InfoItem label="Safety Rating" value={carrier.safetyRating} />
+              <InfoItem label="Inspections" value={carrier.totalInspections} />
+              <InfoItem label="Crashes" value={carrier.crashTotal} />
             </div>
             {carrier.cargo.length > 0 && (
               <div className="mt-4 pt-4 border-t border-white/5">
@@ -237,6 +242,7 @@ export default function CarrierProfilePage() {
             <div className="space-y-3">
               <InfoItem label="Company" value={carrier.insuranceCompany} />
               <InfoItem label="Policy" value={carrier.insurancePolicyNumber} />
+              <InfoItem label="Filing Status" value={carrier.insuranceFilingStatus} />
               <InfoItem label="Expiration" value={carrier.insuranceExpiration} />
             </div>
           </Card>

@@ -1,15 +1,45 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, Button, Input, Badge } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
+
+const themeModes = [
+  { id: "dark", label: "Dark" },
+  { id: "light", label: "Light" },
+  { id: "system", label: "System" },
+];
+
+const colorSchemes = [
+  { id: "blue", label: "Blue", swatch: "bg-brand-500" },
+  { id: "slate", label: "Slate", swatch: "bg-slate-500" },
+  { id: "green", label: "Green", swatch: "bg-emerald-500" },
+];
+
+function applyTheme(mode, scheme) {
+  const resolved = mode === "system"
+    ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+    : mode;
+  document.documentElement.dataset.themeMode = resolved;
+  document.documentElement.dataset.themePreference = mode;
+  document.documentElement.dataset.colorScheme = scheme;
+}
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem("mtlDisplayMode") || "dark");
+  const [colorScheme, setColorScheme] = useState(() => localStorage.getItem("mtlColorScheme") || "blue");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    applyTheme(themeMode, colorScheme);
+    localStorage.setItem("mtlDisplayMode", themeMode);
+    localStorage.setItem("mtlColorScheme", colorScheme);
+  }, [themeMode, colorScheme]);
 
   const tabs = [
     { id: "profile", label: "Profile" },
     { id: "subscription", label: "Subscription" },
-    { id: "notifications", label: "Notifications" },
+    { id: "appearance", label: "Appearance" },
   ];
 
   return (
@@ -41,15 +71,15 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold text-white mb-6">Profile Information</h2>
           <div className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Full Name" placeholder="John Smith" defaultValue={user?.user_metadata?.full_name || ""} />
-              <Input label="Agency Name" placeholder="Your Insurance Agency" defaultValue={user?.user_metadata?.agency_name || ""} />
+              <Input label="Full Name" placeholder="John Smith" defaultValue={user?.name || ""} />
+              <Input label="Agency Name" placeholder="Your Insurance Agency" defaultValue={user?.businessName || ""} />
             </div>
             <Input label="Email" type="email" value={user?.email || ""} disabled />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Phone" type="tel" placeholder="(555) 123-4567" />
+              <Input label="Phone" type="tel" placeholder="(555) 123-4567" defaultValue={user?.phone || ""} />
               <div>
                 <label className="block text-sm font-medium text-navy-200 mb-2">Primary State</label>
-                <select className="input-field">
+                <select className="input-field" defaultValue={user?.leadState || ""}>
                   <option value="" className="bg-navy-900">Select your state</option>
                   {["TX","CA","FL","IL","OH","PA","NY","GA","NC","WA"].map((s) => (
                     <option key={s} value={s} className="bg-navy-900">{s}</option>
@@ -58,11 +88,13 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="pt-4">
-              <Button>Save Changes</Button>
+              <Button type="button" onClick={() => setMessage("Profile updates use the existing account backend when enabled.")}>Save Changes</Button>
             </div>
           </div>
         </Card>
       )}
+
+      {message && <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl p-3 text-sm text-brand-200">{message}</div>}
 
       {/* Subscription Tab */}
       {activeTab === "subscription" && (
@@ -71,17 +103,17 @@ export default function SettingsPage() {
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">Current Plan</h2>
-                <p className="text-navy-400 text-sm mt-1">You're on the Pro plan</p>
+                <p className="text-navy-400 text-sm mt-1">{user?.subscriptionStatus || user?.subscription_status || "Data unavailable."}</p>
               </div>
-              <Badge variant="brand">Pro</Badge>
+              <Badge variant="brand">{user?.plan || "Data unavailable"}</Badge>
             </div>
             <div className="mt-6 p-4 bg-navy-800/50 rounded-xl">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-white font-medium">Pro Plan - $199/month</p>
-                  <p className="text-xs text-navy-400 mt-1">Next billing date: June 25, 2026</p>
+                  <p className="text-sm text-white font-medium">{user?.plan ? `${user.plan} plan` : "Plan data unavailable."}</p>
+                  <p className="text-xs text-navy-400 mt-1">Access expires: {user?.subscription_expires_at || user?.trialEndsAt || "Data unavailable."}</p>
                 </div>
-                <Button variant="secondary" size="sm">Manage</Button>
+                <Button variant="secondary" size="sm" type="button">Manage</Button>
               </div>
             </div>
           </Card>
@@ -89,10 +121,10 @@ export default function SettingsPage() {
             <h2 className="text-lg font-semibold text-white mb-4">Usage This Period</h2>
             <div className="space-y-4">
               {[
-                { label: "Leads Accessed", used: 847, limit: "Unlimited" },
-                { label: "CSV Exports", used: 1240, limit: 5000 },
-                { label: "Hot Leads Purchased", used: 3, limit: 20 },
-                { label: "Carrier Profiles Viewed", used: 312, limit: "Unlimited" },
+                { label: "Carrier Profiles Viewed", used: user?.dailyProfileViews ?? 0, limit: "Plan based" },
+                { label: "Contact Views", used: user?.dailyContactViews ?? 0, limit: "Plan based" },
+                { label: "Saved Prospects", used: user?.dailySavedProspects ?? 0, limit: "Plan based" },
+                { label: "CSV Exports", used: user?.monthlyExportRows ?? 0, limit: user?.monthlyExportLimit ?? "Plan based" },
               ].map((item) => (
                 <div key={item.label}>
                   <div className="flex items-center justify-between mb-1.5">
@@ -113,32 +145,41 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Notifications Tab */}
-      {activeTab === "notifications" && (
+      {activeTab === "appearance" && (
         <Card>
-          <h2 className="text-lg font-semibold text-white mb-6">Notification Preferences</h2>
-          <div className="space-y-4">
-            {[
-              { label: "New DOT Alerts", desc: "Get notified when new trucking companies register in your states", default: true },
-              { label: "Renewal Reminders", desc: "Alerts when carrier policies are expiring soon", default: true },
-              { label: "Hot Lead Notifications", desc: "When truckers request quotes in your area", default: true },
-              { label: "Weekly Performance Summary", desc: "Pipeline and lead activity overview every Monday", default: false },
-              { label: "CRM Activity Reminders", desc: "Follow-up reminders for leads in your pipeline", default: true },
-            ].map((pref) => (
-              <div key={pref.label} className="flex items-start justify-between p-4 bg-navy-800/30 rounded-xl">
-                <div>
-                  <p className="text-sm font-medium text-white">{pref.label}</p>
-                  <p className="text-xs text-navy-400 mt-0.5">{pref.desc}</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-4">
-                  <input type="checkbox" defaultChecked={pref.default} className="sr-only peer" />
-                  <div className="w-10 h-5 bg-navy-700 peer-checked:bg-brand-500 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-5" />
-                </label>
+          <h2 className="text-lg font-semibold text-white mb-6">Appearance</h2>
+          <div className="space-y-6">
+            <div>
+              <p className="text-sm font-medium text-navy-200 mb-3">Display Mode</p>
+              <div className="flex flex-wrap gap-2">
+                {themeModes.map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => setThemeMode(mode.id)}
+                    className={`px-4 py-2 text-sm rounded-lg border transition-colors ${themeMode === mode.id ? "bg-brand-500/20 text-brand-200 border-brand-500/40" : "text-navy-300 border-white/10 hover:bg-white/5"}`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="mt-6">
-            <Button>Save Preferences</Button>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-navy-200 mb-3">Color Scheme</p>
+              <div className="flex flex-wrap gap-2">
+                {colorSchemes.map((scheme) => (
+                  <button
+                    key={scheme.id}
+                    type="button"
+                    onClick={() => setColorScheme(scheme.id)}
+                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg border transition-colors ${colorScheme === scheme.id ? "bg-brand-500/20 text-brand-200 border-brand-500/40" : "text-navy-300 border-white/10 hover:bg-white/5"}`}
+                  >
+                    <span className={`w-3 h-3 rounded-full ${scheme.swatch}`} />
+                    {scheme.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </Card>
       )}

@@ -1,18 +1,10 @@
-function previewApiBase() {
-  if (typeof window === "undefined") return "";
-  const host = window.location.hostname;
-  if (host.endsWith(".up.railway.app")) {
-    return "https://www.mytruckingleads.com";
-  }
-  return "";
-}
-
 const configuredBase =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  window.MY_TRUCKING_LEADS_API_BASE ||
-  previewApiBase() ||
-  "";
+  import.meta.env.DEV
+    ? (import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_API_URL ||
+      window.MY_TRUCKING_LEADS_API_BASE ||
+      "")
+    : "";
 
 export const API_BASE = String(configuredBase).replace(/\/$/, "");
 
@@ -102,7 +94,7 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload),
   }),
-  register: (payload) => requestWithFallback("/api/auth/register", "/api/auth/signup", {
+  register: (payload) => requestWithFallback("/api/auth/signup", "/api/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
   }),
@@ -128,8 +120,14 @@ export const api = {
   getCarrierProfile: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}`),
   getCarrierInsurance: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}/insurance`),
 
-  getNewDotLeads: (params) => apiRequest(`/api/leads/new?${queryString(params)}`),
-  getRenewalLeads: (params) => apiRequest(`/api/leads/renewals?${queryString(params)}`),
+  getNewDotLeads: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/leads/new${search ? `?${search}` : ""}`);
+  },
+  getRenewalLeads: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/leads/renewals${search ? `?${search}` : ""}`);
+  },
   getLeads: () => apiRequest("/api/leads"),
   updateLead: (id, updates) => apiRequest(`/api/leads/${encodeURIComponent(id)}`, {
     method: "PUT",
@@ -173,7 +171,7 @@ export const api = {
   }),
   submitQuoteRequest: (data) => apiRequest("/api/marketplace/quote-requests", {
     method: "POST",
-    body: JSON.stringify(data),
+    body: data instanceof FormData ? data : JSON.stringify(data),
   }),
 
   getMarketplaceLeads: (params) => apiRequest(`/api/marketplace/leads?${queryString(params)}`),

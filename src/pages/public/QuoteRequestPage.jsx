@@ -22,6 +22,7 @@ export default function QuoteRequestPage() {
     currentInsuranceCompany: "",
     renewalDate: "",
     message: "",
+    documents: [],
   });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -36,7 +37,8 @@ export default function QuoteRequestPage() {
     setError("");
     setLoading(true);
     try {
-      await api.submitQuoteRequest({
+      const payload = new FormData();
+      Object.entries({
         companyName: form.companyName,
         dotNumber: form.dotNumber || "",
         contactName: form.contactName,
@@ -52,7 +54,9 @@ export default function QuoteRequestPage() {
         renewalDate: form.renewalDate,
         coverageNeededWithin: "30 days",
         additionalComments: form.message || "",
-      });
+      }).forEach(([key, value]) => payload.append(key, value));
+      form.documents.forEach((file) => payload.append("documents", file));
+      await api.submitQuoteRequest(payload);
       setSubmitted(true);
     } catch (err) {
       setError(err.message || "Failed to submit. Please try again.");
@@ -212,6 +216,17 @@ export default function QuoteRequestPage() {
               placeholder="Any specific coverage needs, current carrier info, or questions..."
               value={form.message}
               onChange={(e) => updateField("message", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-navy-200 mb-2">Documents (optional)</label>
+            <input
+              type="file"
+              multiple
+              className="input-field"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+              onChange={(e) => updateField("documents", Array.from(e.target.files || []))}
             />
           </div>
 

@@ -97,10 +97,10 @@ export default function DashboardPage() {
   }, []);
 
   const metrics = [
-    { label: "New DOT Leads", value: summary?.newDotLeads?.value ?? 0, change: summary?.newDotLeads?.change ?? "+0%" },
-    { label: "Renewal Opportunities", value: summary?.renewalOpportunities?.value ?? 0, change: summary?.renewalOpportunities?.change ?? "+0%" },
-    { label: "Active Leads", value: summary?.activeLeads?.value ?? 0, change: summary?.activeLeads?.change ?? "+0%" },
-    { label: "Converted This Month", value: summary?.convertedThisMonth?.value ?? 0, change: summary?.convertedThisMonth?.change ?? "+0%" },
+    { label: "New DOT Leads", value: summary?.newDotLeads?.value, change: summary?.newDotLeads?.change },
+    { label: "Renewal Opportunities", value: summary?.renewalOpportunities?.value, change: summary?.renewalOpportunities?.change },
+    { label: "Active Leads", value: summary?.activeLeads?.value, change: summary?.activeLeads?.change },
+    { label: "Converted This Month", value: summary?.convertedThisMonth?.value, change: summary?.convertedThisMonth?.change },
   ].map((metric, index) => ({ ...metric, value: String(metric.value), icon: metricIcons[index]?.icon }));
 
   const recentLeads = (summary?.recentLeads || []).map((lead, index) => ({
@@ -114,11 +114,11 @@ export default function DashboardPage() {
 
   const rawPipeline = summary?.pipeline || {};
   const pipelineStages = [
-    { label: "New", count: rawPipeline.newLeads || 0, color: "bg-brand-500" },
-    { label: "Contacted", count: rawPipeline.contacted || 0, color: "bg-warning-500" },
-    { label: "Quoted", count: rawPipeline.quoted || 0, color: "bg-accent-500" },
-    { label: "Follow Up", count: rawPipeline.proposalSent || 0, color: "bg-brand-300" },
-    { label: "Won", count: rawPipeline.won || 0, color: "bg-accent-600" },
+    { label: "New", count: rawPipeline.newLeads ?? 0, color: "bg-brand-500" },
+    { label: "Contacted", count: rawPipeline.contacted ?? 0, color: "bg-warning-500" },
+    { label: "Quoted", count: rawPipeline.quoted ?? 0, color: "bg-accent-500" },
+    { label: "Follow Up", count: rawPipeline.proposalSent ?? 0, color: "bg-brand-300" },
+    { label: "Won", count: rawPipeline.won ?? 0, color: "bg-accent-600" },
   ];
   const maxPipeline = Math.max(...pipelineStages.map((stage) => stage.count), 1);
 
@@ -153,7 +153,7 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-navy-400">{m.label}</p>
-                <p className="text-2xl font-bold text-white mt-1">{loading ? "..." : <AnimatedNumber value={m.value} />}</p>
+                <p className="text-2xl font-bold text-white mt-1">{loading ? "..." : m.value === "undefined" ? "Data unavailable." : <AnimatedNumber value={m.value} />}</p>
               </div>
               <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center text-brand-400 group-hover:bg-brand-500/20 transition-colors">
                 {m.icon}
@@ -163,8 +163,8 @@ export default function DashboardPage() {
               <svg className="w-3 h-3 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
               </svg>
-              <span className="text-xs text-accent-400 font-medium">{m.change}</span>
-              <span className="text-xs text-navy-500 ml-1">vs last week</span>
+              <span className="text-xs text-accent-400 font-medium">{m.change || "Data unavailable."}</span>
+              {m.change && <span className="text-xs text-navy-500 ml-1">vs last week</span>}
             </div>
           </Card>
         ))}

@@ -38,11 +38,13 @@ export function PublicLayout() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/95 to-blue-50/90 p-1.5 shadow-lg shadow-brand-500/10 group-hover:scale-105 transition-transform">
+          <Link to="/" className="brand-lockup group">
+            <div className="brand-mark-shell w-10 h-10 group-hover:scale-105 transition-transform">
               <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
             </div>
-            <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-9 object-contain hidden sm:block" style={{ filter: "brightness(1.6) saturate(1.2)" }} />
+            <span className="brand-wordmark-shell hidden sm:flex">
+              <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="brand-wordmark h-8" />
+            </span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -109,10 +111,12 @@ export function PublicLayout() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-white/95 to-blue-50/90 p-1.5 shadow-md">
+                <div className="brand-mark-shell w-9 h-9 rounded-lg">
                   <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
                 </div>
-                <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="h-7 object-contain" style={{ filter: "brightness(1.6) saturate(1.2)" }} />
+                <span className="brand-wordmark-shell">
+                  <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="brand-wordmark h-6" />
+                </span>
               </div>
               <p className="text-sm text-navy-400 leading-relaxed">
                 The #1 platform for commercial insurance agents to find and close trucking leads.

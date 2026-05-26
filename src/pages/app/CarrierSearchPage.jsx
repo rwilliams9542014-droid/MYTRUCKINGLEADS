@@ -1,15 +1,11 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button, Card, Badge } from "@/components/ui";
 import { api } from "@/lib/api";
 
-const easterEggResults = [
-  { dot_number: "0000001", legal_name: "Jerry Maguire Trucking Inc", city: "Los Angeles", state: "CA", vehicle_count: 1, driver_count: 1, operating_status: "AUTHORIZED", safety_rating: "Legendary" },
-  { dot_number: "7777777", legal_name: "Show Me The Money Express LLC", city: "Jackpot", state: "NV", vehicle_count: 777, driver_count: 777, operating_status: "AUTHORIZED", safety_rating: "Satisfactory" },
-  { dot_number: "1000000", legal_name: "Million Dollar Freight Co", city: "Richville", state: "TX", vehicle_count: 100, driver_count: 200, operating_status: "AUTHORIZED", safety_rating: "Satisfactory" },
-];
-
 export default function CarrierSearchPage() {
+  const location = useLocation();
+  const isDotAnalytics = location.pathname.includes("dot-analytics");
   const [query, setQuery] = useState("");
   const [searchType, setSearchType] = useState("name");
   const [results, setResults] = useState(null);
@@ -19,11 +15,6 @@ export default function CarrierSearchPage() {
   async function handleSearch(e) {
     e.preventDefault();
     if (!query.trim()) return;
-
-    if (query.toLowerCase().replace(/\s/g, "") === "showmethemoney") {
-      setResults(easterEggResults);
-      return;
-    }
 
     setLoading(true);
     setError("");
@@ -46,8 +37,8 @@ export default function CarrierSearchPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-white">Carrier Search</h1>
-        <p className="text-navy-400 text-sm mt-1">Look up any carrier using the FMCSA database (live data)</p>
+        <h1 className="text-2xl font-bold text-white">{isDotAnalytics ? "DOT Analytics" : "Carrier Search"}</h1>
+        <p className="text-navy-400 text-sm mt-1">Look up carriers using the existing FMCSA backend data.</p>
       </div>
 
       {/* Search Form */}

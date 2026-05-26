@@ -65,6 +65,7 @@ export default function AdminPage() {
     { label: "Needs Attention", value: metrics.attention_subscriptions ?? 0, sub: `${metrics.expiring_soon ?? 0} expiring soon` },
     { label: "New Quote Requests", value: metrics.new_contact_requests ?? 0, sub: `${metrics.open_contact_requests ?? 0} open` },
   ];
+  const hasOverview = Boolean(overview?.metrics);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -108,8 +109,8 @@ export default function AdminPage() {
             {overviewCards.map((card) => (
               <Card key={card.label}>
                 <p className="text-sm text-navy-400">{card.label}</p>
-                <p className="text-2xl font-bold text-white mt-1">{card.value}</p>
-                <p className="text-xs text-navy-500 mt-1">{card.sub}</p>
+                <p className="text-2xl font-bold text-white mt-1">{hasOverview ? card.value : "Data unavailable."}</p>
+                <p className="text-xs text-navy-500 mt-1">{hasOverview ? card.sub : "No records found."}</p>
               </Card>
             ))}
           </div>
