@@ -221,104 +221,43 @@ if (publicLeadRoutesEnabled) {
 }
 app.use("/leads", leadRoutes);
 
-// Allow backend-served pages to reuse the shared root assets bundle when present.
-app.use("/assets", express.static(publicAssetsDir));
-app.use("/assets", express.static(sharedAssetsDir));
-app.use(express.static(publicDir));
-
-function sendPublicPage(pageName) {
-  return (req, res) => {
-    res.sendFile(join(publicDir, pageName));
-  };
-}
-
-app.get("/", (req, res) => {
-  res.sendFile(join(publicDir, "index.html"));
-});
-
-app.get("/login", sendPublicPage("login.html"));
-app.get("/login.html", sendPublicPage("login.html"));
-app.get("/signup", sendPublicPage("signup.html"));
-app.get("/signup.html", sendPublicPage("signup.html"));
-app.get("/pricing", sendPublicPage("pricing.html"));
-app.get("/pricing.html", sendPublicPage("pricing.html"));
-app.get("/reports", sendPublicPage("reports.html"));
-app.get("/reports.html", sendPublicPage("reports.html"));
-app.get("/settings", sendPublicPage("settings.html"));
-app.get("/settings.html", sendPublicPage("settings.html"));
-app.get("/dot-analytics", sendPublicPage("dot-analytics.html"));
-app.get("/dot-analytics.html", sendPublicPage("dot-analytics.html"));
-app.get("/insurance-expiration", sendPublicPage("insurance-expiration.html"));
-app.get("/insurance-expiration.html", sendPublicPage("insurance-expiration.html"));
-app.get("/app-dashboard", sendPublicPage("app-dashboard.html"));
-app.get("/app-dashboard.html", sendPublicPage("app-dashboard.html"));
-app.get("/compliance", sendPublicPage("compliance.html"));
-app.get("/compliance.html", sendPublicPage("compliance.html"));
-app.get("/privacy", sendPublicPage("privacy.html"));
-app.get("/privacy.html", sendPublicPage("privacy.html"));
-app.get("/terms", sendPublicPage("terms.html"));
-app.get("/terms.html", sendPublicPage("terms.html"));
-app.get("/new-dot-leads", sendPublicPage("new-dot-leads.html"));
-app.get("/new-dot-leads.html", sendPublicPage("new-dot-leads.html"));
-app.get("/trucking-renewal-leads", sendPublicPage("trucking-renewal-leads.html"));
-app.get("/trucking-renewal-leads.html", sendPublicPage("trucking-renewal-leads.html"));
-app.get("/commercial-trucking-insurance-leads", sendPublicPage("commercial-trucking-insurance-leads.html"));
-app.get("/commercial-trucking-insurance-leads.html", sendPublicPage("commercial-trucking-insurance-leads.html"));
-app.get("/trucking-crm-platform", sendPublicPage("trucking-crm-platform.html"));
-app.get("/trucking-crm-platform.html", sendPublicPage("trucking-crm-platform.html"));
-app.get("/fmcsa-carrier-search", sendPublicPage("fmcsa-carrier-search.html"));
-app.get("/fmcsa-carrier-search.html", sendPublicPage("fmcsa-carrier-search.html"));
-app.get("/otrucking-test-panel.html", sendPublicPage("otrucking-test-panel.html"));
-app.get("/quote-request", sendPublicPage("quote-request.html"));
-app.get("/quote-request.html", sendPublicPage("quote-request.html"));
-
-// User dashboard - main page after login
-app.get("/dashboard", requireAuth, (req, res) => {
-  res.sendFile(join(publicDir, "user-dashboard.html"));
-});
-
-app.get("/lead-desk", requireAuth, (req, res) => {
-  res.sendFile(join(publicDir, "lead-desk.html"));
-});
-
-app.get("/crm", requireAuth, (req, res) => {
-  res.sendFile(join(publicDir, "crm.html"));
-});
-
-app.get("/lead-marketplace", requireAuth, (req, res) => {
-  res.sendFile(join(publicDir, "lead-marketplace.html"));
-});
-
-app.get("/lead-marketplace.html", requireAuth, (req, res) => {
-  res.sendFile(join(publicDir, "lead-marketplace.html"));
-});
-
-app.get("/admin", requireAuth, ownerRequired, (req, res) => {
-  res.sendFile(join(publicDir, "admin.html"));
-});
-
-app.get("/admin.html", requireAuth, ownerRequired, (req, res) => {
-  res.sendFile(join(publicDir, "admin.html"));
-});
-
-app.get("/admin-leads", requireAuth, ownerRequired, (req, res) => {
-  res.sendFile(join(publicDir, "admin-leads.html"));
-});
-
-app.get("/admin-leads.html", requireAuth, ownerRequired, (req, res) => {
-  res.sendFile(join(publicDir, "admin-leads.html"));
-});
-
-app.get("/carrier-profile", (req, res) => {
-  res.sendFile(join(publicDir, "carrier-profile.html"));
-});
-
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// 404 handler
+function sendReactApp(req, res) {
+  res.sendFile(join(publicDir, "index.html"));
+}
+
+const reactCompatibilityRoutes = [
+  "/login.html",
+  "/signup.html",
+  "/user-dashboard.html",
+  "/lead-desk.html",
+  "/dot-analytics.html",
+  "/crm.html",
+  "/admin.html",
+  "/settings.html",
+  "/quote-request.html",
+  "/lead-marketplace.html",
+  "/carrier-profile.html"
+];
+
+app.get(reactCompatibilityRoutes, sendReactApp);
+
+// Allow backend-served pages to reuse the shared root assets bundle when present.
+app.use("/assets", express.static(publicAssetsDir));
+app.use("/assets", express.static(sharedAssetsDir));
+app.use(express.static(publicDir));
+
+app.use("/api", (req, res) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
+
+app.get("*", sendReactApp);
+
+// 404 handler for non-GET requests that were not handled above.
 app.use((req, res) => {
   res.status(404).json({ error: "Endpoint not found" });
 });
