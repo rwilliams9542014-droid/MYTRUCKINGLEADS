@@ -49,7 +49,6 @@ app.set("trust proxy", 1);
 const PORT = process.env.PORT || 4000;
 const publicDir = join(__dirname, "public");
 const publicAssetsDir = join(publicDir, "assets");
-const reactIndexPath = join(publicDir, "react-index.html");
 const sharedAssetsDir = join(__dirname, "..", "assets");
 const publicCarrierRoutesEnabled =
   process.env.NODE_ENV !== "production" || process.env.PUBLIC_CARRIER_LOOKUP_ENABLED === "true";
@@ -223,6 +222,7 @@ app.use("/leads", leadRoutes);
 // Allow backend-served pages to reuse the shared root assets bundle when present.
 app.use("/assets", express.static(publicAssetsDir));
 app.use("/assets", express.static(sharedAssetsDir));
+app.use(express.static(publicDir));
 
 function sendPublicPage(pageName) {
   return (req, res) => {
@@ -230,33 +230,32 @@ function sendPublicPage(pageName) {
   };
 }
 
-function sendReactApp(req, res) {
-  res.sendFile(reactIndexPath);
-}
+app.get("/", (req, res) => {
+  res.sendFile(join(publicDir, "index.html"));
+});
 
-app.get("/", sendReactApp);
-app.get("/login", sendReactApp);
-app.get("/login.html", sendReactApp);
-app.get("/signup", sendReactApp);
-app.get("/signup.html", sendReactApp);
-app.get("/pricing", sendReactApp);
-app.get("/pricing.html", sendReactApp);
+app.get("/login", sendPublicPage("login.html"));
+app.get("/login.html", sendPublicPage("login.html"));
+app.get("/signup", sendPublicPage("signup.html"));
+app.get("/signup.html", sendPublicPage("signup.html"));
+app.get("/pricing", sendPublicPage("pricing.html"));
+app.get("/pricing.html", sendPublicPage("pricing.html"));
 app.get("/reports", sendPublicPage("reports.html"));
 app.get("/reports.html", sendPublicPage("reports.html"));
-app.get("/settings", sendReactApp);
-app.get("/settings.html", sendReactApp);
-app.get("/dot-analytics", sendReactApp);
-app.get("/dot-analytics.html", sendReactApp);
+app.get("/settings", sendPublicPage("settings.html"));
+app.get("/settings.html", sendPublicPage("settings.html"));
+app.get("/dot-analytics", sendPublicPage("dot-analytics.html"));
+app.get("/dot-analytics.html", sendPublicPage("dot-analytics.html"));
 app.get("/insurance-expiration", sendPublicPage("insurance-expiration.html"));
 app.get("/insurance-expiration.html", sendPublicPage("insurance-expiration.html"));
-app.get("/app-dashboard", sendReactApp);
-app.get("/app-dashboard.html", sendReactApp);
+app.get("/app-dashboard", sendPublicPage("app-dashboard.html"));
+app.get("/app-dashboard.html", sendPublicPage("app-dashboard.html"));
 app.get("/compliance", sendPublicPage("compliance.html"));
 app.get("/compliance.html", sendPublicPage("compliance.html"));
-app.get("/privacy", sendReactApp);
-app.get("/privacy.html", sendReactApp);
-app.get("/terms", sendReactApp);
-app.get("/terms.html", sendReactApp);
+app.get("/privacy", sendPublicPage("privacy.html"));
+app.get("/privacy.html", sendPublicPage("privacy.html"));
+app.get("/terms", sendPublicPage("terms.html"));
+app.get("/terms.html", sendPublicPage("terms.html"));
 app.get("/new-dot-leads", sendPublicPage("new-dot-leads.html"));
 app.get("/new-dot-leads.html", sendPublicPage("new-dot-leads.html"));
 app.get("/trucking-renewal-leads", sendPublicPage("trucking-renewal-leads.html"));
@@ -268,26 +267,21 @@ app.get("/trucking-crm-platform.html", sendPublicPage("trucking-crm-platform.htm
 app.get("/fmcsa-carrier-search", sendPublicPage("fmcsa-carrier-search.html"));
 app.get("/fmcsa-carrier-search.html", sendPublicPage("fmcsa-carrier-search.html"));
 app.get("/otrucking-test-panel.html", sendPublicPage("otrucking-test-panel.html"));
-app.get("/quote-request", sendReactApp);
-app.get("/quote-request.html", sendReactApp);
+app.get("/quote-request", sendPublicPage("quote-request.html"));
+app.get("/quote-request.html", sendPublicPage("quote-request.html"));
 
 // User dashboard - main page after login
-app.get("/dashboard", sendReactApp);
-app.get("/user-dashboard.html", sendReactApp);
-app.get("/lead-desk", sendReactApp);
-app.get("/lead-desk.html", sendReactApp);
-app.get("/crm", sendReactApp);
-app.get("/crm.html", sendReactApp);
-app.get("/carrier-search", sendReactApp);
-app.get("/carrier-profile", sendReactApp);
-app.get("/carrier/:dotNumber", sendReactApp);
-app.get("/app/dashboard", sendReactApp);
-app.get("/app/lead-desk", sendReactApp);
-app.get("/app/crm", sendReactApp);
-app.get("/app/carrier-search", sendReactApp);
-app.get("/app/carrier/:dotNumber", sendReactApp);
-app.get("/app/settings", sendReactApp);
-app.get("/app/admin", sendReactApp);
+app.get("/dashboard", requireAuth, (req, res) => {
+  res.sendFile(join(publicDir, "user-dashboard.html"));
+});
+
+app.get("/lead-desk", requireAuth, (req, res) => {
+  res.sendFile(join(publicDir, "lead-desk.html"));
+});
+
+app.get("/crm", requireAuth, (req, res) => {
+  res.sendFile(join(publicDir, "crm.html"));
+});
 
 app.get("/lead-marketplace", requireAuth, (req, res) => {
   res.sendFile(join(publicDir, "lead-marketplace.html"));
@@ -297,8 +291,13 @@ app.get("/lead-marketplace.html", requireAuth, (req, res) => {
   res.sendFile(join(publicDir, "lead-marketplace.html"));
 });
 
-app.get("/admin", sendReactApp);
-app.get("/admin.html", sendReactApp);
+app.get("/admin", requireAuth, ownerRequired, (req, res) => {
+  res.sendFile(join(publicDir, "admin.html"));
+});
+
+app.get("/admin.html", requireAuth, ownerRequired, (req, res) => {
+  res.sendFile(join(publicDir, "admin.html"));
+});
 
 app.get("/admin-leads", requireAuth, ownerRequired, (req, res) => {
   res.sendFile(join(publicDir, "admin-leads.html"));
@@ -308,18 +307,14 @@ app.get("/admin-leads.html", requireAuth, ownerRequired, (req, res) => {
   res.sendFile(join(publicDir, "admin-leads.html"));
 });
 
-app.use(express.static(publicDir, { index: false }));
+app.get("/carrier-profile", (req, res) => {
+  res.sendFile(join(publicDir, "carrier-profile.html"));
+});
 
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
-
-app.use("/api", (req, res) => {
-  res.status(404).json({ error: "Endpoint not found" });
-});
-
-app.get("*", sendReactApp);
 
 // 404 handler
 app.use((req, res) => {
