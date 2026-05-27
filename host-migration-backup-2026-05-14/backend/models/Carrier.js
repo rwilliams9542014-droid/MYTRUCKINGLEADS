@@ -50,6 +50,8 @@ const carrierSchema = new mongoose.Schema(
     lastInsuranceEnrichedAt: { type: Date, default: null },
     lastFullEnrichedAt: { type: Date, index: true, default: null },
     dateCreated: { type: Date, index: true, default: null },
+    firstSeenAt: { type: Date, index: true, default: null },
+    firstImportedAt: { type: Date, index: true, default: null },
     lastUpdated: { type: Date, index: true, default: Date.now },
     isNewLead: { type: Boolean, index: true, default: true },
     newLeadSince: { type: Date, index: true, default: Date.now },
@@ -69,6 +71,8 @@ carrierSchema.index({ insuranceExpirationDate: 1, fleetSize: -1 });
 carrierSchema.index({ insuranceExpirationDate: 1, lastFullEnrichedAt: 1 });
 carrierSchema.index({ fleetSize: -1, insuranceExpirationDate: 1 });
 carrierSchema.index({ isNewLead: 1, newLeadSince: -1 });
+carrierSchema.index({ firstSeenAt: -1, "address.state": 1 });
+carrierSchema.index({ firstImportedAt: -1, "address.state": 1 });
 carrierSchema.index({ isNewLead: 1, lastFullEnrichedAt: 1 });
 carrierSchema.index({ "raw.census.add_date": -1 });
 carrierSchema.index({ "raw.census.add_date": -1, "address.state": 1, fleetSize: -1 });

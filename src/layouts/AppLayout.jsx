@@ -86,18 +86,32 @@ export function AppLayout() {
           collapsed ? "w-20" : "w-64"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
-        <div className={`p-4 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-          <div
-            className="brand-mark-shell w-10 h-10 flex-shrink-0"
-          >
-            <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
-          </div>
-          {!collapsed && (
-            <span className="brand-wordmark-shell">
-              <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="brand-wordmark h-6" />
-            </span>
-          )}
-        </div>
+<div className="p-4 flex items-center justify-center">
+  <Link
+    to="/dashboard"
+    className={`flex w-full items-center justify-center ${
+      collapsed ? "" : "gap-3"
+    }`}
+  >
+    <div className="brand-mark-shell w-10 h-10 flex-shrink-0">
+      <img
+        src="/assets/LOGO_BADGE-removebg-preview.png"
+        alt="MTL"
+        className="w-full h-full object-contain"
+      />
+    </div>
+
+    {!collapsed && (
+      <span className="brand-wordmark-shell flex items-center justify-center">
+        <img
+          src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png"
+          alt="MyTruckingLeads"
+          className="brand-wordmark h-8 w-auto max-w-[155px] object-contain drop-shadow-[0_0_18px_rgba(56,189,248,0.35)]"
+        />
+      </span>
+    )}
+  </Link>
+</div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
           {navItems.map((item) => {
