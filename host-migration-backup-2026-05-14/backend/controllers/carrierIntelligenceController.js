@@ -20,7 +20,7 @@ import {
 } from "../utils/trialAccess.js";
 
 const PUBLIC_CONTACT_LOCK_MESSAGE = "Create an account to reveal carrier phone and email.";
-const LIVE_FMCSA_FALLBACK_MESSAGE = "Live FMCSA data is temporarily unavailable. Showing saved carrier data where available.";
+const LIVE_FMCSA_FALLBACK_MESSAGE = "Showing saved carrier data while the live FMCSA refresh retries.";
 const SAVED_PROFILE_REFRESH_MESSAGE = "Saved carrier profile loaded. Live FMCSA refresh is temporarily unavailable.";
 
 function clean(value, fallback = "") {
