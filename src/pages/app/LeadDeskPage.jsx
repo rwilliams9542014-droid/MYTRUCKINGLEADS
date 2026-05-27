@@ -58,6 +58,7 @@ export default function LeadDeskPage() {
   const [safetyDetails, setSafetyDetails] = useState({});
   const [hasSearched, setHasSearched] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
+  const [leadSourceMeta, setLeadSourceMeta] = useState(null);
   const [composer, setComposer] = useState(null);
 
   const range = useMemo(() => {
@@ -72,6 +73,7 @@ export default function LeadDeskPage() {
       const today = formatDate(new Date());
       return { from: today, to: today };
     }
+    if (datePreset === "last_14") return dateRange(14);
     if (datePreset === "last_30") return dateRange(30);
     return dateRange(7);
   }, [activeTab, customFrom, customTo, datePreset]);
@@ -80,6 +82,7 @@ export default function LeadDeskPage() {
     if (datePreset === "next_7") return 7;
     if (datePreset === "next_60") return 60;
     if (datePreset === "next_90") return 90;
+    if (datePreset === "last_14") return 14;
     if (datePreset === "last_30" || datePreset === "next_30") return 30;
     if (datePreset === "today") return 1;
     return 7;
@@ -107,6 +110,7 @@ export default function LeadDeskPage() {
     setExpandedDot("");
     setHasSearched(false);
     setLastUpdated("");
+    setLeadSourceMeta(null);
   }, [activeTab]);
 
   async function runSearch(event) {
@@ -151,9 +155,16 @@ export default function LeadDeskPage() {
       setLeads(rows.map((lead) => normalizeLead(lead, activeTab)));
       setHasSearched(true);
       setLastUpdated(new Date().toLocaleString());
+      setLeadSourceMeta({
+        source: data?.dataSource || data?.source || "",
+        lastImportTime: data?.lastImportTime || "",
+        importedCarrierCount: data?.importedCarrierCount,
+        message: data?.message || ""
+      });
     } catch (err) {
       setHasSearched(true);
       setLeads([]);
+      setLeadSourceMeta(null);
       setError(err.message || "Leads could not be loaded.");
     } finally {
       setLoading(false);
@@ -347,6 +358,14 @@ export default function LeadDeskPage() {
         </div>
         {lastUpdated && <p className="text-xs text-navy-500">Last updated {lastUpdated}</p>}
       </div>
+      {activeTab === "new_dot" && leadSourceMeta && (
+        <div className="rounded-xl border border-white/[0.06] bg-navy-900/35 p-3 text-xs text-navy-300">
+          <span className="font-semibold text-white">Data source:</span> {leadSourceMeta.source || "FMCSA Open Data / Database"}
+          {leadSourceMeta.lastImportTime && <span> · Last import {new Date(leadSourceMeta.lastImportTime).toLocaleString()}</span>}
+          {leadSourceMeta.importedCarrierCount !== undefined && <span> · Imported carriers {leadSourceMeta.importedCarrierCount}</span>}
+          {leadSourceMeta.message && <span> · {leadSourceMeta.message}</span>}
+        </div>
+      )}
 
       <div className="flex gap-1 border-b border-white/5">
         {tabs.map((tab) => (
@@ -393,6 +412,7 @@ export default function LeadDeskPage() {
                   <>
                     <option value="today" className="bg-navy-900">Today</option>
                     <option value="last_7" className="bg-navy-900">Last 7 Days</option>
+                    <option value="last_14" className="bg-navy-900">Last 14 Days</option>
                     <option value="last_30" className="bg-navy-900">Last 30 Days</option>
                   </>
                 )}

@@ -201,6 +201,8 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
       source: smsSafety.source || saferData.source || ""
     },
     dateCreated: plain.dateCreated,
+    firstSeenAt: plain.firstSeenAt,
+    firstImportedAt: plain.firstImportedAt,
     isNewLead: plain.isNewLead,
     newLeadSince: plain.newLeadSince,
     lastUpdated: plain.lastUpdated,
@@ -270,7 +272,9 @@ function carrierToNewVentureLead(carrier) {
     dotNumber: apiCarrier.dotNumber,
     mcNumber: apiCarrier.docketNumber || "",
     carrierName: apiCarrier.carrierName,
-    addDate: formatCensusDate(census.add_date || plain.dateCreated || plain.newLeadSince),
+    addDate: formatCensusDate(plain.firstSeenAt || plain.firstImportedAt || plain.newLeadSince || plain.dateCreated),
+    firstSeenAt: formatCensusDate(plain.firstSeenAt || plain.firstImportedAt || plain.newLeadSince),
+    firstImportedAt: formatCensusDate(plain.firstImportedAt || plain.firstSeenAt || plain.newLeadSince),
     mcs150Date: apiCarrier.mcs150Date || formatCensusDate(census.mcs150_date),
     mcs150_date: apiCarrier.mcs150Date || formatCensusDate(census.mcs150_date),
     mcs150Mileage: apiCarrier.mcs150Mileage || census.mcs150_mileage || census.mileage || "",
@@ -455,6 +459,7 @@ function postgresCarrierSelect() {
     c.authority_status,
     c.safety_data,
     c.contact_enrichment_data,
+    c.created_at,
     c.last_updated
   FROM carriers c
   LEFT JOIN enriched_carrier_data e ON e.carrier_id = c.id`;
@@ -670,6 +675,9 @@ function postgresCarrierToApi(row = {}) {
     totalViolations: safetyData.totalViolations || "",
     oosViolations: safetyData.oosViolations || "",
     safety: safetyData,
+    firstSeenAt: pgDate(row.created_at),
+    firstImportedAt: pgDate(row.created_at),
+    newLeadSince: pgDate(row.created_at),
     lastUpdated: pgDate(row.last_updated),
     source: "Postgres carrier database"
   };
@@ -707,6 +715,9 @@ function postgresCarrierToProspectLead(row = {}) {
     phone: apiCarrier.phone,
     website: apiCarrier.website,
     last_updated: apiCarrier.lastUpdated,
+    addDate: apiCarrier.firstSeenAt || apiCarrier.firstImportedAt || apiCarrier.newLeadSince || "",
+    firstSeenAt: apiCarrier.firstSeenAt || "",
+    firstImportedAt: apiCarrier.firstImportedAt || "",
     cargo_hauled: apiCarrier.cargo || "Not listed",
     cargoHauled: apiCarrier.cargo || "Not listed"
   };
@@ -1090,6 +1101,77 @@ async function getFmcsaNewCarrierLeads(req, res) {
   });
 }
 
+async function getPostgresNewCarrierLeads(req, res) {
+  if (!(await enforceLeadPlanState(req, res, "new"))) return;
+
+  const days = Math.min(Math.max(parseInteger(req.query.days || req.query.daysBack, 30), 1), 3650);
+  const page = Math.max(parseInteger(req.query.page, 1), 1);
+  const limit = Math.min(Math.max(parseInteger(req.query.limit, 100), 1), 5000);
+  const to = dateOrNull(req.query.to || req.query.endDate) || addDays(0);
+  const from = dateOrNull(req.query.from || req.query.startDate) || addDays(-days);
+  const { whereSql, values } = buildPostgresCarrierQuery(req.query, { includeInsuranceDates: false });
+  const where = whereSql ? [whereSql.replace(/^WHERE\s+/i, "")] : [];
+  values.push(from);
+  where.push(`c.created_at >= $${values.length}`);
+  values.push(to);
+  where.push(`c.created_at <= $${values.length}`);
+  values.push(limit + 1);
+  const limitParam = `$${values.length}`;
+  values.push((page - 1) * limit);
+  const offsetParam = `$${values.length}`;
+
+  const [rowsResult, importSummary] = await Promise.all([
+    dbQuery(
+      `${postgresCarrierSelect()}
+       WHERE ${where.join(" AND ")}
+       ORDER BY c.created_at DESC, c.vehicle_count DESC NULLS LAST
+       LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      values
+    ),
+    dbQuery(
+      `SELECT COUNT(*)::int AS total_imported, MAX(created_at) AS last_import_time
+       FROM carriers`
+    ).catch(() => ({ rows: [] }))
+  ]);
+
+  const rowsPlusOne = rowsResult.rows;
+  const hasMore = rowsPlusOne.length > limit;
+  const rows = hasMore ? rowsPlusOne.slice(0, limit) : rowsPlusOne;
+  const trialAccess = trialAccessForRequest(req, res);
+  const rawLeads = await enrichLeadRowsForResponse(rows.map(postgresCarrierToProspectLead), {
+    mode: "new",
+    missingOnly: true
+  });
+  const leads = maskTrialResults(rawLeads, trialAccess);
+  const carriers = maskTrialResults(rows.map(postgresCarrierToApi), trialAccess);
+  const totalImported = Number(importSummary.rows[0]?.total_imported || 0);
+  const lastImportTime = importSummary.rows[0]?.last_import_time || null;
+  const message = rows.length
+    ? "Showing New DOT leads from imported FMCSA Open Data in the database."
+    : totalImported === 0
+      ? "No new DOT import has run yet."
+      : "No new DOT carriers were imported in the selected date window.";
+
+  res.json({
+    total: rows.length,
+    page,
+    limit,
+    hasMore,
+    days,
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+    source: "database",
+    dataSource: "FMCSA Open Data / Database",
+    lastImportTime: lastImportTime ? new Date(lastImportTime).toISOString() : null,
+    importedCarrierCount: totalImported,
+    message: buildTrialLeadMessage(message, trialAccess),
+    carriers,
+    leads,
+    access: getPlanAccessSummary(req.user),
+    trialAccess
+  });
+}
+
 async function enforceLeadPlanState(req, res, leadType) {
   if (!requirePaidPlan(req, res)) return false;
 
@@ -1321,7 +1403,7 @@ export async function getRenewalLeads(req, res) {
 export async function getNewCarrierLeads(req, res) {
   try {
     if (!isMongoConnected()) {
-      return getFmcsaNewCarrierLeads(req, res);
+      return getPostgresNewCarrierLeads(req, res);
     }
     if (!(await enforceLeadPlanState(req, res, "new"))) return;
 
@@ -1330,25 +1412,29 @@ export async function getNewCarrierLeads(req, res) {
     const limit = Math.min(Math.max(parseInteger(req.query.limit, 100), 1), 5000);
     const to = dateOrNull(req.query.to || req.query.endDate) || addDays(0);
     const from = dateOrNull(req.query.from || req.query.startDate) || addDays(-days);
-    const compactFrom = compactDate(from);
-    const compactTo = compactDate(to);
     const filter = {
       ...buildCarrierQuery(req.query, { includeInsuranceDates: false })
     };
     const operation = String(req.query.operation || "").trim();
-    const requestedSort = String(req.query.sort || "raw.census.add_date").trim();
+    const requestedSort = String(req.query.sort || "firstSeenAt").trim();
     const direction = sortDirection(req.query.order, -1);
     const sort = requestedSort === "fleetSize"
-      ? { fleetSize: -1, "raw.census.add_date": -1, legalName: 1 }
-      : { "raw.census.add_date": direction, newLeadSince: -1, fleetSize: -1 };
+      ? { fleetSize: -1, firstSeenAt: -1, firstImportedAt: -1, newLeadSince: -1, legalName: 1 }
+      : { firstSeenAt: direction, firstImportedAt: direction, newLeadSince: direction, fleetSize: -1 };
 
     if (operation) filter["raw.census.carrier_operation"] = operation;
-    if (compactFrom || compactTo) {
-      filter["raw.census.add_date"] = {};
-      if (compactFrom) filter["raw.census.add_date"].$gte = compactFrom;
-      if (compactTo) filter["raw.census.add_date"].$lte = `${compactTo}9999`;
+    const importDateFilter = {
+      $or: [
+      { firstSeenAt: { $gte: from, $lte: to } },
+      { firstImportedAt: { $gte: from, $lte: to } },
+      { newLeadSince: { $gte: from, $lte: to } }
+      ]
+    };
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, importDateFilter];
+      delete filter.$or;
     } else {
-      filter.isNewLead = true;
+      Object.assign(filter, importDateFilter);
     }
 
     const query = Carrier.find(filter)
@@ -1362,10 +1448,6 @@ export async function getNewCarrierLeads(req, res) {
     const hasMore = carriersPlusOne.length > limit;
     const carriers = hasMore ? carriersPlusOne.slice(0, limit) : carriersPlusOne;
 
-    if (carriers.length === 0 && page === 1) {
-      return getFmcsaNewCarrierLeads(req, res);
-    }
-
     const trialAccess = trialAccessForRequest(req, res);
     const rawLeads = await enrichLeadRowsForResponse(carriers.map(carrier => carrierToNewVentureLead(carrier)), {
       mode: "new",
@@ -1373,6 +1455,23 @@ export async function getNewCarrierLeads(req, res) {
     });
     const leads = maskTrialResults(rawLeads, trialAccess);
     const maskedCarriers = maskTrialResults(carriers.map(carrier => carrierToApi(carrier)), trialAccess);
+
+    const importSummary = await Carrier.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalImported: { $sum: 1 },
+          lastImportTime: { $max: { $ifNull: ["$firstSeenAt", { $ifNull: ["$firstImportedAt", "$newLeadSince"] }] } }
+        }
+      }
+    ]).catch(() => []);
+    const totalImported = importSummary[0]?.totalImported || 0;
+    const lastImportTime = importSummary[0]?.lastImportTime || null;
+    const message = carriers.length
+      ? "Showing New DOT leads from imported FMCSA Open Data in the database."
+      : totalImported === 0
+        ? "No new DOT import has run yet."
+        : "No new DOT carriers were imported in the selected date window.";
 
     res.json({
       total: carriers.length,
@@ -1384,9 +1483,13 @@ export async function getNewCarrierLeads(req, res) {
       to: to.toISOString().slice(0, 10),
       carriers: maskedCarriers,
       leads,
+      source: "database",
+      dataSource: "FMCSA Open Data / Database",
+      lastImportTime: lastImportTime ? new Date(lastImportTime).toISOString() : null,
+      importedCarrierCount: totalImported,
       access: getPlanAccessSummary(req.user),
       trialAccess,
-      message: buildTrialLeadMessage("", trialAccess)
+      message: buildTrialLeadMessage(message, trialAccess)
     });
   } catch (err) {
     console.error("New carrier leads error:", err);

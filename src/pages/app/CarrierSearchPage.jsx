@@ -103,9 +103,8 @@ export default function CarrierSearchPage() {
           </div>
           <div className="divide-y divide-white/[0.03]">
             {results.map((carrier) => (
-              <Link
-                key={carrier.dot_number || carrier.dotNumber || carrier.dot}
-                to={`/carrier/${carrier.dot_number || carrier.dotNumber || carrier.dot}`}
+              <div
+                key={carrier.dot_number || carrier.dotNumber || carrier.dot || carrier.id || carrier.carrierName}
                 className="flex items-center gap-6 px-6 py-4 hover:bg-white/[0.02] transition-colors group"
               >
                 <div className="w-12 h-12 bg-navy-800 rounded-xl flex items-center justify-center text-navy-300 flex-shrink-0">
@@ -118,12 +117,12 @@ export default function CarrierSearchPage() {
                     {carrier.legal_name || carrier.legalName || carrier.carrierName || carrier.name}
                   </p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-navy-400">
-                    <span className="font-mono">DOT {carrier.dot_number || carrier.dotNumber || carrier.dot}</span>
+                    {(carrier.dot_number || carrier.dotNumber || carrier.dot) && <span className="font-mono">DOT {carrier.dot_number || carrier.dotNumber || carrier.dot}</span>}
                     {(carrier.mc_number || carrier.mcNumber) && <><span>&middot;</span><span className="font-mono">MC-{carrier.mc_number || carrier.mcNumber}</span></>}
-                    <span>&middot;</span>
-                    <span>{carrier.city}, {carrier.state}</span>
-                    <span>&middot;</span>
-                    <span>{carrier.vehicle_count || carrier.powerUnits || carrier.vehicles || 0} trucks, {carrier.driver_count || carrier.drivers || 0} drivers</span>
+                    {([carrier.city, carrier.state].filter(Boolean).length > 0) && <><span>&middot;</span><span>{[carrier.city, carrier.state].filter(Boolean).join(", ")}</span></>}
+                    {(carrier.vehicle_count || carrier.powerUnits || carrier.vehicles || carrier.driver_count || carrier.drivers) && (
+                      <><span>&middot;</span><span>{[carrier.vehicle_count || carrier.powerUnits || carrier.vehicles ? `${carrier.vehicle_count || carrier.powerUnits || carrier.vehicles} power units` : "", carrier.driver_count || carrier.drivers ? `${carrier.driver_count || carrier.drivers} drivers` : ""].filter(Boolean).join(", ")}</span></>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -138,11 +137,16 @@ export default function CarrierSearchPage() {
                       {carrier.safety_rating}
                     </Badge>
                   )}
+                  {(carrier.dot_number || carrier.dotNumber || carrier.dot) && (
+                    <Link to={`/carrier/${carrier.dot_number || carrier.dotNumber || carrier.dot}`} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">
+                      View Profile
+                    </Link>
+                  )}
                 </div>
                 <svg className="w-4 h-4 text-navy-600 group-hover:text-brand-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
-              </Link>
+              </div>
             ))}
           </div>
         </Card>

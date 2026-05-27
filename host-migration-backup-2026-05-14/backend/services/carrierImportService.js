@@ -273,6 +273,7 @@ export async function upsertCarrierBatch(incomingCarriers, { importRunId = getIm
 
   for (const incoming of cleanIncoming) {
     const existing = existingByDot.get(incoming.dotNumber);
+    const importedNow = new Date();
 
     if (!existing) {
       inserted += 1;
@@ -283,8 +284,10 @@ export async function upsertCarrierBatch(incomingCarriers, { importRunId = getIm
             $setOnInsert: {
               ...incoming,
               isNewLead: true,
-              newLeadSince: incoming.dateCreated || new Date(),
-              lastUpdated: new Date()
+              firstSeenAt: importedNow,
+              firstImportedAt: importedNow,
+              newLeadSince: importedNow,
+              lastUpdated: importedNow
             }
           },
           upsert: true
