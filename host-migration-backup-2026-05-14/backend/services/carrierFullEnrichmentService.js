@@ -120,6 +120,7 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
   set.dataCompletenessScore = dataCompletenessScore(set);
   if (liveCarrier.saferData) set.lastSaferEnrichedAt = now;
   if (liveCarrier.smsSafety) set.lastSmsEnrichedAt = now;
+  if (liveCarrier.qcmobileDetails) set.lastQcmobileSafetyEnrichedAt = now;
   if (liveCarrier.insuranceCompany || liveCarrier.insuranceType || liveCarrier.insuranceExpiration) {
     set.lastInsuranceEnrichedAt = now;
   }
@@ -136,7 +137,8 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
     rawSet: {
       "raw.liveCarrier": liveCarrier,
       "raw.smsSafety": liveCarrier.smsSafety || null,
-      "raw.saferData": liveCarrier.saferData || null
+      "raw.saferData": liveCarrier.saferData || null,
+      "raw.qcmobileDetails": liveCarrier.qcmobileDetails || null
     }
   };
 }

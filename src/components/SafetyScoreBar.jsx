@@ -6,7 +6,7 @@ function numeric(value) {
 
 function statusFor(value) {
   const score = numeric(value);
-  if (score === null) return { label: "Not available", color: "bg-navy-600", text: "text-navy-300" };
+  if (score === null) return { label: String(value || "").trim() || "Not available", color: "bg-navy-600", text: "text-navy-300" };
   if (score < 50) return { label: "Good", color: "bg-accent-500", text: "text-accent-300" };
   if (score < 75) return { label: "Watch", color: "bg-warning-500", text: "text-warning-300" };
   return { label: "High Risk", color: "bg-danger-500", text: "text-danger-300" };
@@ -27,7 +27,7 @@ export default function SafetyScoreBar({ label, value, description, inspections,
         <div className={`profile-score-fill ${status.color}`} style={{ width: `${width}%` }} />
       </div>
       <div className="profile-score-value">
-        {score === null ? "Not available" : Math.round(score)}
+        {score === null ? status.label : Math.round(score)}
         {(inspections || violations) && (
           <span className="block text-[10px] font-normal text-navy-500">
             {[inspections && `${inspections} insp.`, violations && `${violations} viol.`].filter(Boolean).join(" / ")}

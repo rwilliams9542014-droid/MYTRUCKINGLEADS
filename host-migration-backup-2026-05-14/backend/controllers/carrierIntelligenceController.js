@@ -178,11 +178,13 @@ function carrierName(carrier = {}) {
 function sourceLabels(carrier = {}, sourceType = "cached") {
   const smsSafety = carrier.smsSafety || carrier.raw?.smsSafety || carrier.raw?.liveCarrier?.smsSafety;
   const saferData = carrier.saferData || carrier.raw?.saferData || carrier.raw?.liveCarrier?.saferData;
+  const qcmobileDetails = carrier.qcmobileDetails || carrier.raw?.qcmobileDetails || carrier.raw?.liveCarrier?.qcmobileDetails;
   const sources = new Set(["MyTruckingLeads carrier database"]);
   if (sourceType === "live") sources.add("Live FMCSA lookup");
   if (carrier.source) sources.add(carrier.source);
   if (smsSafety) sources.add("FMCSA SMS public profile");
   if (saferData) sources.add("FMCSA SAFER snapshot");
+  if (qcmobileDetails) sources.add("FMCSA QCMobile public profile endpoints");
   if (carrier.insuranceCompany || carrier.insuranceType || carrier.insurancePolicyNumber) {
     sources.add("FMCSA licensing and insurance filing data");
   }
@@ -191,7 +193,10 @@ function sourceLabels(carrier = {}, sourceType = "cached") {
 
 function hasSafetyData(safety = {}) {
   const categories = safety.categories || {};
-  const hasCategory = Object.values(categories).some(value => clean(value) && clean(value) !== "Not available");
+  const hasCategory = Object.values(categories).some(value => {
+    const text = clean(value).toLowerCase();
+    return text && text !== "not available" && text !== "not publicly available";
+  });
   const hasOos = safety.oosRates && Object.values(safety.oosRates).some(Boolean);
   const rating = clean(safety.safetyRating);
 
@@ -211,12 +216,15 @@ function hasDirectSmsData(smsSafety = {}) {
   if (!smsSafety) return false;
   const basics = smsSafety.basics || {};
   const hasBasic = Object.values(basics).some(value => clean(value) && clean(value) !== "Not available");
+  const hasBasicCategories = Array.isArray(smsSafety.basicCategories) && smsSafety.basicCategories.length > 0;
   const hasOos = smsSafety.oosRates && Object.values(smsSafety.oosRates).some(Boolean);
   const rating = clean(smsSafety.safetyRating);
   return Boolean(
     (rating && rating !== "Unknown" && rating !== "Not available") ||
     clean(smsSafety.safetyRatingDate) ||
+    clean(smsSafety.smsSnapshotDate) ||
     clean(smsSafety.inspections) ||
+    hasBasicCategories ||
     hasBasic ||
     hasOos
   );
@@ -441,6 +449,12 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
   const census = rawCensus(carrier);
   const smsSafety = carrier.smsSafety || carrier.raw?.smsSafety || carrier.raw?.liveCarrier?.smsSafety || null;
   const saferData = carrier.saferData || carrier.raw?.saferData || carrier.raw?.liveCarrier?.saferData || null;
+  const qcmobileDetails = carrier.qcmobileDetails || carrier.raw?.liveCarrier?.qcmobileDetails || null;
+  const qcmobileOos = qcmobileDetails?.oos || {};
+  const qcmobileAuthority = qcmobileDetails?.authority || {};
+  const qcmobileOperation = qcmobileDetails?.operationClassification?.operationClassification || carrier.operationClassification || [];
+  const qcmobileDockets = qcmobileDetails?.docketNumbers?.docketNumbers || carrier.docketNumbers || [];
+  const qcmobileBasicCategories = qcmobileDetails?.basics?.categories || smsSafety?.basicCategories || [];
   const physicalAddress = addressText(carrier.address) || clean(carrier.address);
   const mailingAddress =
     clean(carrier.mailingAddress) ||
@@ -459,13 +473,31 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
   const authoritySinceRaw = carrier.authoritySince || carrier.dateCreated || carrier.newLeadSince || census.add_date;
   const authoritySince = formatCompactDate(authoritySinceRaw);
   const authorityAgeText = authorityAge(authoritySinceRaw);
-  const cargoList = Array.isArray(carrier.cargoTypes) && carrier.cargoTypes.length
+  const qcmobileCargoTypes = qcmobileDetails?.cargo?.cargoTypes || [];
+  const cargoList = Array.isArray(qcmobileCargoTypes) && qcmobileCargoTypes.length
+    ? qcmobileCargoTypes
+    : Array.isArray(carrier.cargoTypes) && carrier.cargoTypes.length
     ? carrier.cargoTypes
     : (
       Array.isArray(saferData?.cargoTypes) && saferData.cargoTypes.length
         ? saferData.cargoTypes
         : clean(carrier.cargo || saferData?.cargo).split(",").map(item => item.trim()).filter(Boolean)
     );
+  const safetyCategories = {
+    unsafeDriving: clean(smsSafety?.basics?.unsafeDriving, "Not publicly available"),
+    hoursOfService: clean(smsSafety?.basics?.hoursOfService, "Not publicly available"),
+    driverFitness: clean(smsSafety?.basics?.driverFitness, "Not publicly available"),
+    vehicleMaintenance: clean(smsSafety?.basics?.vehicleMaintenance, "Not publicly available"),
+    controlledSubstances: clean(smsSafety?.basics?.controlledSubstances, "Not publicly available"),
+    hazmat: clean(smsSafety?.basics?.hazmat, "Not publicly available"),
+    crashIndicator: clean(smsSafety?.basics?.crashIndicator, "Not publicly available")
+  };
+  qcmobileBasicCategories.forEach((category) => {
+    if (category.id) safetyCategories[category.id] = clean(category.percentile, "Not publicly available");
+  });
+  const driverOosRate = clean(qcmobileOos.driverOosRate || smsSafety?.oosRates?.driver?.carrier || smsSafety?.oosRates?.driver);
+  const vehicleOosRate = clean(qcmobileOos.vehicleOosRate || smsSafety?.oosRates?.vehicle?.carrier || smsSafety?.oosRates?.vehicle);
+  const hazmatOosRate = clean(qcmobileOos.hazmatOosRate || smsSafety?.oosRates?.hazmat?.carrier || smsSafety?.oosRates?.hazmat);
 
   return {
     dotNumber,
@@ -488,12 +520,15 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     email: clean(carrier.email || census.email_address),
     companyOfficer1: clean(carrier.companyOfficer1 || carrier.companyOfficer || census.company_officer_1),
     companyOfficer2: clean(carrier.companyOfficer2 || census.company_officer_2),
-    docketNumber: clean(carrier.docketNumber || carrier.mc || census.docket1 || census.docket_number),
-    operatingStatus: clean(carrier.operatingStatus || carrier.operatingAuthority || census.status_code, "Not available"),
-    authorityStatus: clean(carrier.authorityStatus || saferData?.authorityStatus || census.status_code, "Not available"),
+    docketNumber: clean(carrier.docketNumber || carrier.mc || qcmobileDockets[0] || census.docket1 || census.docket_number),
+    docketNumbers: qcmobileDockets,
+    operatingStatus: clean(qcmobileAuthority.operatingStatus || carrier.operatingStatus || carrier.operatingAuthority || census.status_code, "Not available"),
+    authorityStatus: clean(qcmobileAuthority.authorityStatus || carrier.authorityStatus || saferData?.authorityStatus || census.status_code, "Not available"),
+    outOfServiceStatus: clean(qcmobileAuthority.outOfServiceStatus || carrier.outOfServiceStatus),
+    outOfServiceDate: clean(qcmobileAuthority.outOfServiceDate || carrier.outOfServiceDate),
     entityType: clean(carrier.entityType || census.business_org_desc || census.carrier_operation || carrier.carrierOperation, "Not available"),
-    carrierOperation: clean(carrier.carrierOperation || census.carrier_operation),
-    operationsScope: clean(carrier.operationsScope || carrier.operatingAuthority || census.carrier_operation || census.classdef),
+    carrierOperation: clean(qcmobileOperation.join(", ") || carrier.carrierOperation || census.carrier_operation),
+    operationsScope: clean(qcmobileOperation.join(", ") || carrier.operationsScope || carrier.operatingAuthority || census.carrier_operation || census.classdef),
     authoritySince,
     authorityAge: authorityAgeText,
     fleetSize,
@@ -518,21 +553,29 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     safety: {
       safetyRating: clean(smsSafety?.safetyRating || saferData?.safetyRating || carrier.safetyRating, "Unknown"),
       safetyRatingDate: clean(smsSafety?.safetyRatingDate || saferData?.safetyRatingDate || carrier.safetyRatingDate),
-      totalInspections: clean(saferData?.totalInspections || smsSafety?.inspections || carrier.totalInspections),
+      smsSnapshotDate: clean(smsSafety?.smsSnapshotDate || qcmobileDetails?.basics?.snapShotDate),
+      totalInspections: clean(qcmobileOos.totalInspections || saferData?.totalInspections || smsSafety?.inspections || carrier.totalInspections),
+      vehicleInspections: clean(qcmobileOos.vehicleInspections || carrier.vehicleInspections),
+      driverInspections: clean(qcmobileOos.driverInspections || carrier.driverInspections),
+      hazmatInspections: clean(qcmobileOos.hazmatInspections || carrier.hazmatInspections),
+      vehicleOos: clean(qcmobileOos.vehicleOos || smsSafety?.vehicleOos || carrier.vehicleOos),
+      driverOos: clean(qcmobileOos.driverOos || smsSafety?.driverOos || carrier.driverOos),
+      hazmatOos: clean(qcmobileOos.hazmatOos || smsSafety?.hazmatOos || carrier.hazmatOos),
+      driverOosRate,
+      vehicleOosRate,
+      hazmatOosRate,
       crashTotal: clean(saferData?.crashTotal || carrier.crashTotal),
       crashes: carrier.crashes || saferData?.crashes || null,
-      basicScores: carrier.basicScores || [],
-      categories: {
-        unsafeDriving: clean(smsSafety?.basics?.unsafeDriving, "Not available"),
-        hoursOfService: clean(smsSafety?.basics?.hoursOfService, "Not available"),
-        driverFitness: clean(smsSafety?.basics?.driverFitness, "Not available"),
-        vehicleMaintenance: clean(smsSafety?.basics?.vehicleMaintenance, "Not available"),
-        controlledSubstances: clean(smsSafety?.basics?.controlledSubstances, "Not available"),
-        hazmat: clean(smsSafety?.basics?.hazmat, "Not available")
+      basicScores: carrier.basicScores || qcmobileBasicCategories || [],
+      basicCategories: qcmobileBasicCategories,
+      categories: safetyCategories,
+      oosRates: {
+        vehicle: vehicleOosRate,
+        driver: driverOosRate,
+        hazmat: hazmatOosRate
       },
-      oosRates: smsSafety?.oosRates || null,
       smsProfileAvailable: hasDirectSmsData(smsSafety),
-      source: smsSafety?.source || saferData?.source || "Most recent cached safety record"
+      source: smsSafety?.source || qcmobileDetails?.source || saferData?.source || "Most recent cached safety record"
     },
     licensingInsurance: {
       insuranceCompany: clean(carrier.insuranceCompany),
@@ -676,7 +719,8 @@ function liveCarrierToMongo(liveCarrier = {}, dotNumber = "") {
     raw: {
       liveCarrier,
       smsSafety: liveCarrier.smsSafety || null,
-      saferData: liveCarrier.saferData || null
+      saferData: liveCarrier.saferData || null,
+      qcmobileDetails: liveCarrier.qcmobileDetails || null
     }
   };
 }

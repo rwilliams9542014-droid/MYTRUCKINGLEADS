@@ -140,8 +140,11 @@ function normalizeCarrier(data) {
     phone,
     email,
     entityType: pick(carrier.entityType, carrier.entity_type),
-    operations: pick(carrier.operations, carrier.operationType, carrier.carrierOperation, carrier.carrier_operation),
+    operations: pick(carrier.operations, carrier.operationType, carrier.operationsScope, carrier.carrierOperation, carrier.carrier_operation),
+    operationClassification: carrier.operationClassification || [],
     operatingStatus: pick(carrier.authorityStatus, carrier.authority_status, carrier.operatingStatus, carrier.operating_status, "Unknown"),
+    outOfServiceStatus: pick(carrier.outOfServiceStatus, carrier.out_of_service_status),
+    outOfServiceDate: pick(carrier.outOfServiceDate, carrier.out_of_service_date),
     safetyRating: pick(carrier.safetyRating, carrier.safety_rating, safety.safetyRating, "Not Rated"),
     safetyRatingDate: pick(carrier.safetyRatingDate, carrier.safety_rating_date, safety.safetyRatingDate),
     mcs150Date: pick(carrier.mcs150Date, carrier.mcs_150_date, carrier.mcs150_date),
@@ -159,15 +162,20 @@ function normalizeCarrier(data) {
     renewalDisplay: getRenewalDisplay(lead),
     insuranceFilings: normalizeInsuranceFilings(carrier, lead),
     totalInspections: lead.totalInspections,
+    vehicleInspections: lead.vehicleInspections,
+    driverInspections: lead.driverInspections,
+    hazmatInspections: lead.hazmatInspections,
     inspectionsWithViolations: lead.inspectionsWithViolations,
     inspectionsWithoutViolations: lead.inspectionsWithoutViolations,
     totalViolations: lead.totalViolations,
     oosViolations: lead.oosViolations,
-    vehicleOos: pick(carrier.vehicleOos, carrier.vehicle_oos, safety.vehicleOos, safety.vehicleOosCount),
-    driverOos: pick(carrier.driverOos, carrier.driver_oos, safety.driverOos, safety.driverOosCount),
+    vehicleOos: pick(lead.vehicleOos, carrier.vehicleOos, carrier.vehicle_oos, safety.vehicleOos, safety.vehicleOosCount),
+    driverOos: pick(lead.driverOos, carrier.driverOos, carrier.driver_oos, safety.driverOos, safety.driverOosCount),
+    hazmatOos: pick(lead.hazmatOos, carrier.hazmatOos, safety.hazmatOos),
     driverOosRate: lead.driverOosRate,
     vehicleOosRate: lead.vehicleOosRate,
     hazmatOosRate: lead.hazmatOosRate,
+    smsSnapshotDate: lead.smsSnapshotDate,
     basicScores: lead.basicScores,
     basicCategories: lead.basicCategories,
     smsProfileAvailable: lead.smsProfileAvailable,
@@ -229,6 +237,7 @@ function SafetyRatingCard({ carrier }) {
 }
 
 function CrashHistoryCard({ crashes }) {
+  const hasCrashData = [crashes.total, crashes.fatal, crashes.injury, crashes.tow].some((value) => value || value === 0);
   const tiles = [
     ["Total", crashes.total],
     ["Fatal", crashes.fatal],
@@ -237,14 +246,18 @@ function CrashHistoryCard({ crashes }) {
   ];
   return (
     <ProfileCard title="Crash History">
-      <div className="grid grid-cols-2 gap-3">
-        {tiles.map(([label, value]) => (
-          <div key={label} className="profile-stat-tile">
-            <p className="text-xl font-black text-white">{valueOrUnavailable(value)}</p>
-            <p className="profile-label mt-1">{label}</p>
-          </div>
-        ))}
-      </div>
+      {hasCrashData ? (
+        <div className="grid grid-cols-2 gap-3">
+          {tiles.map(([label, value]) => (
+            <div key={label} className="profile-stat-tile">
+              <p className="text-xl font-black text-white">{valueOrUnavailable(value)}</p>
+              <p className="profile-label mt-1">{label}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-navy-400">Public crash summary not available from this data source.</p>
+      )}
     </ProfileCard>
   );
 }
@@ -270,6 +283,10 @@ function InspectionHistoryCard({ carrier }) {
         <SafetyBarsPanel record={carrier} mode="inspection" />
       </div>
       <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <DetailItem label="Vehicle Inspections" value={carrier.vehicleInspections} />
+        <DetailItem label="Driver Inspections" value={carrier.driverInspections} />
+        <DetailItem label="Hazmat Inspections" value={carrier.hazmatInspections} />
+        <DetailItem label="Hazmat OOS Rate" value={carrier.hazmatOosRate ? `${carrier.hazmatOosRate}%` : ""} />
         <DetailItem label="Total Violations" value={carrier.totalViolations} />
         <DetailItem label="OOS Violations" value={carrier.oosViolations} />
       </div>
@@ -315,6 +332,8 @@ function CompanyDetailsCard({ carrier }) {
         <DetailItem label="Entity Type" value={carrier.entityType} />
         <DetailItem label="Fleet Size" value={fleet} />
         <DetailItem label="Operations" value={carrier.operations} />
+        <DetailItem label="Out-of-Service Status" value={carrier.outOfServiceStatus} />
+        <DetailItem label="Out-of-Service Date" value={carrier.outOfServiceDate} />
       </div>
       <div className="mt-6 border-t border-white/[0.06] pt-5">
         <p className="profile-label mb-3">Cargo Carried</p>
@@ -459,6 +478,10 @@ export default function CarrierProfilePage() {
           <CompanyDetailsCard carrier={carrier} />
 
           <ProfileCard title="BASIC Safety Scores">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/45">SMS Snapshot Date</p>
+              <p className="text-sm font-bold text-white">{valueOrUnavailable(carrier.smsSnapshotDate)}</p>
+            </div>
             <SafetyBarsPanel record={carrier} mode="basic" />
           </ProfileCard>
 

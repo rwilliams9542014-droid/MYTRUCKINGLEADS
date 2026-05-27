@@ -12,6 +12,16 @@ function inspectionColor(value) {
   return "bg-danger-500";
 }
 
+function hasPublicBasicValue(item = {}) {
+  const value = item.percentile ?? item.measure ?? "";
+  const text = String(value).trim().toLowerCase();
+  return Boolean(
+    (text && text !== "not available" && text !== "not publicly available") ||
+    item.violations ||
+    item.inspections
+  );
+}
+
 function normalizeBasics(record = {}) {
   const preferredOrder = [
     "Unsafe Driving",
@@ -24,7 +34,7 @@ function normalizeBasics(record = {}) {
   ];
   const basics = record.basicCategories?.length
     ? record.basicCategories
-    : Object.entries(BASIC_CATEGORY_LABELS).map(([id, label]) => ({ id, label, percentile: "" }));
+    : Object.entries(BASIC_CATEGORY_LABELS).map(([id, label]) => ({ id, label, percentile: "Not publicly available" }));
 
   return basics.map((item) => {
     const label = item.label || BASIC_CATEGORY_LABELS[item.id] || item.id;
@@ -42,7 +52,7 @@ function normalizeBasics(record = {}) {
 export default function SafetyBarsPanel({ record = {}, compact = false, mode = "full" }) {
   const { totalInspections, bars } = buildInspectionBars(record);
   const basics = normalizeBasics(record);
-  const hasBasics = basics.some((item) => item.percentile || item.measure || item.violations || item.inspections);
+  const hasBasics = basics.some(hasPublicBasicValue);
   const inspections = Array.isArray(record.inspectionHistory) ? record.inspectionHistory : [];
 
   if (mode === "basic") {
