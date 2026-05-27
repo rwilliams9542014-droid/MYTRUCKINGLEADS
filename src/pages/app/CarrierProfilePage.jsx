@@ -1,16 +1,111 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { Card, Badge, Button } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import OutreachComposer from "@/components/OutreachComposer";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { api } from "@/lib/api";
 import {
-  UNAVAILABLE,
   getRenewalDisplay,
   normalizeLeadRecord,
   pick,
   splitCargo,
 } from "@/lib/leadMapping";
+
+const NOT_AVAILABLE = "Not available";
+const FMCSA_UNAVAILABLE = "Not available from public FMCSA data.";
+
+function valueOrUnavailable(value, fallback = NOT_AVAILABLE) {
+  return value || value === 0 ? value : fallback;
+}
+
+function formatMc(value) {
+  if (!value) return "";
+  return String(value).toUpperCase().startsWith("MC") ? value : `MC-${value}`;
+}
+
+function firstObject(...items) {
+  return items.find((item) => item && typeof item === "object" && !Array.isArray(item)) || {};
+}
+
+function asArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value.filter(Boolean) : [value];
+}
+
+function normalizeInsuranceFilings(carrier, lead) {
+  const filings = [];
+  const insuranceFilings = carrier.insuranceFilings || carrier.insurance_filings || {};
+  const publicLiability = insuranceFilings.publicLiability || insuranceFilings.public_liability || carrier.licensingInsurance || {};
+  const cargo = insuranceFilings.cargo || carrier.cargoInsurance || {};
+  const bmcFilings = asArray(carrier.bmcFilings || carrier.bmc_filings || carrier.licensingInsurance?.bmcFilings);
+
+  if (Object.keys(publicLiability).length || lead.insuranceCompany || lead.filingType || lead.insuranceEffectiveDate || lead.insuranceCancelDate) {
+    filings.push({
+      title: pick(lead.filingType, publicLiability.filingType, publicLiability.coverageInfo, "BIPD Liability"),
+      company: pick(lead.insuranceCompany, publicLiability.insuranceCompany, publicLiability.company),
+      reference: pick(carrier.insurancePolicyNumber, carrier.insurance_policy_number, publicLiability.policyNumber, publicLiability.formNumber),
+      limit: pick(publicLiability.limit, publicLiability.coverageLimit, carrier.insuranceLimit),
+      effectiveDate: lead.insuranceEffectiveDate,
+      cancelDate: lead.insuranceCancelDate,
+      expirationDate: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration, publicLiability.insuranceExpirationDate),
+      status: lead.insuranceFilingStatus,
+    });
+  }
+
+  if (Object.keys(cargo).length || typeof cargo === "string") {
+    filings.push({
+      title: "Cargo",
+      company: pick(cargo.insuranceCompany, cargo.company),
+      reference: pick(cargo.policyNumber, cargo.formNumber, typeof cargo === "string" ? cargo : ""),
+      limit: pick(cargo.limit, cargo.coverageLimit),
+      effectiveDate: pick(cargo.effectiveDate, cargo.insuranceEffectiveDate),
+      cancelDate: pick(cargo.cancelDate, cargo.cancellationDate),
+      expirationDate: pick(cargo.expirationDate, cargo.insuranceExpirationDate),
+      status: pick(cargo.status, cargo.insuranceFilingStatus),
+    });
+  }
+
+  bmcFilings.forEach((filing, index) => {
+    filings.push({
+      title: pick(filing.filingType, filing.form, filing.type, `Filing ${index + 1}`),
+      company: pick(filing.insuranceCompany, filing.company),
+      reference: pick(filing.policyNumber, filing.formNumber, filing.docketNumber),
+      limit: pick(filing.limit, filing.coverageLimit),
+      effectiveDate: pick(filing.effectiveDate, filing.insuranceEffectiveDate),
+      cancelDate: pick(filing.cancelDate, filing.cancellationDate),
+      expirationDate: pick(filing.expirationDate, filing.insuranceExpirationDate),
+      status: pick(filing.status, filing.insuranceFilingStatus),
+    });
+  });
+
+  return filings.length ? filings : [{
+    title: "Insurance Filing",
+    company: "",
+    reference: "",
+    limit: "",
+    effectiveDate: "",
+    cancelDate: "",
+    expirationDate: "",
+    status: "",
+  }];
+}
+
+function normalizeCrashes(carrier, lead) {
+  const crashes = firstObject(
+    carrier.crashSummary,
+    carrier.crashes,
+    carrier.crashHistory,
+    carrier.safety?.crashes,
+    carrier.safety?.crashSummary,
+    lead.raw?.safety?.crashes
+  );
+  return {
+    total: pick(carrier.crashTotal, lead.crashCount, crashes.total, crashes.totalCrashes, crashes.count),
+    fatal: pick(crashes.fatal, crashes.fatalCrashes, crashes.fatality),
+    injury: pick(crashes.injury, crashes.injuryCrashes),
+    tow: pick(crashes.tow, crashes.towaway, crashes.towAway, crashes.towawayCrashes),
+  };
+}
 
 function normalizeCarrier(data) {
   const carrier = data?.carrier || data?.profile || data?.result || data || {};
@@ -22,33 +117,39 @@ function normalizeCarrier(data) {
   const city = pick(carrier.city, addressParts.city, carrier.phy_city, carrier.hq_city);
   const state = pick(carrier.state, addressParts.state, carrier.phy_state, carrier.hq_state);
   const zip = pick(carrier.zip, addressParts.zip, carrier.phy_zip, carrier.hq_zip);
-  const phone = pick(carrier.phone, carrier.phoneNumber, carrier.cellPhone, carrier.cell_phone);
+  const phone = pick(carrier.phone, carrier.phoneNumber, carrier.telephone, carrier.cellPhone, carrier.cell_phone);
   const email = pick(carrier.email, carrier.emailAddress);
-  const dot = pick(carrier.dotNumber, carrier.dot_number, carrier.dot);
+  const dot = pick(carrier.dotNumber, carrier.dot_number, carrier.usdot, carrier.usdotNumber, carrier.dot);
   const mc = pick(carrier.mcNumber, carrier.mc_number, carrier.mc, carrier.docketNumber);
+  const trucks = pick(carrier.powerUnits, carrier.power_units, carrier.vehicleCount, carrier.vehicle_count, carrier.fleetSize);
+  const drivers = pick(carrier.drivers, carrier.driverCount, carrier.driver_count);
+  const cargo = splitCargo(pick(carrier.cargoHauled, carrier.cargo, carrier.cargoCarried, carrier.cargoTypes, carrier.cargo_hauled));
+  const safety = carrier.safety || {};
 
   return {
     raw: carrier,
     dot,
     mc,
-    name: pick(carrier.legalName, carrier.legal_name, carrier.carrierName, carrier.carrier_name, carrier.name),
+    mcNumber: formatMc(mc),
+    name: pick(carrier.carrierName, carrier.legalName, carrier.legal_name, carrier.carrier_name, carrier.name, "Unknown carrier"),
     dbaName: pick(carrier.dbaName, carrier.dba_name),
-    address: addressText || carrier.physicalAddress || carrier.mailingAddress,
+    address: pick(addressText, carrier.physicalAddress, carrier.mailingAddress),
     city,
     state,
     zip,
     phone,
     email,
-    entityType: pick(carrier.entityType, carrier.entity_type, carrier.carrierOperation, carrier.carrier_operation),
-    operatingStatus: pick(carrier.operatingStatus, carrier.operating_status, carrier.authorityStatus, carrier.authority_status, "Unknown"),
-    safetyRating: pick(carrier.safetyRating, carrier.safety_rating, carrier.safety?.safetyRating, "Not rated"),
-    mcNumber: mc ? (String(mc).startsWith("MC") ? mc : `MC-${mc}`) : "",
-    mcs150Date: pick(carrier.mcs150Date, carrier.mcs150_date),
+    entityType: pick(carrier.entityType, carrier.entity_type),
+    operations: pick(carrier.operations, carrier.operationType, carrier.carrierOperation, carrier.carrier_operation),
+    operatingStatus: pick(carrier.authorityStatus, carrier.authority_status, carrier.operatingStatus, carrier.operating_status, "Unknown"),
+    safetyRating: pick(carrier.safetyRating, carrier.safety_rating, safety.safetyRating, "Not Rated"),
+    safetyRatingDate: pick(carrier.safetyRatingDate, carrier.safety_rating_date, safety.safetyRatingDate),
+    mcs150Date: pick(carrier.mcs150Date, carrier.mcs_150_date, carrier.mcs150_date),
     addDate: pick(carrier.addDate, carrier.add_date, carrier.dateCreated),
-    trucks: pick(carrier.vehicleCount, carrier.vehicle_count, carrier.fleetSize, carrier.powerUnits),
-    drivers: pick(carrier.driverCount, carrier.driver_count, carrier.drivers),
-    cargo: splitCargo(pick(carrier.cargoTypes, carrier.cargo, carrier.cargoHauled, carrier.cargo_hauled, carrier.cargoCarried)),
-    insuranceCompany: pick(carrier.insuranceCompany, carrier.insurance_company, carrier.licensingInsurance?.insuranceCompany),
+    trucks,
+    drivers,
+    cargo,
+    insuranceCompany: lead.insuranceCompany,
     insuranceExpiration: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration, carrier.licensingInsurance?.insuranceExpirationDate),
     insuranceEffectiveDate: lead.insuranceEffectiveDate,
     insuranceCancelDate: lead.insuranceCancelDate,
@@ -56,11 +157,14 @@ function normalizeCarrier(data) {
     insuranceFilingStatus: lead.insuranceFilingStatus,
     filingType: lead.filingType,
     renewalDisplay: getRenewalDisplay(lead),
+    insuranceFilings: normalizeInsuranceFilings(carrier, lead),
     totalInspections: lead.totalInspections,
     inspectionsWithViolations: lead.inspectionsWithViolations,
     inspectionsWithoutViolations: lead.inspectionsWithoutViolations,
     totalViolations: lead.totalViolations,
     oosViolations: lead.oosViolations,
+    vehicleOos: pick(carrier.vehicleOos, carrier.vehicle_oos, safety.vehicleOos, safety.vehicleOosCount),
+    driverOos: pick(carrier.driverOos, carrier.driver_oos, safety.driverOos, safety.driverOosCount),
     driverOosRate: lead.driverOosRate,
     vehicleOosRate: lead.vehicleOosRate,
     hazmatOosRate: lead.hazmatOosRate,
@@ -69,18 +173,164 @@ function normalizeCarrier(data) {
     smsProfileAvailable: lead.smsProfileAvailable,
     safetySource: lead.safetySource,
     inspectionHistory: lead.inspectionHistory,
-    crashTotal: pick(carrier.crashTotal, carrier.safety?.crashTotal),
-    crashCount: lead.crashCount,
+    crashSummary: normalizeCrashes(carrier, lead),
     companyRep: pick(carrier.companyRep, carrier.companyOfficer1, carrier.company_rep),
   };
 }
 
-function InfoItem({ label, value }) {
+function ProfileCard({ title, children, className = "" }) {
+  return (
+    <section className={`profile-card ${className}`}>
+      {title && <h2 className="text-lg font-bold text-white mb-5">{title}</h2>}
+      {children}
+    </section>
+  );
+}
+
+function DetailItem({ label, value, fallback = NOT_AVAILABLE }) {
   return (
     <div>
-      <p className="text-xs text-navy-500 uppercase tracking-wide">{label}</p>
-      <p className="text-sm text-white mt-1">{value || UNAVAILABLE}</p>
+      <p className="profile-label">{label}</p>
+      <p className="profile-value">{valueOrUnavailable(value, fallback)}</p>
     </div>
+  );
+}
+
+function statusVariant(status) {
+  const value = String(status || "").toUpperCase();
+  if (value.includes("AUTHORIZED") || value.includes("ACTIVE") || value.includes("SATISFACTORY")) return "success";
+  if (value.includes("CONDITIONAL") || value.includes("PENDING")) return "warning";
+  if (value.includes("UNSAT") || value.includes("REVOKED") || value.includes("INACTIVE")) return "danger";
+  return "outline";
+}
+
+function SafetyRatingCard({ carrier }) {
+  const rating = valueOrUnavailable(carrier.safetyRating);
+  return (
+    <ProfileCard title="Safety Rating">
+      <div className="flex items-center gap-4">
+        <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+          statusVariant(rating) === "success" ? "bg-accent-500/15 text-accent-300" :
+          statusVariant(rating) === "warning" ? "bg-warning-500/15 text-warning-300" :
+          statusVariant(rating) === "danger" ? "bg-danger-500/15 text-danger-300" :
+          "bg-white/5 text-navy-300"
+        }`}>
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75l2 2 4-5.5m5-3.5A11.5 11.5 0 0112 3 11.5 11.5 0 014 5.75v5.5c0 5 3.4 9.3 8 10.5 4.6-1.2 8-5.5 8-10.5v-5.5z" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-sm font-bold text-white">{rating}</p>
+          <p className="text-xs text-navy-400">Rated {valueOrUnavailable(carrier.safetyRatingDate)}</p>
+        </div>
+      </div>
+    </ProfileCard>
+  );
+}
+
+function CrashHistoryCard({ crashes }) {
+  const tiles = [
+    ["Total", crashes.total],
+    ["Fatal", crashes.fatal],
+    ["Injury", crashes.injury],
+    ["Tow", crashes.tow],
+  ];
+  return (
+    <ProfileCard title="Crash History">
+      <div className="grid grid-cols-2 gap-3">
+        {tiles.map(([label, value]) => (
+          <div key={label} className="profile-stat-tile">
+            <p className="text-xl font-black text-white">{valueOrUnavailable(value)}</p>
+            <p className="profile-label mt-1">{label}</p>
+          </div>
+        ))}
+      </div>
+    </ProfileCard>
+  );
+}
+
+function InspectionHistoryCard({ carrier }) {
+  const tiles = [
+    ["Total Inspections", carrier.totalInspections],
+    ["Vehicle OOS", carrier.vehicleOos],
+    ["Vehicle OOS Rate", carrier.vehicleOosRate ? `${carrier.vehicleOosRate}%` : ""],
+    ["Driver OOS Rate", carrier.driverOosRate ? `${carrier.driverOosRate}%` : ""],
+  ];
+  return (
+    <ProfileCard title="Inspection History">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        {tiles.map(([label, value]) => (
+          <div key={label} className="profile-stat-tile">
+            <p className="text-xl font-black text-white">{valueOrUnavailable(value)}</p>
+            <p className="profile-label mt-1">{label}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-5">
+        <SafetyBarsPanel record={carrier} mode="inspection" />
+      </div>
+      <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <DetailItem label="Total Violations" value={carrier.totalViolations} />
+        <DetailItem label="OOS Violations" value={carrier.oosViolations} />
+      </div>
+    </ProfileCard>
+  );
+}
+
+function InsuranceFilingCard({ carrier }) {
+  return (
+    <ProfileCard title="Insurance Filing">
+      <div className="space-y-3">
+        {carrier.insuranceFilings.map((filing, index) => (
+          <div key={`${filing.title}-${index}`} className="profile-card-muted">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="profile-label">{valueOrUnavailable(filing.title, "Filing")}</p>
+                <p className="profile-value">{valueOrUnavailable(filing.company, FMCSA_UNAVAILABLE)}</p>
+                <p className="mt-1 text-xs font-mono text-sky-100/35">{valueOrUnavailable(filing.reference, FMCSA_UNAVAILABLE)}</p>
+              </div>
+              {filing.limit && <Badge variant="success">{filing.limit}</Badge>}
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 border-t border-white/[0.06] pt-3">
+              <DetailItem label="Filing Status" value={filing.status} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Filing Effective Date" value={filing.effectiveDate} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Filing Cancellation Date" value={filing.cancelDate} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Expiration Date" value={filing.expirationDate} fallback={FMCSA_UNAVAILABLE} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </ProfileCard>
+  );
+}
+
+function CompanyDetailsCard({ carrier }) {
+  const fleet = [carrier.trucks && `${carrier.trucks} power units`, carrier.drivers && `${carrier.drivers} drivers`].filter(Boolean).join(", ");
+  return (
+    <ProfileCard title="Company Details">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-5">
+        <DetailItem label="Phone" value={carrier.phone} />
+        <DetailItem label="Email" value={carrier.email} />
+        <DetailItem label="Address" value={carrier.address || [carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", ")} />
+        <DetailItem label="Entity Type" value={carrier.entityType} />
+        <DetailItem label="Fleet Size" value={fleet} />
+        <DetailItem label="Operations" value={carrier.operations} />
+      </div>
+      <div className="mt-6 border-t border-white/[0.06] pt-5">
+        <p className="profile-label mb-3">Cargo Carried</p>
+        {carrier.cargo.length ? (
+          <div className="flex flex-wrap gap-2">
+            {carrier.cargo.map((item) => (
+              <span key={item} className="rounded-full border border-sky-300/20 bg-sky-300/5 px-3 py-1 text-xs font-semibold text-sky-100/75">
+                {item}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-navy-400">{NOT_AVAILABLE}</p>
+        )}
+      </div>
+    </ProfileCard>
   );
 }
 
@@ -120,12 +370,17 @@ export default function CarrierProfilePage() {
     };
   }, [dot]);
 
-  const contact = useMemo(() => ({
-    name: carrier?.companyRep || carrier?.name || "Carrier contact",
-    title: carrier?.companyRep ? "Company representative" : "Primary contact",
-    phone: carrier?.phone,
-    email: carrier?.email,
-  }), [carrier]);
+  const outreachLead = useMemo(() => {
+    if (!carrier) return {};
+    return {
+      ...carrier,
+      carrierName: carrier.name,
+      dotNumber: carrier.dot,
+      mcNumber: carrier.mcNumber,
+      renewalDate: carrier.renewalDisplay?.date || "",
+      renewalDateSource: carrier.renewalDisplay?.label || "",
+    };
+  }, [carrier]);
 
   async function saveToPipeline() {
     if (!carrier) return;
@@ -165,125 +420,58 @@ export default function CarrierProfilePage() {
   }
 
   if (!carrier) return null;
-  const outreachLead = {
-    ...carrier,
-    carrierName: carrier.name,
-    dotNumber: carrier.dot,
-    mcNumber: carrier.mcNumber,
-    renewalDate: carrier.renewalDisplay?.date || "",
-    renewalDateSource: carrier.renewalDisplay?.label || "",
-  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="carrier-profile-page min-w-0 space-y-6 animate-fade-in">
       <div className="flex items-center gap-2 text-sm">
-        <Link to="/carrier-search" className="text-navy-400 hover:text-white transition-colors">Carrier Search</Link>
-        <svg className="w-3 h-3 text-navy-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-        <span className="text-white">{carrier.name}</span>
+        <Link to="/carrier-search" className="text-sky-100/45 hover:text-white transition-colors">Carrier Search</Link>
+        <span className="text-sky-100/30">/</span>
+        <span className="font-semibold text-sky-100">{carrier.name}</span>
       </div>
 
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-bold text-white">{carrier.name}</h1>
-            <Badge variant={String(carrier.operatingStatus).toUpperCase().includes("AUTHORIZED") ? "success" : "outline"}>
-              {carrier.operatingStatus}
-            </Badge>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">{carrier.name}</h1>
+            <Badge variant={statusVariant(carrier.operatingStatus)} className="uppercase">{carrier.operatingStatus}</Badge>
           </div>
-          {carrier.dbaName && <p className="text-sm text-navy-400 mb-1">DBA: {carrier.dbaName}</p>}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-navy-400">
+          {carrier.dbaName && <p className="mt-2 text-sm text-navy-400">DBA: {carrier.dbaName}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold text-sky-100/45">
             {carrier.dot && <span className="font-mono">DOT {carrier.dot}</span>}
             {carrier.mcNumber && <span className="font-mono">{carrier.mcNumber}</span>}
-            <span>{[carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", ")}</span>
+            <span>{valueOrUnavailable([carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", "))}</span>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {carrier.phone && <a href={`tel:${carrier.phone}`} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Call</a>}
-          {carrier.email && <button type="button" onClick={() => setComposer("email")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Email This Lead</button>}
-          {carrier.phone && <button type="button" onClick={() => setComposer("sms")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Text This Lead</button>}
-          <Button size="sm" onClick={saveToPipeline}>+ Pipeline</Button>
+          <Button size="sm" onClick={saveToPipeline}>Add to Pipeline</Button>
+          {carrier.email && <button type="button" onClick={() => setComposer("email")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Email</button>}
+          {carrier.phone && <button type="button" onClick={() => setComposer("sms")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Manual Text</button>}
         </div>
       </div>
 
       {saveStatus && (
-        <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl p-3 text-sm text-brand-200">{saveStatus}</div>
+        <div className="rounded-xl border border-brand-500/20 bg-brand-500/10 p-3 text-sm text-brand-200">{saveStatus}</div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <h2 className="text-lg font-semibold text-white mb-4">Contacts</h2>
-            <div className="flex items-center justify-between p-4 bg-navy-800/30 rounded-xl">
-              <div>
-                <p className="text-sm font-medium text-white">{contact.name}</p>
-                <p className="text-xs text-navy-400">{contact.title}</p>
-                <div className="flex flex-wrap gap-3 mt-1 text-xs text-navy-500">
-                  {contact.phone && <span>{contact.phone}</span>}
-                  {contact.email && <span>{contact.email}</span>}
-                </div>
-              </div>
-            </div>
-          </Card>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,0.9fr)] gap-6">
+        <div className="min-w-0 space-y-6">
+          <CompanyDetailsCard carrier={carrier} />
 
-          <Card>
-            <h2 className="text-lg font-semibold text-white mb-4">Company Details</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InfoItem label="Legal Name" value={carrier.name} />
-              <InfoItem label="DBA Name" value={carrier.dbaName} />
-              <InfoItem label="Address" value={carrier.address || [carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", ")} />
-              <InfoItem label="Entity / Operation" value={carrier.entityType} />
-              <InfoItem label="Fleet Size" value={[carrier.trucks && `${carrier.trucks} trucks`, carrier.drivers && `${carrier.drivers} drivers`].filter(Boolean).join(", ")} />
-              <InfoItem label="MCS-150 Updated" value={carrier.mcs150Date} />
-              <InfoItem label="DOT Issued" value={carrier.addDate} />
-              <InfoItem label="Safety Rating" value={carrier.safetyRating} />
-              <InfoItem label="Crashes" value={carrier.crashTotal} />
-            </div>
-            {carrier.cargo.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-white/5">
-                <p className="text-xs text-navy-500 uppercase tracking-wide mb-2">Cargo Carried</p>
-                <div className="flex flex-wrap gap-2">
-                  {carrier.cargo.map((item) => <Badge key={item} variant="outline">{item}</Badge>)}
-                </div>
-              </div>
-            )}
-          </Card>
+          <ProfileCard title="BASIC Safety Scores">
+            <SafetyBarsPanel record={carrier} mode="basic" />
+          </ProfileCard>
+
+          <InspectionHistoryCard carrier={carrier} />
         </div>
 
-        <div className="space-y-6">
-          <Card className="border-brand-500/20">
-            <h2 className="text-sm font-semibold text-white mb-3">Quick Contact</h2>
-            <div className="space-y-2 text-sm">
-              <p className="text-white">{contact.name}</p>
-              {contact.phone && <a href={`tel:${contact.phone}`} className="block text-brand-400 hover:text-brand-300">{contact.phone}</a>}
-              {contact.email && <p className="text-brand-400">{contact.email}</p>}
-              <div className="flex flex-wrap gap-2 pt-2">
-                {contact.email && <button type="button" onClick={() => setComposer("email")} className="btn-secondary text-xs px-3 py-2 rounded-lg">Email</button>}
-                {contact.phone && <button type="button" onClick={() => setComposer("sms")} className="btn-secondary text-xs px-3 py-2 rounded-lg">Text</button>}
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <h2 className="text-lg font-semibold text-white mb-4">Insurance Filing</h2>
-            <div className="space-y-3">
-              <InfoItem label="Company" value={carrier.insuranceCompany} />
-              <InfoItem label="Policy" value={carrier.insurancePolicyNumber} />
-              <InfoItem label="Filing Status" value={carrier.insuranceFilingStatus} />
-              <InfoItem label="Filing Type" value={carrier.filingType} />
-              <InfoItem label="FMCSA Filing Effective Date" value={carrier.insuranceEffectiveDate} />
-              <InfoItem label="FMCSA Filing Cancellation Date" value={carrier.insuranceCancelDate} />
-              <InfoItem label={carrier.renewalDisplay.label} value={carrier.renewalDisplay.date} />
-            </div>
-          </Card>
-
-          <Card>
-            <h2 className="text-lg font-semibold text-white mb-4">Safety / Inspection History</h2>
-            <SafetyBarsPanel record={carrier} />
-          </Card>
-        </div>
+        <aside className="min-w-0 space-y-6">
+          <InsuranceFilingCard carrier={carrier} />
+          <SafetyRatingCard carrier={carrier} />
+          <CrashHistoryCard crashes={carrier.crashSummary} />
+        </aside>
       </div>
+
       <OutreachComposer
         open={Boolean(composer)}
         channel={composer || "email"}

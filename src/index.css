@@ -73,6 +73,50 @@
     @apply bg-navy-900/50 border border-white/[0.06] rounded-2xl p-6;
   }
 
+  .profile-card {
+    @apply rounded-2xl border border-sky-400/10 bg-[#0f263b]/80 p-5 shadow-card backdrop-blur-xl;
+  }
+
+  .profile-card-muted {
+    @apply rounded-xl border border-white/[0.04] bg-[#17334b]/75 p-4;
+  }
+
+  .profile-label {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-sky-200/35;
+  }
+
+  .profile-value {
+    @apply mt-1 text-sm font-semibold text-slate-100;
+  }
+
+  .profile-score-row {
+    @apply grid grid-cols-[130px_1fr_64px] items-center gap-4 text-sm;
+  }
+
+  .profile-score-label {
+    @apply truncate text-sm font-semibold text-sky-100/75;
+  }
+
+  .profile-score-note {
+    @apply mt-0.5 truncate text-[10px] text-sky-100/30;
+  }
+
+  .profile-score-track {
+    @apply h-2 rounded-full bg-[#27465f] overflow-hidden;
+  }
+
+  .profile-score-fill {
+    @apply h-full rounded-full shadow-[0_0_14px_rgba(34,211,238,0.18)];
+  }
+
+  .profile-score-value {
+    @apply text-right text-sm font-bold text-slate-100;
+  }
+
+  .profile-stat-tile {
+    @apply rounded-xl bg-[#17334b]/85 px-4 py-3 text-center;
+  }
+
   .brand-lockup {
     @apply inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 shadow-card;
   }
@@ -130,5 +174,15 @@ html[data-theme-mode="light"] .input-field {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  @media (max-width: 640px) {
+    .profile-score-row {
+      @apply grid-cols-1 gap-2;
+    }
+
+    .profile-score-value {
+      @apply text-left;
+    }
   }
 }

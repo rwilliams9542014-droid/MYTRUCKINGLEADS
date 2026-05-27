@@ -13,21 +13,83 @@ function inspectionColor(value) {
 }
 
 function normalizeBasics(record = {}) {
+  const preferredOrder = [
+    "Unsafe Driving",
+    "Crash Indicator",
+    "HOS Compliance",
+    "Vehicle Maintenance",
+    "Controlled Substances / Alcohol",
+    "Driver Fitness",
+    "Hazardous Materials Compliance",
+  ];
   const basics = record.basicCategories?.length
     ? record.basicCategories
     : Object.entries(BASIC_CATEGORY_LABELS).map(([id, label]) => ({ id, label, percentile: "" }));
 
-  return basics.map((item) => ({
-    ...item,
-    label: item.label || BASIC_CATEGORY_LABELS[item.id] || item.id,
-  }));
+  return basics.map((item) => {
+    const label = item.label || BASIC_CATEGORY_LABELS[item.id] || item.id;
+    return {
+      ...item,
+      label: label === "Hours-of-Service Compliance" ? "HOS Compliance" : label,
+    };
+  }).sort((a, b) => {
+    const aIndex = preferredOrder.indexOf(a.label);
+    const bIndex = preferredOrder.indexOf(b.label);
+    return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+  });
 }
 
-export default function SafetyBarsPanel({ record = {}, compact = false }) {
+export default function SafetyBarsPanel({ record = {}, compact = false, mode = "full" }) {
   const { totalInspections, bars } = buildInspectionBars(record);
   const basics = normalizeBasics(record);
   const hasBasics = basics.some((item) => item.percentile || item.measure || item.violations || item.inspections);
   const inspections = Array.isArray(record.inspectionHistory) ? record.inspectionHistory : [];
+
+  if (mode === "basic") {
+    return (
+      <div className="space-y-4">
+        <p className="text-xs font-medium text-navy-400">
+          Higher scores indicate worse performance. Threshold for intervention varies by category.
+        </p>
+        <div className="space-y-3">
+          {basics.map((item) => (
+            <SafetyScoreBar
+              key={item.id || item.label}
+              label={item.label}
+              value={item.percentile ?? item.measure}
+              inspections={item.inspections}
+              violations={item.violations}
+              description={item.alert || item.threshold || ""}
+            />
+          ))}
+        </div>
+        {!hasBasics && (
+          <p className="text-sm text-navy-400">Public SMS data not available for this carrier/category.</p>
+        )}
+      </div>
+    );
+  }
+
+  if (mode === "inspection") {
+    if (!totalInspections && bars.length === 0) {
+      return <p className="text-sm text-navy-400">{INSPECTION_UNAVAILABLE}</p>;
+    }
+    return (
+      <div className="space-y-3">
+        {bars.map((bar) => (
+          <div key={bar.label}>
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="text-navy-300">{bar.label}</span>
+              <span className="text-white font-semibold">{Math.round(bar.value)}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
+              <div className={`h-full rounded-full ${inspectionColor(bar.value)}`} style={{ width: `${Math.round(bar.value)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (compact) {
     if (!totalInspections && !bars.length && !hasBasics) {
@@ -79,7 +141,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false }) {
         <div className="flex items-center justify-between gap-3 mb-3">
           <h3 className="text-sm font-semibold text-white">SMS BASIC Bars</h3>
           <Badge variant={hasBasics ? "success" : "outline"}>
-            {hasBasics ? "Public SMS/BASIC data available" : "Not Publicly Available"}
+            {hasBasics ? "Public SMS/BASIC data available" : "Public SMS data not available for this carrier/category"}
           </Badge>
         </div>
         <div className="space-y-3">
