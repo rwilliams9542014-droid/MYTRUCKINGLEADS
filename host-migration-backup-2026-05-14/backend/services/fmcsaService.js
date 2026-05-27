@@ -857,31 +857,39 @@ async function fetchQcmobilePublicProfileDetails(dot) {
   const dataSources = {};
   settled.forEach((result, index) => {
     const [endpoint] = endpoints[index];
+    const sourceKey = endpoint === "cargo-carried" ? "cargoCarried" : endpoint === "operation-classification" ? "operationClassification" : endpoint === "docket-numbers" ? "docketNumbers" : endpoint;
     if (result.status === "fulfilled" && result.value) {
       details[endpoint] = result.value;
-      dataSources[endpoint === "cargo-carried" ? "cargoCarried" : endpoint === "operation-classification" ? "operationClassification" : endpoint === "docket-numbers" ? "docketNumbers" : endpoint] = {
+      const recordCount = Array.isArray(result.value?.categories)
+        ? result.value.categories.length
+        : Array.isArray(result.value?.cargoTypes)
+          ? result.value.cargoTypes.length
+          : Array.isArray(result.value?.operationClassification)
+            ? result.value.operationClassification.length
+            : Array.isArray(result.value?.docketNumbers)
+              ? result.value.docketNumbers.length
+              : undefined;
+      const hasScalarData = Object.entries(result.value || {}).some(([key, value]) => {
+        if (["source", "rawKeysFound"].includes(key)) return false;
+        if (Array.isArray(value)) return value.length > 0;
+        if (value && typeof value === "object") return Object.values(value).some(Boolean);
+        return value !== undefined && value !== null && value !== "";
+      });
+      dataSources[sourceKey] = {
         attempted: true,
-        success: Boolean(result.value?.source || Object.keys(result.value || {}).length),
-        recordCount: Array.isArray(result.value?.categories)
-          ? result.value.categories.length
-          : Array.isArray(result.value?.cargoTypes)
-            ? result.value.cargoTypes.length
-            : Array.isArray(result.value?.operationClassification)
-              ? result.value.operationClassification.length
-              : Array.isArray(result.value?.docketNumbers)
-                ? result.value.docketNumbers.length
-                : undefined,
+        success: recordCount !== undefined ? recordCount > 0 : hasScalarData,
+        recordCount,
         rawKeysFound: result.value?.rawKeysFound || undefined
       };
     } else if (result.status === "rejected") {
       logProviderFailure(`FMCSA QCMobile ${endpoint} lookup`, result.reason);
-      dataSources[endpoint === "cargo-carried" ? "cargoCarried" : endpoint === "operation-classification" ? "operationClassification" : endpoint === "docket-numbers" ? "docketNumbers" : endpoint] = {
+      dataSources[sourceKey] = {
         attempted: true,
         success: false,
         error: result.reason?.response?.status ? `HTTP ${result.reason.response.status}` : "request failed"
       };
     } else {
-      dataSources[endpoint === "cargo-carried" ? "cargoCarried" : endpoint === "operation-classification" ? "operationClassification" : endpoint === "docket-numbers" ? "docketNumbers" : endpoint] = {
+      dataSources[sourceKey] = {
         attempted: true,
         success: false,
         recordCount: 0

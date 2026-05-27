@@ -21,6 +21,7 @@ import {
 
 const PUBLIC_CONTACT_LOCK_MESSAGE = "Create an account to reveal carrier phone and email.";
 const LIVE_FMCSA_FALLBACK_MESSAGE = "Live FMCSA data is temporarily unavailable. Showing saved carrier data where available.";
+const SAVED_PROFILE_REFRESH_MESSAGE = "Saved carrier profile loaded. Live FMCSA refresh is temporarily unavailable.";
 
 function clean(value, fallback = "") {
   if (value === undefined || value === null) return fallback;
@@ -1528,8 +1529,8 @@ export async function getCarrierIntelligenceProfile(req, res) {
         if (cached) {
           profile = mapProfile(cached, {
             sourceType: "cached",
-            liveUnavailable: true,
-            message: LIVE_FMCSA_FALLBACK_MESSAGE
+            liveUnavailable: false,
+            message: ""
           });
           mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
         } else {
@@ -1538,7 +1539,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
             profile = mapProfile(postgresCarrier, {
               sourceType: "postgres-fallback",
               liveUnavailable: true,
-              message: LIVE_FMCSA_FALLBACK_MESSAGE
+              message: SAVED_PROFILE_REFRESH_MESSAGE
             });
             mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
           } else {
@@ -1556,8 +1557,8 @@ export async function getCarrierIntelligenceProfile(req, res) {
     if (cached) {
       const profile = mapProfile(cached, {
         sourceType: "cached",
-        liveUnavailable: true,
-        message: LIVE_FMCSA_FALLBACK_MESSAGE
+        liveUnavailable: false,
+        message: ""
       });
       mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
       return res.json(await finalizeTrialProfileResponse(req, res, profile));
@@ -1568,7 +1569,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
       const profile = mapProfile(postgresCarrier, {
         sourceType: "postgres-fallback",
         liveUnavailable: true,
-        message: LIVE_FMCSA_FALLBACK_MESSAGE
+        message: SAVED_PROFILE_REFRESH_MESSAGE
       });
       mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
       return res.json(await finalizeTrialProfileResponse(req, res, profile));
@@ -1576,7 +1577,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
 
     res.status(404).json({
       error: "Carrier profile is not available right now.",
-      message: `${LIVE_FMCSA_FALLBACK_MESSAGE} No saved carrier record was found.`
+      message: "No saved carrier record was found and the live FMCSA lookup did not return a profile."
     });
   }
 }

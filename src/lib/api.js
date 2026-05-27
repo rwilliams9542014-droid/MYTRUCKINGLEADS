@@ -25,8 +25,8 @@ async function parseResponse(response) {
 }
 
 function errorMessage(status, data) {
-  if (data?.message) return data.message;
   if (data?.error) return data.error;
+  if (data?.message) return data.message;
   if (status === 400) return "Please check the form and try again.";
   if (status === 401) return "Invalid email or password.";
   if (status === 403) return "You do not have access to that page.";
