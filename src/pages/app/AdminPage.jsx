@@ -136,7 +136,7 @@ export default function AdminPage() {
             <p className="text-sm text-navy-300"><span className="text-white font-medium">{users.length}</span> users loaded</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="premium-table w-full">
               <thead>
                 <tr className="border-b border-white/5">
                   {["User", "Plan", "Status", "Access", "Joined"].map((heading) => (

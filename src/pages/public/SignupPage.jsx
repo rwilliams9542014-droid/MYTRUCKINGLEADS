@@ -128,9 +128,13 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center px-6 pt-24 pb-12">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-white/95 to-blue-50/90 p-2.5 shadow-lg shadow-brand-500/10">
-            <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
-          </div>
+          <Link to="/" className="inline-flex justify-center mb-5">
+            <img
+              src="/assets/homepage-logo-floating.png"
+              alt="MyTruckingLeads"
+              className="h-16 w-auto max-w-[320px] object-contain drop-shadow-[0_0_26px_rgba(56,189,248,0.34)]"
+            />
+          </Link>
           <h1 className="text-2xl font-bold text-white">Create your account</h1>
           <p className="text-navy-400 mt-2 text-sm">Start your 3-day free trial. No credit card required.</p>
         </div>

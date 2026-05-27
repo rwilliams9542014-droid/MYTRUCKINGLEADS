@@ -29,27 +29,26 @@ export function PublicLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-navy-950">
+    <div className="min-h-screen premium-shell">
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled
-            ? "bg-navy-950/80 backdrop-blur-xl border-b border-white/5 py-3"
+            ? "bg-[#020817]/82 backdrop-blur-xl border-b border-cyan-300/10 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.28)]"
             : "bg-transparent py-5"
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <Link to="/" className="brand-lockup group">
-            <div className="brand-mark-shell w-10 h-10 group-hover:scale-105 transition-transform">
-              <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
-            </div>
-            <span className="brand-wordmark-shell hidden sm:flex">
-              <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="brand-wordmark h-8" />
-            </span>
+          <Link to="/" className="inline-flex items-center">
+            <img
+              src="/assets/homepage-logo-floating.png"
+              alt="MyTruckingLeads"
+              className="h-12 w-auto max-w-[280px] object-contain drop-shadow-[0_0_24px_rgba(56,189,248,0.32)]"
+            />
           </Link>
 
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-8 rounded-full border border-cyan-300/10 bg-white/[0.025] px-5 py-2 backdrop-blur-xl">
             <NavLink to="/pricing">Pricing</NavLink>
-            <NavLink to="/quote-request">Get a Quote</NavLink>
+            <NavLink to="/quote-request">Get Truck Quote</NavLink>
           </nav>
 
           <div className="hidden md:flex items-center gap-3">
@@ -84,10 +83,10 @@ export function PublicLayout() {
         </div>
 
         {mobileOpen && (
-          <div className="md:hidden absolute top-full left-0 right-0 bg-navy-900/95 backdrop-blur-xl border-b border-white/5 p-6 animate-slide-up">
+          <div className="md:hidden absolute top-full left-0 right-0 bg-[#03101f]/95 backdrop-blur-xl border-b border-cyan-300/10 p-6 animate-slide-up">
             <nav className="flex flex-col gap-4">
               <Link to="/pricing" className="text-white font-medium" onClick={() => setMobileOpen(false)}>Pricing</Link>
-              <Link to="/quote-request" className="text-white font-medium" onClick={() => setMobileOpen(false)}>Get a Quote</Link>
+              <Link to="/quote-request" className="text-white font-medium" onClick={() => setMobileOpen(false)}>Get Truck Quote</Link>
               <hr className="border-white/10" />
               {user ? (
                 <Link to="/dashboard" className="btn-primary text-center" onClick={() => setMobileOpen(false)}>Dashboard</Link>
@@ -106,17 +105,16 @@ export function PublicLayout() {
         <Outlet />
       </main>
 
-      <footer className="border-t border-white/5 py-12 mt-20">
+      <footer className="border-t border-cyan-300/10 py-12 mt-20 bg-black/10">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="brand-mark-shell w-9 h-9 rounded-lg">
-                  <img src="/assets/LOGO_BADGE-removebg-preview.png" alt="MTL" className="w-full h-full object-contain" />
-                </div>
-                <span className="brand-wordmark-shell">
-                  <img src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png" alt="MyTruckingLeads" className="brand-wordmark h-6" />
-                </span>
+              <div className="flex items-center mb-4">
+                <img
+                  src="/assets/homepage-logo-floating.png"
+                  alt="MyTruckingLeads"
+                  className="h-10 w-auto max-w-[250px] object-contain drop-shadow-[0_0_18px_rgba(56,189,248,0.24)]"
+                />
               </div>
               <p className="text-sm text-navy-400 leading-relaxed">
                 The #1 platform for commercial insurance agents to find and close trucking leads.
@@ -145,7 +143,7 @@ export function PublicLayout() {
             <div>
               <h4 className="text-sm font-semibold text-white mb-4">For Truckers</h4>
               <div className="flex flex-col gap-2">
-                <Link to="/quote-request" className="text-sm text-navy-400 hover:text-white transition-colors">Get Insurance Quotes</Link>
+                <Link to="/quote-request" className="text-sm text-navy-400 hover:text-white transition-colors">Get Truck Insurance Quotes</Link>
               </div>
             </div>
           </div>

@@ -449,7 +449,7 @@ export default function LeadDeskPage() {
 
       <Card className="!p-0 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px]">
+          <table className="premium-table w-full min-w-[1100px]">
             <thead>
               <tr className="border-b border-white/5">
                 {["Company", "DOT / MC", "Location", "Fleet", "Cargo", "MCS-150", activeTab === "new_dot" ? "Added / First Seen" : activeTab === "renewal" ? "Renewal / Filing Date" : "Submitted", "Status", "Actions"].map((heading) => (

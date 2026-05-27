@@ -77,35 +77,32 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-navy-950 flex">
+    <div className="min-h-screen premium-shell flex text-white">
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed lg:sticky top-0 left-0 h-screen z-50 bg-navy-900/50 border-r border-white/5 flex flex-col transition-all duration-300 ${
+        className={`fixed lg:sticky top-0 left-0 h-screen z-50 flex flex-col transition-all duration-300 border-r border-cyan-300/10 bg-[#03101f]/88 backdrop-blur-2xl shadow-[18px_0_70px_rgba(0,0,0,0.32)] ${
           collapsed ? "w-20" : "w-64"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* Professional Header Logo Section */}
-        <div className="h-16 px-4 flex items-center border-b border-white/5">
+        <div className="h-16 px-4 flex items-center border-b border-cyan-300/10">
           <Link
             to="/dashboard"
             className={`flex w-full items-center transition-all duration-200 ${
               collapsed ? "justify-center" : "justify-start px-2 gap-3"
             }`}
           >
-            {/* Logo Badge - Anchored Container */}
-            <div className="brand-mark-shell w-8 h-8 flex-shrink-0 transition-transform duration-300 hover:scale-105">
-              <img
-                src="/assets/LOGO_BADGE-removebg-preview.png"
-                alt="MTL"
-                className="w-full h-full object-contain"
-              />
-            </div>
+            <img
+              src="/assets/mytruckingleads-logo-icon.png"
+              alt="MTL"
+              className="w-9 h-9 flex-shrink-0 object-contain drop-shadow-[0_0_18px_rgba(56,189,248,0.34)] transition-transform duration-300 hover:scale-105"
+            />
 
             {/* Smooth Wordmark Visibility Control */}
             <div
@@ -116,9 +113,9 @@ export function AppLayout() {
               }`}
             >
               <img
-                src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png"
+                src="/assets/homepage-logo-floating.png"
                 alt="MyTruckingLeads"
-                className="h-7 w-auto max-w-[140px] object-contain filter drop-shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                className="h-9 w-auto max-w-[160px] object-contain drop-shadow-[0_0_14px_rgba(56,189,248,0.25)]"
               />
             </div>
           </Link>
@@ -135,8 +132,8 @@ export function AppLayout() {
                 onClick={() => setMobileOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? "bg-brand-500/10 text-brand-400 border border-brand-500/20"
-                    : "text-navy-300 hover:text-white hover:bg-white/5"
+                    ? "bg-brand-500/15 text-cyan-100 border border-cyan-300/25 shadow-[0_0_24px_rgba(20,124,255,0.16)]"
+                    : "text-navy-300 hover:text-white hover:bg-cyan-300/[0.06] hover:border-cyan-300/10 border border-transparent"
                 } ${collapsed ? "justify-center" : ""}`}
                 title={collapsed ? item.label : undefined}
               >
@@ -148,14 +145,14 @@ export function AppLayout() {
 
           {showAdmin && (
             <>
-              <div className="my-3 border-t border-white/5" />
+              <div className="my-3 border-t border-cyan-300/10" />
               <Link
                 to="/admin"
                 onClick={() => setMobileOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                   location.pathname === "/admin"
-                    ? "bg-danger-500/10 text-danger-400 border border-danger-500/20"
-                    : "text-navy-300 hover:text-white hover:bg-white/5"
+                    ? "bg-danger-500/10 text-danger-300 border border-danger-500/20"
+                    : "text-navy-300 hover:text-white hover:bg-cyan-300/[0.06] border border-transparent"
                 } ${collapsed ? "justify-center" : ""}`}
                 title={collapsed ? "Admin" : undefined}
               >
@@ -169,7 +166,7 @@ export function AppLayout() {
         </nav>
 
         {/* User Account Info Section */}
-        <div className={`p-4 border-t border-white/5 ${collapsed ? "text-center" : ""}`}>
+        <div className={`p-4 border-t border-cyan-300/10 ${collapsed ? "text-center" : ""}`}>
           {!collapsed && (
             <div className="flex items-center gap-3 mb-3">
               <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 text-sm font-bold">
@@ -214,7 +211,7 @@ export function AppLayout() {
 
       {/* Main Content Pane */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-30 h-16 bg-navy-950/80 backdrop-blur-xl border-b border-white/5 flex items-center px-6">
+        <header className="sticky top-0 z-30 h-16 bg-[#020817]/82 backdrop-blur-xl border-b border-cyan-300/10 flex items-center px-6">
           <button
             className="lg:hidden mr-4 text-white"
             onClick={() => setMobileOpen(true)}
@@ -227,3 +224,9 @@ export function AppLayout() {
         </header>
 
         <main className="flex-1 p-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

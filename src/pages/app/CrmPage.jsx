@@ -196,7 +196,7 @@ export default function CrmPage() {
       ) : (
         <Card className="!p-0 overflow-hidden border-white/[0.08]">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] border-collapse">
+            <table className="premium-table w-full min-w-[1120px] border-collapse">
               <thead>
                 <tr className="border-b border-white/10 bg-navy-900/70">
                   {["Company / Carrier", "DOT #", "MC #", "Phone", "Email", "State", "Lead Type", "Status", "Next Follow-Up", "Last Contacted", "Action"].map((heading) => (
