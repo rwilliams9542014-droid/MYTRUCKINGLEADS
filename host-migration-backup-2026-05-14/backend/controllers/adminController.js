@@ -6,6 +6,7 @@ import {
   normalizeOwnerPreviewInput,
   setOwnerPreviewCookie
 } from "../utils/ownerPreview.js";
+import { runFmcsaDiagnostics } from "../services/fmcsaService.js";
 import { listStripeSignupRecords, syncUserSubscriptionFromStripe } from "../services/stripeService.js";
 
 const CONTACT_REQUEST_STATUSES = new Set(["new", "reviewed", "resolved"]);
@@ -389,6 +390,18 @@ export async function setOwnerPreviewSession(req, res, next) {
 export async function clearOwnerPreviewSession(req, res) {
   clearOwnerPreviewCookie(res);
   res.json({ preview: { active: false } });
+}
+
+export async function getFmcsaDiagnostics(req, res, next) {
+  try {
+    const dotNumber = String(req.params.dotNumber || "").replace(/\D/g, "");
+    if (!dotNumber) {
+      throw new ValidationError("DOT number is required.");
+    }
+    res.json(await runFmcsaDiagnostics(dotNumber));
+  } catch (err) {
+    next(err);
+  }
 }
 
 export async function syncUserStripe(req, res, next) {

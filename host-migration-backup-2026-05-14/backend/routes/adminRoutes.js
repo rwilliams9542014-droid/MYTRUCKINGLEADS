@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   clearOwnerPreviewSession,
+  getFmcsaDiagnostics,
   getOwnerOverview,
   getWebhookHealth,
   listUsers,
@@ -18,6 +19,7 @@ router.use(authRequired, ownerRequired);
 router.get("/overview", getOwnerOverview);
 router.get("/users", listUsers);
 router.get("/webhook-health", getWebhookHealth);
+router.get("/fmcsa-diagnostics/:dotNumber", getFmcsaDiagnostics);
 router.post("/users/:id/sync-stripe", syncUserStripe);
 router.post("/preview-session", setOwnerPreviewSession);
 router.delete("/preview-session", clearOwnerPreviewSession);

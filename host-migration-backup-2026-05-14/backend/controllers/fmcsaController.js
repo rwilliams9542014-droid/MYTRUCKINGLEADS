@@ -61,6 +61,25 @@ export async function searchFmcsaCarrier(req, res, next) {
       proxied: true
     });
   } catch (err) {
+    if (err?.fmcsaStatus) {
+      return res.status(err.fmcsaStatus.status || 503).json({
+        success: false,
+        error: err.fmcsaStatus.reason || "FMCSA QCMobile request failed",
+        liveFmcsaStatus: {
+          attempted: err.fmcsaStatus.attempted !== false,
+          success: false,
+          reason: err.fmcsaStatus.reason || err.message,
+          endpointFailures: [{
+            endpoint: err.fmcsaStatus.urlPath?.includes("docket-number") ? "docketNumber" : "carrier",
+            urlPath: err.fmcsaStatus.urlPath,
+            status: err.fmcsaStatus.status ?? null,
+            reason: err.fmcsaStatus.reason || err.message,
+            errorType: err.fmcsaStatus.errorType,
+            responseBodySnippet: err.fmcsaStatus.responseBodySnippet
+          }]
+        }
+      });
+    }
     next(err);
   }
 }

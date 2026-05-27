@@ -1,7 +1,7 @@
 import axios from "axios";
 import { withFmcsaCache } from "./fmcsaCacheService.js";
 const FMCSA_WEBKEY = process.env.FMCSA_WEBKEY;
-const FMCSA_BASE_URL = "https://mobile.fmcsa.dot.gov/qc/services";
+const FMCSA_BASE_URL = String(process.env.FMCSA_BASE_URL || "https://mobile.fmcsa.dot.gov/qc/services").replace(/\/+$/, "");
 const FMCSA_CENSUS_URL = "https://data.transportation.gov/resource/az4n-8mr2.json";
 const FMCSA_SMS_BASE_URL = "https://ai.fmcsa.dot.gov/SMS";
 const FMCSA_SAFER_URL = "https://safer.fmcsa.dot.gov/query.asp";
@@ -13,6 +13,157 @@ const FMCSA_SMS_HEADERS = {
   Referer: `${FMCSA_SMS_BASE_URL}/`,
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 MyTruckingLeads/1.0"
 };
+
+function maskWebKey(value = FMCSA_WEBKEY) {
+  const text = String(value || "");
+  if (!text) return "";
+  if (text.length <= 8) return `${text.slice(0, 2)}...${text.slice(-2)}`;
+  return `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+function sanitizeFmcsaText(value) {
+  let text = typeof value === "string" ? value : JSON.stringify(value || "");
+  if (!text) return "";
+  if (FMCSA_WEBKEY) {
+    text = text.split(FMCSA_WEBKEY).join("[redacted-webKey]");
+  }
+  return text.replace(/([?&]webKey=)[^&\s"]+/gi, "$1[redacted-webKey]");
+}
+
+function safeResponseSnippet(value, maxLength = 300) {
+  const text = sanitizeFmcsaText(value);
+  return text.length > maxLength ? text.slice(0, maxLength) : text;
+}
+
+function rawTopLevelKeys(data) {
+  return data && typeof data === "object" && !Array.isArray(data) ? Object.keys(data) : [];
+}
+
+function responseShape(data) {
+  if (data?.content?.carrier) return "content.carrier";
+  if (Array.isArray(data?.content)) return "content[]";
+  if (data?.content && typeof data.content === "object") return "content";
+  if (Array.isArray(data?.carriers)) return "carriers[]";
+  if (Array.isArray(data)) return "array";
+  if (data && typeof data === "object") return "object";
+  return typeof data;
+}
+
+function classifyFmcsaRequestError(err, urlPath) {
+  if (err?.response) {
+    const status = err.response.status;
+    return {
+      attempted: true,
+      success: false,
+      urlPath,
+      status,
+      reason: `${status} ${err.response.statusText || "HTTP error"} from ${urlPath}`,
+      errorType: status === 401 ? "unauthorized" : status === 400 ? "bad_request" : status === 404 ? "not_found" : status === 429 ? "rate_limit" : "http_error",
+      sanitizedError: sanitizeFmcsaText(err.message),
+      responseBodySnippet: safeResponseSnippet(err.response.data)
+    };
+  }
+
+  const code = String(err?.code || "");
+  const message = sanitizeFmcsaText(err?.message || "FMCSA request failed");
+  const isTimeout = code === "ECONNABORTED" || /timeout/i.test(message);
+  const isDns = ["ENOTFOUND", "EAI_AGAIN"].includes(code);
+  return {
+    attempted: true,
+    success: false,
+    urlPath,
+    status: null,
+    reason: `${isTimeout ? "timeout" : isDns ? "network/DNS failure" : "network failure"} from ${urlPath}: ${message}`,
+    errorType: isTimeout ? "timeout" : isDns ? "dns_failure" : "network_failure",
+    sanitizedError: message
+  };
+}
+
+function fmcsaFailureError(status) {
+  const err = new Error(status.reason || `FMCSA request failed for ${status.urlPath || "unknown endpoint"}`);
+  err.fmcsaStatus = status;
+  return err;
+}
+
+export function getFmcsaRuntimeConfigStatus() {
+  return {
+    webkeyPresent: Boolean(FMCSA_WEBKEY),
+    webkeyLength: FMCSA_WEBKEY ? String(FMCSA_WEBKEY).length : 0,
+    webkeyMasked: FMCSA_WEBKEY ? maskWebKey() : "",
+    baseUrl: FMCSA_BASE_URL
+  };
+}
+
+export async function fmcsaRequest(path, params = {}, options = {}) {
+  const urlPath = path.startsWith("/") ? path : `/${path}`;
+  const timeout = Number(options.timeout || process.env.FMCSA_QCMOBILE_TIMEOUT_MS || 15000);
+  const retryOnTimeout = options.retryOnTimeout !== false;
+
+  if (!FMCSA_WEBKEY) {
+    return {
+      attempted: false,
+      success: false,
+      urlPath,
+      status: null,
+      reason: `endpoint not called: missing FMCSA_WEBKEY for ${urlPath}`,
+      errorType: "missing_webkey",
+      webkeyPresent: false
+    };
+  }
+
+  const requestOptions = {
+    params: { ...params, webKey: FMCSA_WEBKEY },
+    headers: { Accept: "application/json" },
+    timeout,
+    validateStatus: () => true
+  };
+
+  let lastNetworkFailure = null;
+  for (let attempt = 1; attempt <= (retryOnTimeout ? 2 : 1); attempt += 1) {
+    try {
+      const response = await axios.get(`${FMCSA_BASE_URL}${urlPath}`, requestOptions);
+      const meta = {
+        attempted: true,
+        success: response.status >= 200 && response.status < 300,
+        urlPath,
+        status: response.status,
+        rawTopLevelKeys: rawTopLevelKeys(response.data),
+        responseShape: responseShape(response.data)
+      };
+
+      if (!meta.success) {
+        return {
+          ...meta,
+          reason: `${response.status} ${response.statusText || "HTTP error"} from ${urlPath}`,
+          errorType: response.status === 401 ? "unauthorized" : response.status === 400 ? "bad_request" : response.status === 404 ? "not_found" : response.status === 429 ? "rate_limit" : "http_error",
+          responseBodySnippet: safeResponseSnippet(response.data)
+        };
+      }
+
+      if (response.data === undefined || response.data === null || typeof response.data !== "object") {
+        return {
+          ...meta,
+          success: false,
+          reason: `response shape mismatch from ${urlPath}: expected JSON object`,
+          errorType: "response_shape_mismatch",
+          responseBodySnippet: safeResponseSnippet(response.data)
+        };
+      }
+
+      return {
+        ...meta,
+        data: response.data
+      };
+    } catch (err) {
+      const status = classifyFmcsaRequestError(err, urlPath);
+      const retryable = status.errorType === "timeout" || status.errorType === "network_failure" || status.errorType === "dns_failure";
+      lastNetworkFailure = status;
+      if (!retryOnTimeout || !retryable || attempt >= 2) return status;
+    }
+  }
+
+  return lastNetworkFailure;
+}
 
 function findFirstValue(node, keyPatterns) {
   if (!node || typeof node !== "object") return "";
@@ -50,6 +201,10 @@ function buildAddress(...parts) {
 function valueOrEmpty(value) {
   if (value === null || value === undefined) return "";
   return String(value).trim();
+}
+
+function normalizeDot(value) {
+  return valueOrEmpty(value).replace(/\D/g, "");
 }
 
 function escapeSocrataString(value) {
@@ -546,6 +701,9 @@ function parseSaferSnapshotPage(pageHtml) {
     /Operating Status:\s*(.+?)(?:Out of Service Date:|Legal Name:|DBA Name:)/i
   );
   const totalInspections = textMatch(pageText, /Total Inspections:\s*([0-9,]+)/i);
+  const inspectionTableMatch = pageText.match(
+    /Inspection Type\s+Vehicle\s+Driver\s+Hazmat\s+IEP\s+Inspections\s+([0-9,]+)\s+([0-9,]+)\s+([0-9,]+)\s+([0-9,]+)\s+Out of Service\s+([0-9,]+)\s+([0-9,]+)\s+([0-9,]+)\s+([0-9,]+)\s+Out of Service %\s+([0-9.]+)%?\s+([0-9.]+)%?\s+%?\s*([0-9.]+)%?\s+Nat'l Average % as of DATE\s+([0-9/]+)\*?\s+([0-9.]+)%?\s+([0-9.]+)%?\s+([0-9.]+)%?/i
+  );
   const crashMatch = pageText.match(/Total Crashes\s+([0-9,]+)\s+([0-9,]+)\s+([0-9,]+)\s+([0-9,]+)/i);
   const safetyMatch = pageText.match(/Rating Date:\s*([0-9/]+).*?Rating:\s*(Satisfactory|Conditional|Unsatisfactory|Not Rated|None)/i);
   const powerUnits = textMatch(pageText, /Power Units:\s*([0-9,]+)/i);
@@ -561,6 +719,19 @@ function parseSaferSnapshotPage(pageHtml) {
     safetyRating: safetyMatch?.[2] || "",
     safetyRatingDate: safetyMatch?.[1] || "",
     totalInspections: totalInspections ? totalInspections.replace(/,/g, "") : "",
+    vehicleInspections: inspectionTableMatch?.[1]?.replace(/,/g, "") || "",
+    driverInspections: inspectionTableMatch?.[2]?.replace(/,/g, "") || "",
+    hazmatInspections: inspectionTableMatch?.[3]?.replace(/,/g, "") || "",
+    vehicleOos: inspectionTableMatch?.[5]?.replace(/,/g, "") || "",
+    driverOos: inspectionTableMatch?.[6]?.replace(/,/g, "") || "",
+    hazmatOos: inspectionTableMatch?.[7]?.replace(/,/g, "") || "",
+    vehicleOosRate: inspectionTableMatch?.[9] || "",
+    driverOosRate: inspectionTableMatch?.[10] || "",
+    hazmatOosRate: inspectionTableMatch?.[11] || "",
+    oosNationalAverageDate: inspectionTableMatch?.[12] || "",
+    nationalAverageVehicleOosRate: inspectionTableMatch?.[13] || "",
+    nationalAverageDriverOosRate: inspectionTableMatch?.[14] || "",
+    nationalAverageHazmatOosRate: inspectionTableMatch?.[15] || "",
     crashTotal: crashMatch?.[4]?.replace(/,/g, "") || "",
     crashes: crashMatch
       ? {
@@ -663,19 +834,19 @@ function mapQcmobileBasics(raw) {
 
   const categories = rows
     .map((row) => {
-      const label = findFirstValue(row, ["basicshortdesc", "basicdesc", "basicname", "category", "description"]);
+      const label = findFirstValue(row, ["basicshortdesc", "basicsshortdesc", "basicdesc", "basicslongdesc", "basicscode", "basicname", "category", "description"]);
       if (!label) return null;
       return {
         id: categoryKey(label),
         category: categoryLabel(label),
         shortName: categoryKey(label),
         label: categoryLabel(label),
-        basicShortDesc: findFirstValue(row, ["basicshortdesc"]) || label,
-        basicDesc: findFirstValue(row, ["basicdesc", "description"]),
-        percentile: findFirstValue(row, ["percentile", "score", "value"]),
-        measure: findFirstValue(row, ["measure"]),
-        snapshotDate: findFirstValue(row, ["snapshotdate", "snapshot", "snapdate", "csmsdate"]),
-        snapShotDate: findFirstValue(row, ["snapshotdate", "snapshot", "snapdate", "csmsdate"]),
+        basicShortDesc: findFirstValue(row, ["basicshortdesc", "basicsshortdesc", "basicscode"]) || label,
+        basicDesc: findFirstValue(row, ["basicdesc", "basicslongdesc", "description"]),
+        percentile: findFirstValue(row, ["basicspercentile", "percentile", "score", "value"]),
+        measure: findFirstValue(row, ["measurevalue", "measure"]),
+        snapshotDate: findFirstValue(row, ["basicsrundate", "snapshotdate", "snapshot", "snapdate", "csmsdate"]),
+        snapShotDate: findFirstValue(row, ["basicsrundate", "snapshotdate", "snapshot", "snapdate", "csmsdate"]),
         totalInspectionsWithViolations: findFirstValue(row, ["totalinspectionswithviolation", "totalinspectionwithviolation", "inspectioncount"]),
         totalViolations: findFirstValue(row, ["totalviolations", "totalviolation", "violationcount"]),
         inspections: findFirstValue(row, ["totalinspectionswithviolation", "totalinspectionwithviolation", "inspectioncount", "totalinspection"]),
@@ -699,11 +870,17 @@ function mapQcmobileBasics(raw) {
     snapShotDate: categories.find(row => row.snapShotDate)?.snapShotDate || findFirstValue(raw, ["snapshotdate", "snapshot", "snapdate", "csmsdate"]),
     rawKeysFound: rawKeysFound(raw, [
       "basicShortDesc",
+      "basicsShortDesc",
       "basicDesc",
+      "basicsLongDesc",
+      "basicsCode",
       "percentile",
+      "basicsPercentile",
       "measure",
+      "measureValue",
       "value",
       "score",
+      "basicsRunDate",
       "snapShotDate",
       "snapshotDate",
       "totalInspectionWithViolation",
@@ -816,30 +993,23 @@ function mapQcmobileDockets(raw) {
 }
 
 async function fetchQcMobileCarrierEndpoint(dot, endpoint, mapper) {
-  if (!FMCSA_WEBKEY || !dot) return null;
-  const source = `fmcsa-qcmobile-${endpoint}`;
-  return withFmcsaCache(
-    { source, identifier: dot, dotNumber: dot },
-    async () => {
-      devFmcsaDebug("calling QCMobile endpoint", { endpoint, dotNumber: dot });
-      const response = await axios.get(`${FMCSA_BASE_URL}/carriers/${encodeURIComponent(dot)}/${endpoint}`, {
-        params: { webKey: FMCSA_WEBKEY },
-        headers: { Accept: "application/json" },
-        timeout: 15000
-      });
-      const mapped = mapper(response.data);
-      devFmcsaDebug("QCMobile endpoint returned", {
-        endpoint,
-        dotNumber: dot,
-        hasData: Boolean(mapped && JSON.stringify(mapped) !== "{}")
-      });
-      return mapped;
-    }
-  );
+  if (!dot) return null;
+  devFmcsaDebug("calling QCMobile endpoint", { endpoint, dotNumber: dot });
+  const result = await fmcsaRequest(`/carriers/${encodeURIComponent(dot)}/${endpoint}`);
+  if (!result.success) {
+    throw fmcsaFailureError(result);
+  }
+  const mapped = mapper(result.data);
+  devFmcsaDebug("QCMobile endpoint returned", {
+    endpoint,
+    dotNumber: dot,
+    hasData: Boolean(mapped && JSON.stringify(mapped) !== "{}")
+  });
+  return mapped;
 }
 
 async function fetchQcmobilePublicProfileDetails(dot) {
-  if (!FMCSA_WEBKEY || !dot) return null;
+  if (!dot) return null;
   const endpoints = [
     ["basics", mapQcmobileBasics],
     ["oos", mapQcmobileOos],
@@ -883,10 +1053,14 @@ async function fetchQcmobilePublicProfileDetails(dot) {
       };
     } else if (result.status === "rejected") {
       logProviderFailure(`FMCSA QCMobile ${endpoint} lookup`, result.reason);
+      const status = result.reason?.fmcsaStatus || {};
       dataSources[sourceKey] = {
         attempted: true,
         success: false,
-        error: result.reason?.response?.status ? `HTTP ${result.reason.response.status}` : "request failed"
+        status: status.status ?? result.reason?.response?.status ?? null,
+        reason: status.reason || (result.reason?.response?.status ? `HTTP ${result.reason.response.status}` : sanitizeFmcsaText(result.reason?.message || "request failed")),
+        errorType: status.errorType || "request_failed",
+        responseBodySnippet: status.responseBodySnippet
       };
     } else {
       dataSources[sourceKey] = {
@@ -1180,78 +1354,84 @@ function mapNameSearchCandidate(row = {}, matchMeta = {}) {
 }
 
 async function fetchQcMobileCarrier({ dot, mc }) {
-  if (!FMCSA_WEBKEY) return null;
+  const path = dot
+    ? `/carriers/${encodeURIComponent(dot)}`
+    : `/carriers/docket-number/${encodeURIComponent(mc)}`;
 
-  const url = dot
-    ? `${FMCSA_BASE_URL}/carriers/${encodeURIComponent(dot)}`
-    : `${FMCSA_BASE_URL}/carriers/docket-number/${encodeURIComponent(mc)}`;
+  const result = await fmcsaRequest(path);
+  if (!result.success) {
+    throw fmcsaFailureError(result);
+  }
 
-  return withFmcsaCache(
-    { source: "fmcsa-qcmobile", identifier: dot || mc, dotNumber: dot || null },
-    async () => {
-      const response = await axios.get(url, {
-        params: { webKey: FMCSA_WEBKEY },
-        headers: {
-          Accept: "application/json"
-        },
-        timeout: 15000
-      });
+  const snapshot = getCarrierPayload(result.data);
+  const carrierNode = snapshot?.Carrier || snapshot?.CARRIER || snapshot;
+  const contactNode = snapshot?.Contact || snapshot?.CONTACT || snapshot;
+  const safetyNode = snapshot?.Safety || snapshot?.SAFETY || snapshot;
+  const insuranceNode = snapshot?.Insurance || snapshot?.INSURANCE || snapshot;
+  const physicalAddress = carrierNode?.PhysicalAddress || carrierNode?.PHYSICAL_ADDRESS || snapshot;
 
-      const snapshot = getCarrierPayload(response.data);
-      const carrierNode = snapshot?.Carrier || snapshot?.CARRIER || snapshot;
-      const contactNode = snapshot?.Contact || snapshot?.CONTACT || snapshot;
-      const safetyNode = snapshot?.Safety || snapshot?.SAFETY || snapshot;
-      const insuranceNode = snapshot?.Insurance || snapshot?.INSURANCE || snapshot;
-      const physicalAddress = carrierNode?.PhysicalAddress || carrierNode?.PHYSICAL_ADDRESS || snapshot;
-
-      return {
-        carrierName:
-          carrierNode?.LegalName ||
-          carrierNode?.LEGAL_NAME ||
-          carrierNode?.legalName ||
-          carrierNode?.name ||
-          findFirstValue(snapshot, ["legalname", "dbaname", "name"]) ||
-          "Unknown",
-        dot:
-          carrierNode?.USDOTNumber ||
-          carrierNode?.USDOT_NUMBER ||
-          carrierNode?.dotNumber ||
-          findFirstValue(snapshot, ["usdotnumber", "dotnumber"]) ||
-          dot ||
-          "",
-        mc:
-          carrierNode?.MC_MX_FF_Number ||
-          carrierNode?.MCNumber ||
-          findFirstValue(snapshot, ["mcmxffnumber", "mcnumber", "docketnumber"]) ||
-          mc ||
-          "",
-        safetyRating:
-          safetyNode?.Rating ||
-          safetyNode?.RATING ||
-          findFirstValue(snapshot, ["safetyrating", "rating"]) ||
-          "Unknown",
-        insuranceExpiration:
-          insuranceNode?.PolicyExpirationDate ||
-          findFirstValue(snapshot, ["policyexpirationdate", "insuranceexpiration"]) ||
-          "",
-        cargo: snapshot?.Cargo?.CargoTypes || findFirstValue(snapshot, ["cargotypes"]) || "",
-        email: findEmailInPayload(contactNode || snapshot),
-        phone:
-          contactNode?.Phone ||
-          contactNode?.PHONE ||
-          contactNode?.phone ||
-          findFirstValue(snapshot, ["telephone", "phone", "cellphone"]) ||
-          "",
-        address: buildAddress(
-          physicalAddress?.Street || physicalAddress?.STREET || physicalAddress?.phyStreet || findFirstValue(physicalAddress, ["street"]),
-          physicalAddress?.City || physicalAddress?.CITY || physicalAddress?.phyCity || findFirstValue(physicalAddress, ["city"]),
-          physicalAddress?.State || physicalAddress?.STATE || physicalAddress?.phyState || findFirstValue(physicalAddress, ["state"]),
-          physicalAddress?.Zip || physicalAddress?.ZIP || physicalAddress?.phyZipcode || findFirstValue(physicalAddress, ["zip"])
-        ),
-        source: "FMCSA QCMobile API"
-      };
+  return {
+    carrierName:
+      carrierNode?.LegalName ||
+      carrierNode?.LEGAL_NAME ||
+      carrierNode?.legalName ||
+      carrierNode?.name ||
+      findFirstValue(snapshot, ["legalname", "dbaname", "name"]) ||
+      "Unknown",
+    dot:
+      carrierNode?.USDOTNumber ||
+      carrierNode?.USDOT_NUMBER ||
+      carrierNode?.dotNumber ||
+      findFirstValue(snapshot, ["usdotnumber", "dotnumber"]) ||
+      dot ||
+      "",
+    mc:
+      carrierNode?.MC_MX_FF_Number ||
+      carrierNode?.MCNumber ||
+      findFirstValue(snapshot, ["mcmxffnumber", "mcnumber", "docketnumber"]) ||
+      mc ||
+      "",
+    safetyRating:
+      safetyNode?.Rating ||
+      safetyNode?.RATING ||
+      findFirstValue(snapshot, ["safetyrating", "rating"]) ||
+      "Unknown",
+    insuranceExpiration:
+      insuranceNode?.PolicyExpirationDate ||
+      findFirstValue(snapshot, ["policyexpirationdate", "insuranceexpiration"]) ||
+      "",
+    cargo: snapshot?.Cargo?.CargoTypes || findFirstValue(snapshot, ["cargotypes"]) || "",
+    email: findEmailInPayload(contactNode || snapshot),
+    phone:
+      contactNode?.Phone ||
+      contactNode?.PHONE ||
+      contactNode?.phone ||
+      findFirstValue(snapshot, ["telephone", "phone", "cellphone"]) ||
+      "",
+    address: buildAddress(
+      physicalAddress?.Street || physicalAddress?.STREET || physicalAddress?.phyStreet || findFirstValue(physicalAddress, ["street"]),
+      physicalAddress?.City || physicalAddress?.CITY || physicalAddress?.phyCity || findFirstValue(physicalAddress, ["city"]),
+      physicalAddress?.State || physicalAddress?.STATE || physicalAddress?.phyState || findFirstValue(physicalAddress, ["state"]),
+      physicalAddress?.Zip || physicalAddress?.ZIP || physicalAddress?.phyZipcode || findFirstValue(physicalAddress, ["zip"])
+    ),
+    source: "FMCSA QCMobile API",
+    liveFmcsaStatus: {
+      attempted: true,
+      success: true,
+      reason: "",
+      endpointFailures: [],
+      endpoints: {
+        carrier: {
+          attempted: true,
+          success: true,
+          status: result.status,
+          urlPath: result.urlPath,
+          responseShape: result.responseShape,
+          rawTopLevelKeys: result.rawTopLevelKeys
+        }
+      }
     }
-  );
+  };
 }
 
 export function isFmcsaWebKeyConfigured() {
@@ -1337,12 +1517,159 @@ async function runFmcsaProvider(providerKey, criteria = {}) {
   return provider.resolve(criteria);
 }
 
+function qcmobilePathForStatus(dot, mc, key) {
+  if (key === "carrierSnapshot") {
+    return dot ? `/carriers/${dot}` : mc ? `/carriers/docket-number/${mc}` : "";
+  }
+  const endpoint = {
+    cargoCarried: "cargo-carried",
+    operationClassification: "operation-classification",
+    docketNumbers: "docket-numbers"
+  }[key] || key;
+  return dot ? `/carriers/${dot}/${endpoint}` : "";
+}
+
+function buildLiveFmcsaStatus({ dataSources = {}, dot = "", mc = "", extraFailures = [] } = {}) {
+  const endpointFailures = [...extraFailures];
+
+  Object.entries(dataSources).forEach(([key, status]) => {
+    if (!status || (!status.reason && !status.errorType && !status.error)) return;
+    endpointFailures.push({
+      endpoint: key,
+      urlPath: status.urlPath || qcmobilePathForStatus(dot, mc, key),
+      status: status.status ?? null,
+      reason: status.reason || status.error || "FMCSA endpoint failed",
+      errorType: status.errorType || "request_failed",
+      responseBodySnippet: status.responseBodySnippet
+    });
+  });
+
+  const attempted = Object.values(dataSources).some(status => status?.attempted) || endpointFailures.length > 0;
+  const requestFailures = endpointFailures.filter(failure => failure.reason || failure.errorType);
+  return {
+    attempted,
+    success: attempted && requestFailures.length === 0,
+    reason: requestFailures[0]?.reason || "",
+    endpointFailures: requestFailures
+  };
+}
+
+function diagnosticRecordCount(key, data) {
+  if (!data || typeof data !== "object") return 0;
+  if (key === "carrier") return getCarrierPayload(data) ? 1 : 0;
+  if (key === "basics") return mapQcmobileBasics(data).categories.length;
+  if (key === "cargoCarried") return mapQcmobileCargo(data).cargoTypes.length;
+  if (key === "operationClassification") return mapQcmobileOperation(data).operationClassification.length;
+  if (key === "docketNumbers") return mapQcmobileDockets(data).docketNumbers.length;
+  if (key === "oos") {
+    const mapped = mapQcmobileOos(data);
+    return Object.entries(mapped).some(([field, value]) => field !== "source" && field !== "rawKeysFound" && value !== "" && value !== null && value !== undefined) ? 1 : 0;
+  }
+  if (key === "authority") {
+    const mapped = mapQcmobileAuthority(data);
+    return Object.entries(mapped).some(([field, value]) => field !== "source" && value !== "" && value !== null && value !== undefined) ? 1 : 0;
+  }
+  return 0;
+}
+
+function diagnosticRawKeys(key, data) {
+  if (key === "basics") return mapQcmobileBasics(data).rawKeysFound;
+  if (key === "oos") return mapQcmobileOos(data).rawKeysFound;
+  return rawKeysFound(data, [
+    "carrier",
+    "content",
+    "authorityStatus",
+    "authorizedForHire",
+    "operatingAuthority",
+    "cargoCarried",
+    "operationClassification",
+    "docketNumber",
+    "mcNumber"
+  ]);
+}
+
+function diagnosticResponseFor(key, result) {
+  const base = {
+    attempted: result.attempted,
+    urlPath: result.urlPath,
+    status: result.status ?? null,
+    success: Boolean(result.success),
+    responseShape: result.responseShape,
+    rawTopLevelKeys: result.rawTopLevelKeys || []
+  };
+
+  if (result.success) {
+    return {
+      ...base,
+      recordCount: diagnosticRecordCount(key, result.data),
+      rawKeysFound: diagnosticRawKeys(key, result.data)
+    };
+  }
+
+  return {
+    ...base,
+    reason: result.reason,
+    errorType: result.errorType,
+    sanitizedError: result.sanitizedError,
+    responseBodySnippet: result.responseBodySnippet
+  };
+}
+
+export async function runFmcsaDiagnostics(dotNumber) {
+  const dot = normalizeDot(dotNumber);
+  if (!dot) throw new Error("DOT number is required");
+  const config = getFmcsaRuntimeConfigStatus();
+  const endpoints = {
+    carrier: `/carriers/${encodeURIComponent(dot)}`,
+    basics: `/carriers/${encodeURIComponent(dot)}/basics`,
+    oos: `/carriers/${encodeURIComponent(dot)}/oos`,
+    authority: `/carriers/${encodeURIComponent(dot)}/authority`,
+    cargoCarried: `/carriers/${encodeURIComponent(dot)}/cargo-carried`,
+    operationClassification: `/carriers/${encodeURIComponent(dot)}/operation-classification`,
+    docketNumbers: `/carriers/${encodeURIComponent(dot)}/docket-numbers`
+  };
+
+  const settled = await Promise.all(
+    Object.entries(endpoints).map(async ([key, path]) => [key, await fmcsaRequest(path, {}, { retryOnTimeout: true })])
+  );
+
+  return {
+    dotNumber: dot,
+    webkeyPresent: config.webkeyPresent,
+    webkeyLength: config.webkeyLength,
+    webkeyMasked: config.webkeyMasked,
+    baseUrl: config.baseUrl,
+    endpoints: Object.fromEntries(settled.map(([key, result]) => [key, diagnosticResponseFor(key, result)]))
+  };
+}
+
 export async function getCarrierData({ dot, mc, name } = {}) {
   if (!dot && !mc && !name) throw new Error("DOT, MC, or carrier name required");
+  const liveFmcsaFailures = [];
+
+  if ((dot || mc) && !FMCSA_WEBKEY) {
+    liveFmcsaFailures.push({
+      endpoint: "carrierSnapshot",
+      urlPath: qcmobilePathForStatus(dot, mc, "carrierSnapshot"),
+      status: null,
+      reason: `endpoint not called: missing FMCSA_WEBKEY for ${qcmobilePathForStatus(dot, mc, "carrierSnapshot")}`,
+      errorType: "missing_webkey"
+    });
+  }
 
   const apiResult = dot || mc
     ? await runFmcsaProvider("qcmobile", { dot, mc }).catch(err => {
       logProviderFailure("FMCSA QCMobile lookup", err);
+      if (err?.fmcsaStatus) {
+        liveFmcsaFailures.push({
+          endpoint: "carrierSnapshot",
+          urlPath: err.fmcsaStatus.urlPath || qcmobilePathForStatus(dot, mc, "carrierSnapshot"),
+          status: err.fmcsaStatus.status ?? null,
+          reason: err.fmcsaStatus.reason,
+          errorType: err.fmcsaStatus.errorType || "request_failed",
+          responseBodySnippet: err.fmcsaStatus.responseBodySnippet
+        });
+      }
       return null;
     })
     : null;
@@ -1426,8 +1753,9 @@ export async function getCarrierData({ dot, mc, name } = {}) {
   carrier.dataSourceStatus = {
     carrierSnapshot: {
       attempted: Boolean(dot || mc),
-      success: Boolean(apiResult || censusResult || saferData),
-      recordCount: apiResult || censusResult || saferData ? 1 : 0
+      success: Boolean(apiResult),
+      recordCount: apiResult ? 1 : 0,
+      ...(liveFmcsaFailures.find(failure => failure.endpoint === "carrierSnapshot") || {})
     },
     ...(qcmobileDetails?.dataSources || {}),
     insurance: {
@@ -1436,6 +1764,12 @@ export async function getCarrierData({ dot, mc, name } = {}) {
       recordCount: 0
     }
   };
+  carrier.liveFmcsaStatus = buildLiveFmcsaStatus({
+    dataSources: carrier.dataSourceStatus,
+    dot: resolvedDot || dot,
+    mc,
+    extraFailures: liveFmcsaFailures.filter(failure => failure.endpoint !== "carrierSnapshot")
+  });
 
   return {
     carrier,

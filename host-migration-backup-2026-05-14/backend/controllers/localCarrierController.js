@@ -204,7 +204,11 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
     isNewLead: plain.isNewLead,
     newLeadSince: plain.newLeadSince,
     lastUpdated: plain.lastUpdated,
-    source: plain.source,
+    source: plain.source || "database",
+    dataSourceLabel: "Saved Database",
+    liveFmcsaAttempted: false,
+    liveFmcsaSuccess: false,
+    fallbackReason: "Database search result",
     ...(includeRaw ? { raw: plain.raw } : {})
   };
 }
@@ -246,7 +250,12 @@ function carrierToProspectLead(carrier) {
     data_completeness_percent: [apiCarrier.email, apiCarrier.phone, apiCarrier.address].filter(Boolean).length * 25,
     last_updated: apiCarrier.lastUpdated,
     cargo_hauled: apiCarrier.cargo || "Not listed",
-    cargoHauled: apiCarrier.cargo || "Not listed"
+    cargoHauled: apiCarrier.cargo || "Not listed",
+    source: "database",
+    dataSourceLabel: "Saved Database",
+    liveFmcsaAttempted: false,
+    liveFmcsaSuccess: false,
+    fallbackReason: "Database search result"
   };
 }
 
@@ -293,7 +302,12 @@ function carrierToNewVentureLead(carrier) {
     phone: apiCarrier.phone,
     cellPhone: apiCarrier.cellPhone || "",
     cargoHauled: apiCarrier.cargo || "Not listed",
-    cargo_hauled: apiCarrier.cargo || "Not listed"
+    cargo_hauled: apiCarrier.cargo || "Not listed",
+    source: "database",
+    dataSourceLabel: "Saved Database",
+    liveFmcsaAttempted: false,
+    liveFmcsaSuccess: false,
+    fallbackReason: "Database search result"
   };
 }
 

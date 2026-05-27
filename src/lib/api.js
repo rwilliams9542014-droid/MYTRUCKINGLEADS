@@ -156,6 +156,7 @@ export const api = {
   getAdminOverview: () => apiRequest("/api/admin/overview"),
   getAdminUsers: () => apiRequest("/api/admin/users"),
   getAdminHealth: () => apiRequest("/api/admin/webhook-health"),
+  getFmcsaDiagnostics: (dot) => apiRequest(`/api/admin/fmcsa-diagnostics/${encodeURIComponent(dot)}`),
 
   updateProfile: (data) => apiRequest("/api/auth/profile", {
     method: "PUT",

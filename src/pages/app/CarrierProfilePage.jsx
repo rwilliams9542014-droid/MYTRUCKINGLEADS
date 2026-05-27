@@ -3,6 +3,7 @@ import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Badge, Button } from "@/components/ui";
 import OutreachComposer from "@/components/OutreachComposer";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
+import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import {
   getRenewalDisplay,
@@ -216,6 +217,7 @@ function normalizeCarrier(data) {
     inspectionHistory: lead.inspectionHistory,
     crashSummary: normalizeCrashes(carrier, lead),
     dataSources: carrier.dataSources || {},
+    liveFmcsaStatus: carrier.liveFmcsaStatus || {},
     companyRep: pick(carrier.companyRep, carrier.companyOfficer1, carrier.company_rep),
   };
 }
@@ -391,6 +393,7 @@ function CompanyDetailsCard({ carrier }) {
 }
 
 export default function CarrierProfilePage() {
+  const { user } = useAuth();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const dot = id || searchParams.get("dot");
@@ -476,6 +479,8 @@ export default function CarrierProfilePage() {
   }
 
   if (!carrier) return null;
+  const isOwner = user?.isOwner || user?.role === "owner" || user?.role === "admin" || user?.email === "owner@mytruckingleads.com";
+  const showFmcsaDebug = isOwner && carrier.liveFmcsaStatus?.attempted && carrier.liveFmcsaStatus?.success === false;
 
   return (
     <div className="carrier-profile-page min-w-0 space-y-6 animate-fade-in">
@@ -508,6 +513,11 @@ export default function CarrierProfilePage() {
 
       {saveStatus && (
         <div className="rounded-xl border border-brand-500/20 bg-brand-500/10 p-3 text-sm text-brand-200">{saveStatus}</div>
+      )}
+      {showFmcsaDebug && (
+        <div className="rounded-xl border border-warning-500/25 bg-warning-500/10 p-3 text-sm text-warning-100">
+          Live FMCSA request failed: {carrier.liveFmcsaStatus.reason || "No successful live QCMobile response returned."}
+        </div>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,0.9fr)] gap-6">

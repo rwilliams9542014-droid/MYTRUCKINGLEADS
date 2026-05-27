@@ -20,8 +20,8 @@ import {
 } from "../utils/trialAccess.js";
 
 const PUBLIC_CONTACT_LOCK_MESSAGE = "Create an account to reveal carrier phone and email.";
-const LIVE_FMCSA_FALLBACK_MESSAGE = "Showing saved carrier data while the live FMCSA refresh retries.";
-const SAVED_PROFILE_REFRESH_MESSAGE = "Saved carrier profile loaded. Live FMCSA refresh is temporarily unavailable.";
+const LIVE_FMCSA_FALLBACK_MESSAGE = "Live FMCSA request failed. Showing saved carrier data where available.";
+const SAVED_PROFILE_REFRESH_MESSAGE = "Saved carrier profile loaded. Live FMCSA request failed.";
 
 function clean(value, fallback = "") {
   if (value === undefined || value === null) return fallback;
@@ -191,6 +191,61 @@ function sourceStatusFromCarrier(carrier = {}, qcmobileDetails = {}, insuranceSn
   };
 }
 
+function liveFmcsaStatusFromCarrier(carrier = {}, dataSourceStatus = {}, fallback = {}) {
+  const existing = carrier.liveFmcsaStatus || carrier.raw?.liveCarrier?.liveFmcsaStatus || fallback.liveFmcsaStatus;
+  if (existing) return existing;
+
+  const endpointFailures = Object.entries(dataSourceStatus || {})
+    .filter(([, status]) => status?.reason || status?.error || status?.errorType)
+    .map(([endpoint, status]) => ({
+      endpoint,
+      urlPath: status.urlPath || "",
+      status: status.status ?? null,
+      reason: status.reason || status.error || "FMCSA endpoint failed",
+      errorType: status.errorType || "request_failed",
+      responseBodySnippet: status.responseBodySnippet
+    }));
+
+  const attempted = Object.values(dataSourceStatus || {}).some(status => status?.attempted);
+  return {
+    attempted,
+    success: attempted && endpointFailures.length === 0,
+    reason: endpointFailures[0]?.reason || clean(fallback.reason),
+    endpointFailures
+  };
+}
+
+function liveFmcsaFailureFromError(err) {
+  if (err?.fmcsaStatus) {
+    return {
+      attempted: err.fmcsaStatus.attempted !== false,
+      success: false,
+      reason: err.fmcsaStatus.reason || err.message,
+      endpointFailures: [{
+        endpoint: "carrierSnapshot",
+        urlPath: err.fmcsaStatus.urlPath || "",
+        status: err.fmcsaStatus.status ?? null,
+        reason: err.fmcsaStatus.reason || err.message,
+        errorType: err.fmcsaStatus.errorType || "request_failed",
+        responseBodySnippet: err.fmcsaStatus.responseBodySnippet
+      }]
+    };
+  }
+
+  return {
+    attempted: true,
+    success: false,
+    reason: clean(err?.message, "Live FMCSA request failed"),
+    endpointFailures: [{
+      endpoint: "carrierProfile",
+      urlPath: "",
+      status: err?.response?.status ?? null,
+      reason: clean(err?.message, "Live FMCSA request failed"),
+      errorType: "request_failed"
+    }]
+  };
+}
+
 function normalizeBasicScores(qcmobileBasicCategories = [], smsSafety = {}, dataSource = {}) {
   const returned = Array.isArray(qcmobileBasicCategories) ? qcmobileBasicCategories : [];
   const byId = new Map();
@@ -271,12 +326,12 @@ function rateOrCalculated(rate, count, denominator) {
 
 function normalizeInspectionSummary({ qcmobileOos = {}, smsSafety = {}, saferData = {}, carrier = {} }) {
   const totalInspections = numberOrNull(firstValue(qcmobileOos.totalInspections, saferData.totalInspections, smsSafety.inspections, carrier.totalInspections));
-  const vehicleInspections = numberOrNull(firstValue(qcmobileOos.vehicleInspections, smsSafety.vehicleInspections, carrier.vehicleInspections));
-  const driverInspections = numberOrNull(firstValue(qcmobileOos.driverInspections, smsSafety.driverInspections, carrier.driverInspections));
-  const hazmatInspections = numberOrNull(firstValue(qcmobileOos.hazmatInspections, smsSafety.hazmatInspections, carrier.hazmatInspections));
-  const vehicleOosCount = numberOrNull(firstValue(qcmobileOos.vehicleOos, smsSafety.vehicleOos, carrier.vehicleOos));
-  const driverOosCount = numberOrNull(firstValue(qcmobileOos.driverOos, smsSafety.driverOos, carrier.driverOos));
-  const hazmatOosCount = numberOrNull(firstValue(qcmobileOos.hazmatOos, smsSafety.hazmatOos, carrier.hazmatOos));
+  const vehicleInspections = numberOrNull(firstValue(qcmobileOos.vehicleInspections, saferData.vehicleInspections, smsSafety.vehicleInspections, carrier.vehicleInspections));
+  const driverInspections = numberOrNull(firstValue(qcmobileOos.driverInspections, saferData.driverInspections, smsSafety.driverInspections, carrier.driverInspections));
+  const hazmatInspections = numberOrNull(firstValue(qcmobileOos.hazmatInspections, saferData.hazmatInspections, smsSafety.hazmatInspections, carrier.hazmatInspections));
+  const vehicleOosCount = numberOrNull(firstValue(qcmobileOos.vehicleOos, saferData.vehicleOos, smsSafety.vehicleOos, carrier.vehicleOos));
+  const driverOosCount = numberOrNull(firstValue(qcmobileOos.driverOos, saferData.driverOos, smsSafety.driverOos, carrier.driverOos));
+  const hazmatOosCount = numberOrNull(firstValue(qcmobileOos.hazmatOos, saferData.hazmatOos, smsSafety.hazmatOos, carrier.hazmatOos));
 
   return {
     totalInspections,
@@ -286,14 +341,14 @@ function normalizeInspectionSummary({ qcmobileOos = {}, smsSafety = {}, saferDat
     vehicleOosCount,
     driverOosCount,
     hazmatOosCount,
-    vehicleOosRate: rateOrCalculated(firstValue(qcmobileOos.vehicleOosRate, smsSafety.oosRates?.vehicle?.carrier, smsSafety.oosRates?.vehicle), vehicleOosCount, vehicleInspections),
-    driverOosRate: rateOrCalculated(firstValue(qcmobileOos.driverOosRate, smsSafety.oosRates?.driver?.carrier, smsSafety.oosRates?.driver), driverOosCount, driverInspections),
-    hazmatOosRate: rateOrCalculated(firstValue(qcmobileOos.hazmatOosRate, smsSafety.oosRates?.hazmat?.carrier, smsSafety.oosRates?.hazmat), hazmatOosCount, hazmatInspections),
+    vehicleOosRate: rateOrCalculated(firstValue(qcmobileOos.vehicleOosRate, saferData.vehicleOosRate, smsSafety.oosRates?.vehicle?.carrier, smsSafety.oosRates?.vehicle), vehicleOosCount, vehicleInspections),
+    driverOosRate: rateOrCalculated(firstValue(qcmobileOos.driverOosRate, saferData.driverOosRate, smsSafety.oosRates?.driver?.carrier, smsSafety.oosRates?.driver), driverOosCount, driverInspections),
+    hazmatOosRate: rateOrCalculated(firstValue(qcmobileOos.hazmatOosRate, saferData.hazmatOosRate, smsSafety.oosRates?.hazmat?.carrier, smsSafety.oosRates?.hazmat), hazmatOosCount, hazmatInspections),
     totalViolations: numberOrNull(firstValue(qcmobileOos.totalViolations, smsSafety.totalViolations, carrier.totalViolations)),
     oosViolations: numberOrNull(firstValue(qcmobileOos.oosViolations, smsSafety.oosViolations, carrier.oosViolations)),
-    nationalAverageVehicleOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageVehicleOosRate, smsSafety.oosRates?.vehicle?.nationalAverage)),
-    nationalAverageDriverOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageDriverOosRate, smsSafety.oosRates?.driver?.nationalAverage)),
-    nationalAverageHazmatOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageHazmatOosRate, smsSafety.oosRates?.hazmat?.nationalAverage)),
+    nationalAverageVehicleOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageVehicleOosRate, saferData.nationalAverageVehicleOosRate, smsSafety.oosRates?.vehicle?.nationalAverage)),
+    nationalAverageDriverOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageDriverOosRate, saferData.nationalAverageDriverOosRate, smsSafety.oosRates?.driver?.nationalAverage)),
+    nationalAverageHazmatOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageHazmatOosRate, saferData.nationalAverageHazmatOosRate, smsSafety.oosRates?.hazmat?.nationalAverage)),
     source: qcmobileOos.source || smsSafety.source || saferData.source || "FMCSA public safety data"
   };
 }
@@ -636,6 +691,7 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
   const qcmobileDockets = qcmobileDetails?.docketNumbers?.docketNumbers || carrier.docketNumbers || [];
   const qcmobileBasicCategories = qcmobileDetails?.basics?.categories || smsSafety?.basicCategories || [];
   const dataSourceStatus = sourceStatusFromCarrier(carrier, qcmobileDetails);
+  const liveFmcsaStatus = liveFmcsaStatusFromCarrier(carrier, dataSourceStatus, { reason: message });
   const physicalAddress = addressText(carrier.address) || clean(carrier.address);
   const mailingAddress =
     clean(carrier.mailingAddress) ||
@@ -795,9 +851,10 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     lastUpdated: formatDate(carrier.lastUpdated || carrier.updatedAt || carrier.sourceLastSeenAt || new Date()),
     sourceLabels: sourceLabels(carrier, sourceType),
     dataSources: dataSourceStatus,
+    liveFmcsaStatus,
     sourceType,
     liveUnavailable,
-    message: message || (liveUnavailable ? LIVE_FMCSA_FALLBACK_MESSAGE : "")
+    message: message || (liveUnavailable ? (liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE) : "")
   };
 }
 
@@ -830,6 +887,11 @@ function mapSearchResult(carrier = {}) {
     phoneNumber: profile.phoneNumber,
     officialLinks: profile.officialLinks,
     sourceType: profile.sourceType,
+    source: profile.sourceType === "live" ? "live_fmcsa" : profile.sourceType === "postgres-fallback" ? "fallback" : "database",
+    liveFmcsaAttempted: Boolean(profile.liveFmcsaStatus?.attempted),
+    liveFmcsaSuccess: Boolean(profile.liveFmcsaStatus?.success),
+    fallbackReason: profile.liveFmcsaStatus?.success === false ? clean(profile.liveFmcsaStatus.reason) : "",
+    liveFmcsaStatus: profile.liveFmcsaStatus,
     liveUnavailable: profile.liveUnavailable,
     message: profile.message,
     lastUpdated: profile.lastUpdated
@@ -1391,10 +1453,15 @@ export async function searchCarrierIntelligence(req, res) {
           message: responseMessage()
         });
       } catch (liveErr) {
+        const liveFmcsaStatus = liveFmcsaFailureFromError(liveErr);
         const cachedFallback = await searchCachedCarriers(searchInput, limit, state);
         if (cachedFallback.length > 0) {
           const hydratedCached = await enrichSearchResults(cachedFallback, Math.min(limit, 3));
-          const results = finalizeResults(hydratedCached.map(mapSearchResult));
+          const results = finalizeResults(hydratedCached.map(carrier => mapSearchResult({
+            ...carrier,
+            liveUnavailable: true,
+            liveFmcsaStatus
+          })));
           return res.json({
             total: results.length,
             query,
@@ -1404,14 +1471,19 @@ export async function searchCarrierIntelligence(req, res) {
             source: "cached-fallback",
             results,
             trialAccess,
-            message: responseMessage(LIVE_FMCSA_FALLBACK_MESSAGE)
+            liveFmcsaStatus,
+            message: responseMessage(liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE)
           });
         }
 
         if (dot) {
           const postgresCarrier = await findPostgresCarrier(dot);
           if (postgresCarrier) {
-            const results = finalizeResults([mapSearchResult(postgresCarrier)]);
+            const results = finalizeResults([mapSearchResult({
+              ...postgresCarrier,
+              liveUnavailable: true,
+              liveFmcsaStatus
+            })]);
             return res.json({
               total: results.length,
               query,
@@ -1421,7 +1493,8 @@ export async function searchCarrierIntelligence(req, res) {
               source: "postgres-fallback",
               results,
               trialAccess,
-              message: responseMessage(LIVE_FMCSA_FALLBACK_MESSAGE)
+              liveFmcsaStatus,
+              message: responseMessage(liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE)
             });
           }
         }
@@ -1476,10 +1549,15 @@ export async function searchCarrierIntelligence(req, res) {
         message: responseMessage()
       });
     } catch (liveErr) {
+      const liveFmcsaStatus = liveFmcsaFailureFromError(liveErr);
       if (dot) {
         const postgresCarrier = await findPostgresCarrier(dot);
         if (postgresCarrier) {
-          const results = finalizeResults([mapSearchResult(postgresCarrier)]);
+          const results = finalizeResults([mapSearchResult({
+            ...postgresCarrier,
+            liveUnavailable: true,
+            liveFmcsaStatus
+          })]);
           return res.json({
             total: 1,
             query,
@@ -1489,7 +1567,8 @@ export async function searchCarrierIntelligence(req, res) {
             source: "postgres-fallback",
             results,
             trialAccess,
-            message: responseMessage(LIVE_FMCSA_FALLBACK_MESSAGE)
+            liveFmcsaStatus,
+            message: responseMessage(liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE)
           });
         }
       }
@@ -1498,8 +1577,10 @@ export async function searchCarrierIntelligence(req, res) {
     }
   } catch (err) {
     console.error("Carrier intelligence search error:", err.message);
+    const liveFmcsaStatus = liveFmcsaFailureFromError(err);
     res.status(503).json({
-      error: LIVE_FMCSA_FALLBACK_MESSAGE,
+      error: liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE,
+      liveFmcsaStatus,
       query,
       state,
       city,
@@ -1526,20 +1607,27 @@ export async function getCarrierIntelligenceProfile(req, res) {
         profile = mapProfile(liveCarrier, { sourceType: "live" });
         mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
       } catch (err) {
+        const liveFmcsaStatus = liveFmcsaFailureFromError(err);
         if (cached) {
-          profile = mapProfile(cached, {
+          profile = mapProfile({
+            ...cached,
+            liveFmcsaStatus
+          }, {
             sourceType: "cached",
-            liveUnavailable: false,
-            message: ""
+            liveUnavailable: true,
+            message: liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE
           });
           mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
         } else {
           const postgresCarrier = await findPostgresCarrier(dotNumber);
           if (postgresCarrier) {
-            profile = mapProfile(postgresCarrier, {
+            profile = mapProfile({
+              ...postgresCarrier,
+              liveFmcsaStatus
+            }, {
               sourceType: "postgres-fallback",
               liveUnavailable: true,
-              message: SAVED_PROFILE_REFRESH_MESSAGE
+              message: liveFmcsaStatus.reason || SAVED_PROFILE_REFRESH_MESSAGE
             });
             mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
           } else {
@@ -1553,12 +1641,16 @@ export async function getCarrierIntelligenceProfile(req, res) {
     return res.json(finalized);
   } catch (err) {
     console.error("Carrier intelligence profile error:", err.message);
+    const liveFmcsaStatus = liveFmcsaFailureFromError(err);
     const cached = await findCachedCarrier(dotNumber);
     if (cached) {
-      const profile = mapProfile(cached, {
+      const profile = mapProfile({
+        ...cached,
+        liveFmcsaStatus
+      }, {
         sourceType: "cached",
-        liveUnavailable: false,
-        message: ""
+        liveUnavailable: true,
+        message: liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE
       });
       mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
       return res.json(await finalizeTrialProfileResponse(req, res, profile));
@@ -1566,10 +1658,13 @@ export async function getCarrierIntelligenceProfile(req, res) {
 
     const postgresCarrier = await findPostgresCarrier(dotNumber);
     if (postgresCarrier) {
-      const profile = mapProfile(postgresCarrier, {
+      const profile = mapProfile({
+        ...postgresCarrier,
+        liveFmcsaStatus
+      }, {
         sourceType: "postgres-fallback",
         liveUnavailable: true,
-        message: SAVED_PROFILE_REFRESH_MESSAGE
+        message: liveFmcsaStatus.reason || SAVED_PROFILE_REFRESH_MESSAGE
       });
       mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
       return res.json(await finalizeTrialProfileResponse(req, res, profile));
@@ -1594,15 +1689,18 @@ export async function getCarrierIntelligenceSafety(req, res) {
         const liveCarrier = await fetchAndCacheLiveCarrier(dotNumber);
         profile = mapProfile(liveCarrier, { sourceType: "live" });
       } catch (liveErr) {
-        liveRefreshMessage = LIVE_FMCSA_FALLBACK_MESSAGE;
+        const liveFmcsaStatus = liveFmcsaFailureFromError(liveErr);
+        liveRefreshMessage = liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE;
         if (!profile) {
           const postgresCarrier = await findPostgresCarrier(dotNumber);
           if (postgresCarrier) {
-            liveRefreshMessage = LIVE_FMCSA_FALLBACK_MESSAGE;
-            profile = mapProfile(postgresCarrier, {
+            profile = mapProfile({
+              ...postgresCarrier,
+              liveFmcsaStatus
+            }, {
               sourceType: "postgres-fallback",
               liveUnavailable: true,
-              message: LIVE_FMCSA_FALLBACK_MESSAGE
+              message: liveRefreshMessage
             });
           } else {
             throw liveErr;
@@ -1620,11 +1718,13 @@ export async function getCarrierIntelligenceSafety(req, res) {
       safety: profile.safety,
       lastUpdated: profile.lastUpdated,
       message: liveRefreshMessage || profile.message,
+      liveFmcsaStatus: profile.liveFmcsaStatus,
       sourceType: profile.sourceType
     });
   } catch (err) {
     console.error("Carrier intelligence safety error:", err.message);
-    res.status(503).json({ error: LIVE_FMCSA_FALLBACK_MESSAGE });
+    const liveFmcsaStatus = liveFmcsaFailureFromError(err);
+    res.status(503).json({ error: liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE, liveFmcsaStatus });
   }
 }
 
@@ -1633,25 +1733,32 @@ export async function getCarrierIntelligenceLicensingInsurance(req, res) {
   try {
     const cached = await findCachedCarrier(dotNumber);
     let sourceType = cached ? "cached" : "live";
-    const carrier = cached || await fetchAndCacheLiveCarrier(dotNumber).catch(async () => {
+    let liveFmcsaStatus = null;
+    const carrier = cached || await fetchAndCacheLiveCarrier(dotNumber).catch(async (err) => {
       sourceType = "postgres-fallback";
+      liveFmcsaStatus = liveFmcsaFailureFromError(err);
       return findPostgresCarrier(dotNumber);
     });
     if (!carrier) throw new Error("Carrier record unavailable");
-    const profile = mapProfile(carrier, {
+    const profile = mapProfile({
+      ...carrier,
+      ...(liveFmcsaStatus ? { liveFmcsaStatus } : {})
+    }, {
       sourceType,
       liveUnavailable: sourceType !== "live",
-      message: sourceType === "postgres-fallback" ? LIVE_FMCSA_FALLBACK_MESSAGE : ""
+      message: sourceType === "postgres-fallback" ? (liveFmcsaStatus?.reason || LIVE_FMCSA_FALLBACK_MESSAGE) : ""
     });
     mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
     res.json({
       dotNumber: profile.dotNumber,
       licensingInsurance: profile.licensingInsurance,
       lastUpdated: profile.lastUpdated,
-      message: profile.message
+      message: profile.message,
+      liveFmcsaStatus: profile.liveFmcsaStatus
     });
   } catch (err) {
     console.error("Carrier intelligence L&I error:", err.message);
-    res.status(503).json({ error: LIVE_FMCSA_FALLBACK_MESSAGE });
+    const liveFmcsaStatus = liveFmcsaFailureFromError(err);
+    res.status(503).json({ error: liveFmcsaStatus.reason || LIVE_FMCSA_FALLBACK_MESSAGE, liveFmcsaStatus });
   }
 }
