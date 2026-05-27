@@ -66,7 +66,11 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const showAdmin = user?.isOwner || user?.role === "owner" || user?.role === "admin" || user?.email === "owner@mytruckingleads.com";
+  const showAdmin =
+    user?.isOwner ||
+    user?.role === "owner" ||
+    user?.role === "admin" ||
+    user?.email === "owner@mytruckingleads.com";
 
   async function handleSignOut() {
     await signOut();
@@ -86,34 +90,42 @@ export function AppLayout() {
           collapsed ? "w-20" : "w-64"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
-<div className="p-4 flex items-center justify-center">
-  <Link
-    to="/dashboard"
-    className={`flex w-full items-center justify-center ${
-      collapsed ? "" : "gap-3"
-    }`}
-  >
-    <div className="brand-mark-shell w-10 h-10 flex-shrink-0">
-      <img
-        src="/assets/LOGO_BADGE-removebg-preview.png"
-        alt="MTL"
-        className="w-full h-full object-contain"
-      />
-    </div>
+        {/* Professional Header Logo Section */}
+        <div className="h-16 px-4 flex items-center border-b border-white/5">
+          <Link
+            to="/dashboard"
+            className={`flex w-full items-center transition-all duration-200 ${
+              collapsed ? "justify-center" : "justify-start px-2 gap-3"
+            }`}
+          >
+            {/* Logo Badge - Anchored Container */}
+            <div className="brand-mark-shell w-8 h-8 flex-shrink-0 transition-transform duration-300 hover:scale-105">
+              <img
+                src="/assets/LOGO_BADGE-removebg-preview.png"
+                alt="MTL"
+                className="w-full h-full object-contain"
+              />
+            </div>
 
-    {!collapsed && (
-      <span className="brand-wordmark-shell flex items-center justify-center">
-        <img
-          src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png"
-          alt="MyTruckingLeads"
-          className="brand-wordmark h-8 w-auto max-w-[155px] object-contain drop-shadow-[0_0_18px_rgba(56,189,248,0.35)]"
-        />
-      </span>
-    )}
-  </Link>
-</div>
+            {/* Smooth Wordmark Visibility Control */}
+            <div
+              className={`flex items-center transition-all duration-300 origin-left ${
+                collapsed 
+                  ? "w-0 opacity-0 pointer-events-none scale-95" 
+                  : "w-auto opacity-100 scale-100"
+              }`}
+            >
+              <img
+                src="/assets/NEW_IMPROVED_FULL_LOGO-removebg-preview.png"
+                alt="MyTruckingLeads"
+                className="h-7 w-auto max-w-[140px] object-contain filter drop-shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+              />
+            </div>
+          </Link>
+        </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        {/* Sidebar Menu Links */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -133,6 +145,7 @@ export function AppLayout() {
               </Link>
             );
           })}
+
           {showAdmin && (
             <>
               <div className="my-3 border-t border-white/5" />
@@ -155,6 +168,7 @@ export function AppLayout() {
           )}
         </nav>
 
+        {/* User Account Info Section */}
         <div className={`p-4 border-t border-white/5 ${collapsed ? "text-center" : ""}`}>
           {!collapsed && (
             <div className="flex items-center gap-3 mb-3">
@@ -168,7 +182,9 @@ export function AppLayout() {
           )}
           <button
             onClick={handleSignOut}
-            className={`text-navy-400 hover:text-white text-sm transition-colors ${collapsed ? "mx-auto" : "w-full text-left"}`}
+            className={`text-navy-400 hover:text-white text-sm transition-colors ${
+              collapsed ? "mx-auto" : "w-full text-left"
+            }`}
           >
             {collapsed ? (
               <svg className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -180,16 +196,23 @@ export function AppLayout() {
           </button>
         </div>
 
+        {/* Sidebar Toggle Button */}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="hidden lg:flex absolute -right-3 top-8 w-6 h-6 bg-navy-800 border border-white/10 rounded-full items-center justify-center text-navy-400 hover:text-white transition-colors"
         >
-          <svg className={`w-3 h-3 transition-transform ${collapsed ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg
+            className={`w-3 h-3 transition-transform ${collapsed ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
       </aside>
 
+      {/* Main Content Pane */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-30 h-16 bg-navy-950/80 backdrop-blur-xl border-b border-white/5 flex items-center px-6">
           <button
@@ -204,9 +227,3 @@ export function AppLayout() {
         </header>
 
         <main className="flex-1 p-6">
-          <Outlet />
-        </main>
-      </div>
-    </div>
-  );
-}
