@@ -32,8 +32,10 @@ import adminRoutes from "./routes/adminRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import privacyRoutes from "./routes/privacyRoutes.js";
 import marketplaceRoutes from "./routes/marketplaceRoutes.js";
+import outreachRoutes from "./routes/outreachRoutes.js";
 import publicCarrierRoutes from "./routes/publicCarrierRoutes.js";
 import publicLeadRoutes from "./routes/publicLeadRoutes.js";
+import { unsubscribeEmail } from "./controllers/outreachController.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requireAuth } from "./middleware/authMiddleware.js";
 import { ownerRequired } from "./middleware/ownerMiddleware.js";
@@ -206,6 +208,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/contact-request", contactRoutes);
 app.use("/api/privacy-request", privacyRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
+app.use("/api/outreach", outreachRoutes);
 
 if (publicCarrierRoutesEnabled) {
   app.use("/api/public/carriers", publicCarrierRoutes);
@@ -245,6 +248,7 @@ const reactCompatibilityRoutes = [
 ];
 
 app.get(reactCompatibilityRoutes, sendReactApp);
+app.get("/unsubscribe/:token", unsubscribeEmail);
 
 // Allow backend-served pages to reuse the shared root assets bundle when present.
 app.use("/assets", express.static(publicAssetsDir));
@@ -401,6 +405,60 @@ async function ensureOperationalTables() {
   await query(`
     CREATE INDEX IF NOT EXISTS idx_contact_requests_status
       ON contact_requests (status)
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS message_suppression_list (
+      id SERIAL PRIMARY KEY,
+      channel TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      reason TEXT,
+      source TEXT,
+      opted_out_at TIMESTAMPTZ DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_message_suppression_unique
+      ON message_suppression_list (channel, COALESCE(lower(email), ''), COALESCE(phone, ''))
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS outreach_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL,
+      lead_id INTEGER,
+      carrier_dot TEXT,
+      carrier_name TEXT,
+      recipient_email TEXT,
+      recipient_phone TEXT,
+      subject TEXT,
+      message_preview TEXT,
+      status TEXT NOT NULL,
+      provider_message_id TEXT,
+      error_message TEXT,
+      sent_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_outreach_logs_user_sent
+      ON outreach_logs (user_id, sent_at DESC)
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS outreach_usage (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      month TEXT NOT NULL,
+      emails_sent INTEGER NOT NULL DEFAULT 0,
+      sms_sent INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, month)
+    )
   `);
 }
 

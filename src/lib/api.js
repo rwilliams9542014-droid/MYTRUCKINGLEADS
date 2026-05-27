@@ -181,4 +181,35 @@ export const api = {
   }),
 
   getReports: (params) => apiRequest(`/api/reports/summary?${queryString(params)}`),
+
+  getOutreachTemplates: () => apiRequest("/api/outreach/templates"),
+  getOutreachUsage: () => apiRequest("/api/outreach/usage"),
+  getOutreachLogs: (params) => {
+    const search = queryString(params);
+    return apiRequest(`/api/outreach/logs${search ? `?${search}` : ""}`);
+  },
+  previewOutreach: (payload) => apiRequest("/api/outreach/preview", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  sendOutreachEmail: (payload) => apiRequest("/api/outreach/email/send", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  sendOutreachSms: (payload) => apiRequest("/api/outreach/sms/send", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  sendBulkOutreachEmail: (payload) => apiRequest("/api/outreach/email/send-bulk", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  sendBulkOutreachSms: (payload) => apiRequest("/api/outreach/sms/send-bulk", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
+  optOutContact: (payload) => apiRequest("/api/outreach/opt-out", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
 };

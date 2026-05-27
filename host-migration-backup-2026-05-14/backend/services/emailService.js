@@ -278,7 +278,7 @@ async function sendViaSmtp({ from, to, subject, html, text, replyTo = null, head
   }
 }
 
-async function sendEmailMessage({ to, subject, html, text, replyTo = null, headers = null }) {
+export async function sendEmailMessage({ to, subject, html, text, replyTo = null, headers = null }) {
   const provider = getEmailProvider();
   if (!provider) {
     return { success: false, message: "Email service not configured" };

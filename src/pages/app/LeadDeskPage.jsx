@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge, Button, Card } from "@/components/ui";
+import OutreachComposer from "@/components/OutreachComposer";
+import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { api } from "@/lib/api";
 import {
-  INSPECTION_UNAVAILABLE,
   UNAVAILABLE,
   buildInspectionBars,
   getRenewalDisplay,
@@ -42,34 +43,6 @@ function normalizeLead(lead, type) {
   };
 }
 
-function InspectionBars({ lead }) {
-  const { totalInspections, bars } = buildInspectionBars(lead);
-  if (!totalInspections && bars.length === 0) {
-    return <p className="text-xs text-navy-500">{INSPECTION_UNAVAILABLE}</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-navy-500">
-        {totalInspections ? `${totalInspections} total inspection${totalInspections === 1 ? "" : "s"}. Public inspection data available.` : "Public inspection data available."}
-      </p>
-      {bars.length > 0 ? bars.map((bar) => (
-        <div key={bar.label}>
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-navy-300">{bar.label}</span>
-            <span className="text-white font-medium">{Math.round(bar.value)}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
-            <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.round(bar.value)}%` }} />
-          </div>
-        </div>
-      )) : (
-        <p className="text-xs text-navy-500">Detailed SMS percentile not available from public source.</p>
-      )}
-    </div>
-  );
-}
-
 export default function LeadDeskPage() {
   const [activeTab, setActiveTab] = useState("new_dot");
   const [search, setSearch] = useState("");
@@ -85,6 +58,7 @@ export default function LeadDeskPage() {
   const [safetyDetails, setSafetyDetails] = useState({});
   const [hasSearched, setHasSearched] = useState(false);
   const [lastUpdated, setLastUpdated] = useState("");
+  const [composer, setComposer] = useState(null);
 
   const range = useMemo(() => {
     if (datePreset === "custom") return { from: customFrom, to: customTo };
@@ -252,6 +226,20 @@ export default function LeadDeskPage() {
     } catch (err) {
       setSaveMessage(err.message || "Lead could not be saved.");
     }
+  }
+
+  function openComposer(channel, lead) {
+    setComposer({
+      channel,
+      lead: {
+        ...lead,
+        carrierName: lead.name,
+        dotNumber: lead.dot,
+        mcNumber: lead.mc,
+        renewalDate: lead.renewalDisplay?.date || "",
+        renewalDateSource: lead.renewalDisplay?.label || "",
+      },
+    });
   }
 
   function csvValue(value) {
@@ -490,6 +478,8 @@ export default function LeadDeskPage() {
                       <div className="flex items-center gap-3">
                         {lead.dot && <Link to={`/carrier/${lead.dot}`} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View Carrier Profile</Link>}
                         {lead.dot && <button onClick={() => toggleDetails(lead)} className="text-xs text-navy-300 hover:text-white font-medium">{expandedDot === lead.dot ? "Hide" : "Details"}</button>}
+                        {lead.email && <button onClick={() => openComposer("email", lead)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email</button>}
+                        {lead.phone && <button onClick={() => openComposer("sms", lead)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Text</button>}
                         {activeTab === "hot" ? (
                           <Button size="sm" className="text-xs">Buy</Button>
                         ) : (
@@ -514,12 +504,14 @@ export default function LeadDeskPage() {
                           </div>
                           <div>
                             <p className="text-xs text-navy-500 uppercase mb-2">Safety / Inspection Indicator</p>
-                            <InspectionBars lead={safetyDetails[lead.dot] || lead} />
+                            <SafetyBarsPanel record={safetyDetails[lead.dot] || lead} compact />
                           </div>
                           <div>
                             <p className="text-xs text-navy-500 uppercase mb-2">Actions</p>
                             <div className="flex flex-wrap gap-2">
                               {lead.dot && <Link to={`/carrier/${lead.dot}`} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">View Carrier Profile</Link>}
+                              {lead.email && <button onClick={() => openComposer("email", lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Email This Lead</button>}
+                              {lead.phone && <button onClick={() => openComposer("sms", lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Text This Lead</button>}
                               <button onClick={() => saveLead(lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Add to CRM</button>
                               <button onClick={() => loadSafetyDetails(lead, { force: true })} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Refresh FMCSA Data</button>
                               <span className="text-xs text-navy-500 self-center">Ask AI unavailable unless backend supports it.</span>
@@ -545,6 +537,13 @@ export default function LeadDeskPage() {
           </div>
         )}
       </Card>
+      <OutreachComposer
+        open={Boolean(composer)}
+        channel={composer?.channel || "email"}
+        lead={composer?.lead || {}}
+        intent={activeTab === "renewal" ? "renewal" : "new-dot"}
+        onClose={() => setComposer(null)}
+      />
     </div>
   );
 }

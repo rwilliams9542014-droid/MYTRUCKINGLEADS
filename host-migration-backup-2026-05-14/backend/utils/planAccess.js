@@ -69,6 +69,18 @@ const MARKETPLACE_LEAD_PRICING = {
   premium: { Bronze: 10, Silver: 15, Gold: 20 }
 };
 
+const MONTHLY_EMAIL_LIMITS = {
+  basic: 0,
+  pro: 500,
+  premium: 2500
+};
+
+const MONTHLY_SMS_LIMITS = {
+  basic: 0,
+  pro: 250,
+  premium: 1500
+};
+
 export function normalizePlan(plan) {
   const value = String(plan || "basic").toLowerCase();
   return PLAN_ALIASES[value] || value;
@@ -103,6 +115,28 @@ export function isPremiumPlan(user) {
 
 export function canUseTextMessaging(user) {
   return ["pro", "premium"].includes(getUserPlan(user)) && hasActiveSubscription(user);
+}
+
+export function canSendEmail(user) {
+  return ["pro", "premium"].includes(getUserPlan(user)) && hasActiveSubscription(user);
+}
+
+export function canSendSms(user) {
+  return ["pro", "premium"].includes(getUserPlan(user)) && hasActiveSubscription(user);
+}
+
+export function canUseBulkMessaging(user) {
+  return getUserPlan(user) === "premium" && hasActiveSubscription(user);
+}
+
+export function getMonthlyEmailLimit(user) {
+  const plan = getUserPlan(user);
+  return Object.prototype.hasOwnProperty.call(MONTHLY_EMAIL_LIMITS, plan) ? MONTHLY_EMAIL_LIMITS[plan] : 0;
+}
+
+export function getMonthlySmsLimit(user) {
+  const plan = getUserPlan(user);
+  return Object.prototype.hasOwnProperty.call(MONTHLY_SMS_LIMITS, plan) ? MONTHLY_SMS_LIMITS[plan] : 0;
 }
 
 export function getMonthlyExportLimit(user) {
@@ -162,6 +196,12 @@ export function getPlanAccessSummary(user) {
     canUseCrm: isPaidPlan(user),
     canViewContacts: isPaidPlan(user),
     canUseTextMessaging: canUseTextMessaging(user),
+    canSendEmail: canSendEmail(user),
+    canSendSms: canSendSms(user),
+    bulkEmailAllowed: canUseBulkMessaging(user),
+    bulkSmsAllowed: canUseBulkMessaging(user),
+    monthlyEmailLimit: getMonthlyEmailLimit(user),
+    monthlySmsLimit: getMonthlySmsLimit(user),
     canUseNewVentures: isPaidPlan(user),
     canUseRenewalLeads: isPaidPlan(user),
     canUseAdvancedFilters: ["pro", "premium"].includes(plan) && hasActiveSubscription(user),

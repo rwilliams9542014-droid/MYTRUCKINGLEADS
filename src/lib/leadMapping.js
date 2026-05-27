@@ -13,6 +13,68 @@ export function splitCargo(value) {
     .filter(Boolean);
 }
 
+export const BASIC_CATEGORY_LABELS = {
+  unsafeDriving: "Unsafe Driving",
+  hoursOfService: "Hours-of-Service Compliance",
+  driverFitness: "Driver Fitness",
+  controlledSubstances: "Controlled Substances / Alcohol",
+  vehicleMaintenance: "Vehicle Maintenance",
+  hazmat: "Hazardous Materials Compliance",
+  crashIndicator: "Crash Indicator",
+};
+
+function normalizeBasicCategories(...sources) {
+  const rows = [];
+  sources.filter(Boolean).forEach((source) => {
+    if (Array.isArray(source)) {
+      source.forEach((item) => {
+        rows.push({
+          id: item.id || item.key || item.category || item.name,
+          label: item.label || item.category || item.name,
+          percentile: item.percentile ?? item.score ?? item.measure ?? item.value,
+          measure: item.measure,
+          threshold: item.threshold,
+          alert: item.alert,
+          inspections: item.inspections ?? item.inspectionCount,
+          violations: item.violations ?? item.violationCount,
+        });
+      });
+      return;
+    }
+
+    Object.entries(source).forEach(([key, value]) => {
+      if (value && typeof value === "object") {
+        rows.push({
+          id: key,
+          label: value.label || BASIC_CATEGORY_LABELS[key] || key,
+          percentile: value.percentile ?? value.score ?? value.measure ?? value.value,
+          measure: value.measure,
+          threshold: value.threshold,
+          alert: value.alert,
+          inspections: value.inspections ?? value.inspectionCount,
+          violations: value.violations ?? value.violationCount,
+        });
+      } else {
+        rows.push({
+          id: key,
+          label: BASIC_CATEGORY_LABELS[key] || key,
+          percentile: value,
+        });
+      }
+    });
+  });
+
+  const seen = new Set();
+  return rows
+    .filter((row) => row.label || row.id)
+    .filter((row) => {
+      const key = row.id || row.label;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 export function normalizeLeadRecord(raw = {}, type = "new_dot") {
   const insurance = raw.insurance || {};
   const publicLiability = raw.insuranceFilings?.publicLiability || raw.licensingInsurance || {};
@@ -74,6 +136,17 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
     hazmatOosRate: pick(raw.hazmatOosRate, raw.oosRates?.hazmat, safety.hazmatOosRate, safety.oosRates?.hazmat, smsSafety.oosRates?.hazmat),
     crashCount: pick(raw.crashCount, raw.crashTotal, safety.crashTotal),
     basicScores: raw.basicScores || safety.basicScores || [],
+    basicCategories: normalizeBasicCategories(
+      raw.basicCategories,
+      raw.basic_scores,
+      safety.basicCategories,
+      safety.basicScores,
+      safety.categories,
+      smsSafety.basics
+    ),
+    smsProfileAvailable: Boolean(raw.smsProfileAvailable || safety.smsProfileAvailable || smsSafety.source),
+    safetySource: pick(raw.safetySource, safety.source, smsSafety.source),
+    inspectionHistory: raw.inspectionHistory || safety.inspectionHistory || raw.inspections || [],
     raw,
   };
 }

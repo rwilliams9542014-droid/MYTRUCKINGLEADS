@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Card, Badge, Button } from "@/components/ui";
+import OutreachComposer from "@/components/OutreachComposer";
+import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { api } from "@/lib/api";
 import {
-  INSPECTION_UNAVAILABLE,
   UNAVAILABLE,
-  buildInspectionBars,
   getRenewalDisplay,
   normalizeLeadRecord,
   pick,
@@ -65,7 +65,12 @@ function normalizeCarrier(data) {
     vehicleOosRate: lead.vehicleOosRate,
     hazmatOosRate: lead.hazmatOosRate,
     basicScores: lead.basicScores,
+    basicCategories: lead.basicCategories,
+    smsProfileAvailable: lead.smsProfileAvailable,
+    safetySource: lead.safetySource,
+    inspectionHistory: lead.inspectionHistory,
     crashTotal: pick(carrier.crashTotal, carrier.safety?.crashTotal),
+    crashCount: lead.crashCount,
     companyRep: pick(carrier.companyRep, carrier.companyOfficer1, carrier.company_rep),
   };
 }
@@ -79,34 +84,6 @@ function InfoItem({ label, value }) {
   );
 }
 
-function InspectionBars({ carrier }) {
-  const { totalInspections, bars } = buildInspectionBars(carrier);
-  if (!totalInspections && bars.length === 0) {
-    return <p className="text-sm text-navy-400">{INSPECTION_UNAVAILABLE}</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-navy-500">
-        {totalInspections ? `${totalInspections} total inspection${totalInspections === 1 ? "" : "s"}. Public inspection data available.` : "Public inspection data available."}
-      </p>
-      {bars.length > 0 ? bars.map((bar) => (
-        <div key={bar.label}>
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-navy-300">{bar.label}</span>
-            <span className="text-white font-medium">{Math.round(bar.value)}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
-            <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.round(bar.value)}%` }} />
-          </div>
-        </div>
-      )) : (
-        <p className="text-xs text-navy-500">Detailed SMS percentile not available from public source.</p>
-      )}
-    </div>
-  );
-}
-
 export default function CarrierProfilePage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -115,6 +92,7 @@ export default function CarrierProfilePage() {
   const [loading, setLoading] = useState(Boolean(dot));
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
+  const [composer, setComposer] = useState(null);
 
   useEffect(() => {
     if (!dot) {
@@ -187,6 +165,14 @@ export default function CarrierProfilePage() {
   }
 
   if (!carrier) return null;
+  const outreachLead = {
+    ...carrier,
+    carrierName: carrier.name,
+    dotNumber: carrier.dot,
+    mcNumber: carrier.mcNumber,
+    renewalDate: carrier.renewalDisplay?.date || "",
+    renewalDateSource: carrier.renewalDisplay?.label || "",
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -215,7 +201,8 @@ export default function CarrierProfilePage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {carrier.phone && <a href={`tel:${carrier.phone}`} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Call</a>}
-          {carrier.email && <a href={`mailto:${carrier.email}`} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Email</a>}
+          {carrier.email && <button type="button" onClick={() => setComposer("email")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Email This Lead</button>}
+          {carrier.phone && <button type="button" onClick={() => setComposer("sms")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Text This Lead</button>}
           <Button size="sm" onClick={saveToPipeline}>+ Pipeline</Button>
         </div>
       </div>
@@ -270,7 +257,11 @@ export default function CarrierProfilePage() {
             <div className="space-y-2 text-sm">
               <p className="text-white">{contact.name}</p>
               {contact.phone && <a href={`tel:${contact.phone}`} className="block text-brand-400 hover:text-brand-300">{contact.phone}</a>}
-              {contact.email && <a href={`mailto:${contact.email}`} className="block text-brand-400 hover:text-brand-300">{contact.email}</a>}
+              {contact.email && <p className="text-brand-400">{contact.email}</p>}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {contact.email && <button type="button" onClick={() => setComposer("email")} className="btn-secondary text-xs px-3 py-2 rounded-lg">Email</button>}
+                {contact.phone && <button type="button" onClick={() => setComposer("sms")} className="btn-secondary text-xs px-3 py-2 rounded-lg">Text</button>}
+              </div>
             </div>
           </Card>
 
@@ -289,10 +280,17 @@ export default function CarrierProfilePage() {
 
           <Card>
             <h2 className="text-lg font-semibold text-white mb-4">Safety / Inspection History</h2>
-            <InspectionBars carrier={carrier} />
+            <SafetyBarsPanel record={carrier} />
           </Card>
         </div>
       </div>
+      <OutreachComposer
+        open={Boolean(composer)}
+        channel={composer || "email"}
+        lead={outreachLead}
+        intent={carrier.renewalDisplay?.date ? "renewal" : "new-dot"}
+        onClose={() => setComposer(null)}
+      />
     </div>
   );
 }
