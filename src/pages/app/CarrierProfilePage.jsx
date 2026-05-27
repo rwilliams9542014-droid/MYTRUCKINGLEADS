@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, Button } from "@/components/ui";
 import OutreachComposer from "@/components/OutreachComposer";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
@@ -137,6 +137,10 @@ function normalizeCrashes(carrier, lead) {
 
 function formatRate(value) {
   return value || value === 0 ? `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : "";
+}
+
+function hasValue(value) {
+  return value || value === 0;
 }
 
 function normalizeCarrier(data) {
@@ -277,12 +281,13 @@ function SafetyRatingCard({ carrier }) {
 }
 
 function CrashHistoryCard({ crashes }) {
-  const hasCrashData = [crashes.total, crashes.fatal, crashes.injury, crashes.tow].some((value) => value || value === 0);
+  const safeCrashes = crashes && typeof crashes === "object" ? crashes : {};
+  const hasCrashData = [safeCrashes.total, safeCrashes.fatal, safeCrashes.injury, safeCrashes.tow].some(hasValue);
   const tiles = [
-    ["Total", crashes.total],
-    ["Fatal", crashes.fatal],
-    ["Injury", crashes.injury],
-    ["Tow", crashes.tow],
+    ["Total", safeCrashes.total],
+    ["Fatal", safeCrashes.fatal],
+    ["Injury", safeCrashes.injury],
+    ["Tow", safeCrashes.tow],
   ];
   return (
     <ProfileCard title="Crash History">
@@ -303,34 +308,39 @@ function CrashHistoryCard({ crashes }) {
 }
 
 function InspectionHistoryCard({ carrier }) {
+  const safeCarrier = carrier && typeof carrier === "object" ? carrier : {};
   const tiles = [
-    ["Total Inspections", carrier.totalInspections],
-    ["Vehicle Inspections", carrier.vehicleInspections],
-    ["Driver Inspections", carrier.driverInspections],
-    ["Hazmat Inspections", carrier.hazmatInspections],
-    ["Vehicle OOS", carrier.vehicleOos],
-    ["Driver OOS", carrier.driverOos],
-    ["Hazmat OOS", carrier.hazmatOos],
-    ["Vehicle OOS Rate", formatRate(carrier.vehicleOosRate)],
-    ["Driver OOS Rate", formatRate(carrier.driverOosRate)],
-  ];
+    ["Total Inspections", safeCarrier.totalInspections],
+    ["Vehicle Inspections", safeCarrier.vehicleInspections],
+    ["Driver Inspections", safeCarrier.driverInspections],
+    ["Hazmat Inspections", safeCarrier.hazmatInspections],
+    ["Vehicle OOS", safeCarrier.vehicleOos],
+    ["Driver OOS", safeCarrier.driverOos],
+    ["Hazmat OOS", safeCarrier.hazmatOos],
+    ["Vehicle OOS Rate", formatRate(safeCarrier.vehicleOosRate)],
+    ["Driver OOS Rate", formatRate(safeCarrier.driverOosRate)],
+  ].filter(([, value]) => hasValue(value));
   return (
     <ProfileCard title="Inspection History">
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        {tiles.map(([label, value]) => (
-          <div key={label} className="profile-stat-tile">
-            <p className="text-xl font-black text-white">{valueOrUnavailable(value)}</p>
-            <p className="profile-label mt-1">{label}</p>
-          </div>
-        ))}
-      </div>
+      {tiles.length ? (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          {tiles.map(([label, value]) => (
+            <div key={label} className="profile-stat-tile">
+              <p className="text-xl font-black text-white">{valueOrUnavailable(value)}</p>
+              <p className="profile-label mt-1">{label}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-navy-400">Inspection data could not be loaded.</p>
+      )}
       <div className="mt-5">
-        <SafetyBarsPanel record={carrier} mode="inspection" />
+        <SafetyBarsPanel record={safeCarrier} mode="inspection" />
       </div>
       <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <DetailItem label="Hazmat OOS Rate" value={formatRate(carrier.hazmatOosRate)} />
-        <DetailItem label="Total Violations" value={carrier.totalViolations} />
-        <DetailItem label="OOS Violations" value={carrier.oosViolations} />
+        <DetailItem label="Hazmat OOS Rate" value={formatRate(safeCarrier.hazmatOosRate)} />
+        <DetailItem label="Total Violations" value={safeCarrier.totalViolations} />
+        <DetailItem label="OOS Violations" value={safeCarrier.oosViolations} />
       </div>
     </ProfileCard>
   );
@@ -400,12 +410,16 @@ export default function CarrierProfilePage() {
   const { user } = useAuth();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const dot = id || searchParams.get("dot");
   const [carrier, setCarrier] = useState(null);
   const [loading, setLoading] = useState(Boolean(dot));
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [composer, setComposer] = useState(null);
+  const backTo = location.state?.from || "/carrier-search";
+  const backLabel = location.state?.label || "Back to carrier search";
 
   useEffect(() => {
     if (!dot) {
@@ -476,7 +490,7 @@ export default function CarrierProfilePage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <Link to="/carrier-search" className="text-brand-400 hover:text-brand-300 text-sm">Back to carrier search</Link>
+        <button type="button" onClick={() => navigate(backTo)} className="text-brand-400 hover:text-brand-300 text-sm">{backLabel}</button>
         <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-4 text-sm text-danger-300">{error}</div>
       </div>
     );
@@ -489,7 +503,7 @@ export default function CarrierProfilePage() {
   return (
     <div className="carrier-profile-page min-w-0 space-y-6 animate-fade-in">
       <div className="flex items-center gap-2 text-sm">
-        <Link to="/carrier-search" className="text-sky-100/45 hover:text-white transition-colors">Carrier Search</Link>
+        <button type="button" onClick={() => navigate(backTo)} className="text-sky-100/45 hover:text-white transition-colors">{backLabel}</button>
         <span className="text-sky-100/30">/</span>
         <span className="font-semibold text-sky-100">{carrier.name}</span>
       </div>
@@ -511,7 +525,6 @@ export default function CarrierProfilePage() {
           {carrier.phone && <a href={`tel:${carrier.phone}`} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Call</a>}
           <Button size="sm" onClick={saveToPipeline}>Add to Pipeline</Button>
           {carrier.email && <button type="button" onClick={() => setComposer("email")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Email</button>}
-          {carrier.phone && <button type="button" onClick={() => setComposer("sms")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Manual Text</button>}
         </div>
       </div>
 
@@ -548,7 +561,7 @@ export default function CarrierProfilePage() {
 
       <OutreachComposer
         open={Boolean(composer)}
-        channel={composer || "email"}
+        channel="email"
         lead={outreachLead}
         intent={carrier.renewalDisplay?.date ? "renewal" : "new-dot"}
         onClose={() => setComposer(null)}

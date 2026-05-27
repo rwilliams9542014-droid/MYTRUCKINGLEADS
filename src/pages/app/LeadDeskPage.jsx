@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Badge, Button, Card } from "@/components/ui";
 import OutreachComposer from "@/components/OutreachComposer";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
@@ -44,6 +44,7 @@ function normalizeLead(lead, type) {
 }
 
 export default function LeadDeskPage() {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("new_dot");
   const [search, setSearch] = useState("");
   const [state, setState] = useState("Any");
@@ -60,6 +61,7 @@ export default function LeadDeskPage() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [leadSourceMeta, setLeadSourceMeta] = useState(null);
   const [composer, setComposer] = useState(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState([]);
 
   const range = useMemo(() => {
     if (datePreset === "custom") return { from: customFrom, to: customTo };
@@ -111,7 +113,12 @@ export default function LeadDeskPage() {
     setHasSearched(false);
     setLastUpdated("");
     setLeadSourceMeta(null);
+    setSelectedLeadIds([]);
   }, [activeTab]);
+
+  useEffect(() => {
+    setSelectedLeadIds((current) => current.filter((id) => filteredLeads.some((lead) => lead.id === id)));
+  }, [filteredLeads]);
 
   async function runSearch(event) {
     event?.preventDefault();
@@ -241,7 +248,7 @@ export default function LeadDeskPage() {
 
   function openComposer(channel, lead) {
     setComposer({
-      channel,
+      channel: "email",
       lead: {
         ...lead,
         carrierName: lead.name,
@@ -251,6 +258,42 @@ export default function LeadDeskPage() {
         renewalDateSource: lead.renewalDisplay?.label || "",
       },
     });
+  }
+
+  function openBulkEmailComposer() {
+    const selectedLeads = filteredLeads
+      .filter((lead) => selectedLeadIds.includes(lead.id) && lead.email)
+      .map((lead) => ({
+        ...lead,
+        carrierName: lead.name,
+        dotNumber: lead.dot,
+        mcNumber: lead.mc,
+        renewalDate: lead.renewalDisplay?.date || "",
+        renewalDateSource: lead.renewalDisplay?.label || "",
+      }));
+
+    if (!selectedLeads.length) {
+      setSaveMessage("Select at least one lead with an email address.");
+      return;
+    }
+
+    setComposer({ channel: "email", leads: selectedLeads });
+  }
+
+  function toggleSelectedLead(lead) {
+    if (!lead.email) return;
+    setSelectedLeadIds((current) => (
+      current.includes(lead.id)
+        ? current.filter((id) => id !== lead.id)
+        : [...current, lead.id]
+    ));
+  }
+
+  function toggleAllVisibleEmailLeads() {
+    const visibleEmailIds = filteredLeads.filter((lead) => lead.email).map((lead) => lead.id);
+    if (!visibleEmailIds.length) return;
+    const allSelected = visibleEmailIds.every((id) => selectedLeadIds.includes(id));
+    setSelectedLeadIds(allSelected ? [] : visibleEmailIds);
   }
 
   function csvValue(value) {
@@ -325,17 +368,17 @@ export default function LeadDeskPage() {
     URL.revokeObjectURL(url);
   }
 
-  async function copyValues(kind) {
+  async function copyEmails() {
     const values = filteredLeads
-      .map((lead) => kind === "email" ? lead.email : lead.phone)
+      .map((lead) => lead.email)
       .filter(Boolean);
     if (!values.length) {
-      setSaveMessage(`No ${kind === "email" ? "emails" : "phone numbers"} available in current results.`);
+      setSaveMessage("No emails available in current results.");
       return;
     }
     try {
       await navigator.clipboard.writeText(values.join("\n"));
-      setSaveMessage(`${values.length} ${kind === "email" ? "email" : "phone number"}${values.length === 1 ? "" : "s"} copied.`);
+      setSaveMessage(`${values.length} email${values.length === 1 ? "" : "s"} copied.`);
     } catch {
       setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
     }
@@ -437,8 +480,8 @@ export default function LeadDeskPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={exportCsv} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
-              <button type="button" onClick={() => copyValues("email")} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
-              <button type="button" onClick={() => copyValues("phone")} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Copy Phone Numbers</button>
+              <button type="button" onClick={copyEmails} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
+              <button type="button" onClick={openBulkEmailComposer} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Email Selected</button>
             </div>
           </div>
         </form>
@@ -452,6 +495,15 @@ export default function LeadDeskPage() {
           <table className="premium-table w-full min-w-[1100px]">
             <thead>
               <tr className="border-b border-white/5">
+                <th className="text-left text-xs font-medium text-navy-400 uppercase px-6 py-4">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-white/20 bg-navy-900"
+                    checked={filteredLeads.filter((lead) => lead.email).length > 0 && filteredLeads.filter((lead) => lead.email).every((lead) => selectedLeadIds.includes(lead.id))}
+                    onChange={toggleAllVisibleEmailLeads}
+                    aria-label="Select all visible leads with emails"
+                  />
+                </th>
                 {["Company", "DOT / MC", "Location", "Fleet", "Cargo", "MCS-150", activeTab === "new_dot" ? "Added / First Seen" : activeTab === "renewal" ? "Renewal / Filing Date" : "Submitted", "Status", "Actions"].map((heading) => (
                   <th key={heading} className="text-left text-xs font-medium text-navy-400 uppercase px-6 py-4">{heading}</th>
                 ))}
@@ -462,8 +514,18 @@ export default function LeadDeskPage() {
                 <Fragment key={lead.id}>
                   <tr className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-3">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-white/20 bg-navy-900"
+                        checked={selectedLeadIds.includes(lead.id)}
+                        disabled={!lead.email}
+                        onChange={() => toggleSelectedLead(lead)}
+                        aria-label={`Select ${lead.name}`}
+                      />
+                    </td>
+                    <td className="px-6 py-3">
                       {lead.dot ? (
-                        <Link to={`/carrier/${lead.dot}`} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">{lead.name}</Link>
+                        <Link to={`/carrier/${lead.dot}`} state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">{lead.name}</Link>
                       ) : (
                         <p className="text-sm font-medium text-white">{lead.name}</p>
                       )}
@@ -496,10 +558,9 @@ export default function LeadDeskPage() {
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-3">
-                        {lead.dot && <Link to={`/carrier/${lead.dot}`} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View Carrier Profile</Link>}
+                        {lead.dot && <Link to={`/carrier/${lead.dot}`} state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View Carrier Profile</Link>}
                         {lead.dot && <button onClick={() => toggleDetails(lead)} className="text-xs text-navy-300 hover:text-white font-medium">{expandedDot === lead.dot ? "Hide" : "Details"}</button>}
                         {lead.email && <button onClick={() => openComposer("email", lead)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email</button>}
-                        {lead.phone && <button onClick={() => openComposer("sms", lead)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Text</button>}
                         {activeTab === "hot" ? (
                           <Button size="sm" className="text-xs">Buy</Button>
                         ) : (
@@ -510,7 +571,7 @@ export default function LeadDeskPage() {
                   </tr>
                   {expandedDot === lead.dot && (
                     <tr className="border-b border-white/[0.03] bg-navy-950/40">
-                      <td colSpan={9} className="px-6 py-5">
+                      <td colSpan={10} className="px-6 py-5">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                           <div>
                             <p className="text-xs text-navy-500 uppercase mb-2">Insurance Filing</p>
@@ -529,9 +590,8 @@ export default function LeadDeskPage() {
                           <div>
                             <p className="text-xs text-navy-500 uppercase mb-2">Actions</p>
                             <div className="flex flex-wrap gap-2">
-                              {lead.dot && <Link to={`/carrier/${lead.dot}`} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">View Carrier Profile</Link>}
+                              {lead.dot && <Link to={`/carrier/${lead.dot}`} state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">View Carrier Profile</Link>}
                               {lead.email && <button onClick={() => openComposer("email", lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Email This Lead</button>}
-                              {lead.phone && <button onClick={() => openComposer("sms", lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Text This Lead</button>}
                               <button onClick={() => saveLead(lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Add to CRM</button>
                               <button onClick={() => loadSafetyDetails(lead, { force: true })} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Refresh FMCSA Data</button>
                               <span className="text-xs text-navy-500 self-center">Ask AI unavailable unless backend supports it.</span>
@@ -559,8 +619,9 @@ export default function LeadDeskPage() {
       </Card>
       <OutreachComposer
         open={Boolean(composer)}
-        channel={composer?.channel || "email"}
+        channel="email"
         lead={composer?.lead || {}}
+        leads={composer?.leads || []}
         intent={activeTab === "renewal" ? "renewal" : "new-dot"}
         onClose={() => setComposer(null)}
       />

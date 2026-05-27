@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Badge, Card } from "@/components/ui";
 import OutreachComposer from "@/components/OutreachComposer";
 import { api } from "@/lib/api";
@@ -35,6 +35,7 @@ function normalizeLead(lead) {
 }
 
 export default function CrmPage() {
+  const location = useLocation();
   const [leads, setLeads] = useState([]);
   const [draggedLead, setDraggedLead] = useState(null);
   const [dragOverStage, setDragOverStage] = useState(null);
@@ -90,7 +91,7 @@ export default function CrmPage() {
 
   function openComposer(channel, lead) {
     setComposer({
-      channel,
+      channel: "email",
       lead: {
         ...lead,
         carrierName: lead.name,
@@ -160,7 +161,7 @@ export default function CrmPage() {
                     className="rounded-xl border border-white/[0.06] bg-navy-900/45 p-3 cursor-grab active:cursor-grabbing hover:border-white/12 hover:bg-navy-900/70 transition-all duration-200 group"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} className="text-sm font-semibold text-white group-hover:text-brand-300 transition-colors hover:underline line-clamp-2">
+                      <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} state={{ from: `${location.pathname}${location.search}`, label: "Back to CRM" }} className="text-sm font-semibold text-white group-hover:text-brand-300 transition-colors hover:underline line-clamp-2">
                         {card.name}
                       </Link>
                       {card.state && <Badge variant="outline" className="text-[10px]">{card.state}</Badge>}
@@ -179,7 +180,6 @@ export default function CrmPage() {
                     <p className="text-[11px] text-navy-500 mt-2 line-clamp-2">{card.lastActivity}</p>
                     <div className="flex flex-wrap gap-2 mt-3">
                       {card.email && <button type="button" onClick={() => openComposer("email", card)} className="text-[11px] text-brand-400 hover:text-brand-300">Email</button>}
-                      {card.phone && <button type="button" onClick={() => openComposer("sms", card)} className="text-[11px] text-brand-400 hover:text-brand-300">Text</button>}
                     </div>
                   </div>
                 ))}
@@ -208,7 +208,7 @@ export default function CrmPage() {
                 {allCards.map((card) => (
                   <tr key={card.id} className="border-b border-white/[0.06] odd:bg-white/[0.015] hover:bg-white/[0.04] transition-colors">
                     <td className="px-4 py-3 border-r border-white/[0.04]">
-                      <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
+                      <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} state={{ from: `${location.pathname}${location.search}`, label: "Back to CRM" }} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
                         {card.name}
                       </Link>
                       <p className="text-xs text-navy-500 line-clamp-1">{card.lastActivity}</p>
@@ -224,9 +224,8 @@ export default function CrmPage() {
                     <td className="px-4 py-3 text-sm text-navy-300 border-r border-white/[0.04]">{card.lastContacted || "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>
+                        <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} state={{ from: `${location.pathname}${location.search}`, label: "Back to CRM" }} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>
                         {card.email && <button type="button" onClick={() => openComposer("email", card)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email</button>}
-                        {card.phone && <button type="button" onClick={() => openComposer("sms", card)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Text</button>}
                       </div>
                     </td>
                   </tr>
@@ -245,7 +244,7 @@ export default function CrmPage() {
       )}
       <OutreachComposer
         open={Boolean(composer)}
-        channel={composer?.channel || "email"}
+        channel="email"
         lead={composer?.lead || {}}
         intent="renewal"
         onClose={() => setComposer(null)}

@@ -91,33 +91,24 @@ export function AppLayout() {
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* Professional Header Logo Section */}
-        <div className="h-16 px-4 flex items-center border-b border-cyan-300/10">
+        <div className="h-20 px-4 flex items-center border-b border-cyan-300/10">
           <Link
             to="/dashboard"
             className={`flex w-full items-center transition-all duration-200 ${
-              collapsed ? "justify-center" : "justify-start px-2 gap-3"
+              collapsed ? "justify-center" : "justify-start"
             }`}
           >
-            <img
-              src="/assets/mytruckingleads-logo-icon.png"
-              alt="MTL"
-              className="w-9 h-9 flex-shrink-0 object-contain drop-shadow-[0_0_18px_rgba(56,189,248,0.34)] transition-transform duration-300 hover:scale-105"
-            />
-
-            {/* Smooth Wordmark Visibility Control */}
-            <div
-              className={`flex items-center transition-all duration-300 origin-left ${
-                collapsed 
-                  ? "w-0 opacity-0 pointer-events-none scale-95" 
-                  : "w-auto opacity-100 scale-100"
-              }`}
-            >
+            {collapsed ? (
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-sm font-black text-cyan-100 shadow-[0_0_22px_rgba(56,189,248,0.22)]">
+                MTL
+              </span>
+            ) : (
               <img
                 src="/assets/homepage-logo-floating.png"
                 alt="MyTruckingLeads"
-                className="h-9 w-auto max-w-[160px] object-contain drop-shadow-[0_0_14px_rgba(56,189,248,0.25)]"
+                className="h-14 w-full max-w-[210px] object-contain object-left drop-shadow-[0_0_18px_rgba(56,189,248,0.28)]"
               />
-            </div>
+            )}
           </Link>
         </div>
 

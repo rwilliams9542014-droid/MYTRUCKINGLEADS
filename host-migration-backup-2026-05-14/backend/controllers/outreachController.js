@@ -49,7 +49,19 @@ export async function getTemplates(req, res) {
 
 export async function getUsage(req, res) {
   try {
-    res.json(await getOutreachUsage(await hydrateUser(req.user)));
+    const user = await hydrateUser(req.user);
+    const usage = await getOutreachUsage(user);
+    res.json({
+      ...usage,
+      user: {
+        name: user.name || [user.first_name, user.last_name].filter(Boolean).join(" "),
+        firstName: user.first_name || "",
+        lastName: user.last_name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        businessName: user.business_name || ""
+      }
+    });
   } catch (err) {
     sendError(res, err);
   }

@@ -12,6 +12,10 @@ function metricValue(value) {
   return value || value === 0 ? value : "Not available";
 }
 
+function hasValue(value) {
+  return value || value === 0;
+}
+
 function inspectionColor(value, nationalAverage = null) {
   if (nationalAverage || nationalAverage === 0) {
     if (value < nationalAverage) return "bg-accent-500";
@@ -62,10 +66,11 @@ function normalizeBasics(record = {}) {
 }
 
 export default function SafetyBarsPanel({ record = {}, compact = false, mode = "full" }) {
-  const { totalInspections, bars } = buildInspectionBars(record);
-  const basics = normalizeBasics(record);
+  const safeRecord = record && typeof record === "object" ? record : {};
+  const { totalInspections, bars } = buildInspectionBars(safeRecord);
+  const basics = normalizeBasics(safeRecord);
   const hasBasics = basics.some(hasPublicBasicValue);
-  const inspections = Array.isArray(record.inspectionHistory) ? record.inspectionHistory : [];
+  const inspections = Array.isArray(safeRecord.inspectionHistory) ? safeRecord.inspectionHistory : [];
 
   if (mode === "basic") {
     return (
@@ -87,7 +92,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
         </div>
         {!hasBasics && (
           <p className="text-sm text-navy-400">
-            {record.dataSources?.basics?.attempted && record.dataSources?.basics?.success === false
+            {safeRecord.dataSources?.basics?.attempted && safeRecord.dataSources?.basics?.success === false
               ? "BASIC safety scores could not be loaded right now."
               : "BASIC safety scores are not available from the current FMCSA data source for this carrier."}
           </p>
@@ -97,7 +102,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
   }
 
   if (mode === "inspection") {
-    if (!totalInspections && bars.length === 0) {
+    if (!hasValue(totalInspections) && bars.length === 0) {
       return <p className="text-sm text-navy-400">{INSPECTION_UNAVAILABLE}</p>;
     }
     return (
@@ -118,13 +123,13 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
   }
 
   if (compact) {
-    if (!totalInspections && !bars.length && !hasBasics) {
+    if (!hasValue(totalInspections) && !bars.length && !hasBasics) {
       return <p className="text-xs text-navy-500">{INSPECTION_UNAVAILABLE}</p>;
     }
     return (
       <div className="space-y-3">
         <p className="text-xs text-navy-500">
-          {totalInspections ? `${totalInspections} total inspections. Public inspection data available.` : "Public SMS/BASIC data available."}
+          {hasValue(totalInspections) ? `${totalInspections} total inspections. Public inspection data available.` : "Public SMS/BASIC data available."}
         </p>
         {bars.slice(0, 3).map((bar) => (
           <div key={bar.label}>
@@ -147,19 +152,19 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-navy-900/45 border border-white/[0.06] p-3">
           <p className="text-xs text-navy-500 uppercase">Safety Rating</p>
-          <p className="text-sm text-white mt-1">{metricValue(record.safetyRating)}</p>
+          <p className="text-sm text-white mt-1">{metricValue(safeRecord.safetyRating)}</p>
         </div>
         <div className="rounded-xl bg-navy-900/45 border border-white/[0.06] p-3">
           <p className="text-xs text-navy-500 uppercase">Total Inspections</p>
-          <p className="text-sm text-white mt-1">{metricValue(totalInspections || record.totalInspections)}</p>
+          <p className="text-sm text-white mt-1">{metricValue(hasValue(totalInspections) ? totalInspections : safeRecord.totalInspections)}</p>
         </div>
         <div className="rounded-xl bg-navy-900/45 border border-white/[0.06] p-3">
           <p className="text-xs text-navy-500 uppercase">Total Violations</p>
-          <p className="text-sm text-white mt-1">{metricValue(record.totalViolations)}</p>
+          <p className="text-sm text-white mt-1">{metricValue(safeRecord.totalViolations)}</p>
         </div>
         <div className="rounded-xl bg-navy-900/45 border border-white/[0.06] p-3">
           <p className="text-xs text-navy-500 uppercase">OOS / Crashes</p>
-          <p className="text-sm text-white mt-1">{[record.oosViolations, record.crashCount || record.crashTotal].filter(Boolean).join(" / ") || "Not available"}</p>
+          <p className="text-sm text-white mt-1">{[safeRecord.oosViolations, safeRecord.crashCount || safeRecord.crashTotal].filter(hasValue).join(" / ") || "Not available"}</p>
         </div>
       </div>
 
@@ -186,7 +191,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
 
       <div>
         <h3 className="text-sm font-semibold text-white mb-3">Inspection History Bars</h3>
-        {!totalInspections && bars.length === 0 ? (
+        {!hasValue(totalInspections) && bars.length === 0 ? (
           <p className="text-sm text-navy-400">{INSPECTION_UNAVAILABLE}</p>
         ) : (
           <div className="space-y-3">

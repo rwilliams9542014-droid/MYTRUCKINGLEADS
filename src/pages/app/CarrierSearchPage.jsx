@@ -138,7 +138,11 @@ export default function CarrierSearchPage() {
                     </Badge>
                   )}
                   {(carrier.dot_number || carrier.dotNumber || carrier.dot) && (
-                    <Link to={`/carrier/${carrier.dot_number || carrier.dotNumber || carrier.dot}`} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">
+                    <Link
+                      to={`/carrier/${carrier.dot_number || carrier.dotNumber || carrier.dot}`}
+                      state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }}
+                      className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10"
+                    >
                       View Profile
                     </Link>
                   )}
