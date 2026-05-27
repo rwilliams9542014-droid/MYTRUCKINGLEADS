@@ -607,6 +607,25 @@ function collectScalarValues(node, keyPatterns, output = []) {
   return output.filter(Boolean);
 }
 
+function collectRawKeys(node, output = new Set()) {
+  if (!node || typeof node !== "object") return output;
+  Object.entries(node).forEach(([key, value]) => {
+    output.add(key);
+    if (value && typeof value === "object") collectRawKeys(value, output);
+  });
+  return output;
+}
+
+function rawKeysFound(raw, patterns = []) {
+  const normalizedPatterns = patterns.map(pattern => String(pattern).toLowerCase().replace(/[^a-z0-9]/g, ""));
+  return [...collectRawKeys(raw)]
+    .filter((key) => {
+      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return normalizedPatterns.some(pattern => normalizedKey.includes(pattern));
+    })
+    .sort();
+}
+
 function categoryKey(value = "") {
   const text = valueOrEmpty(value).toLowerCase();
   if (/unsafe/.test(text)) return "unsafeDriving";
@@ -648,18 +667,28 @@ function mapQcmobileBasics(raw) {
       if (!label) return null;
       return {
         id: categoryKey(label),
+        category: categoryLabel(label),
+        shortName: categoryKey(label),
         label: categoryLabel(label),
         basicShortDesc: findFirstValue(row, ["basicshortdesc"]) || label,
         basicDesc: findFirstValue(row, ["basicdesc", "description"]),
-        percentile: findFirstValue(row, ["percentile", "measure", "score"]),
+        percentile: findFirstValue(row, ["percentile", "score", "value"]),
+        measure: findFirstValue(row, ["measure"]),
+        snapshotDate: findFirstValue(row, ["snapshotdate", "snapshot", "snapdate", "csmsdate"]),
+        snapShotDate: findFirstValue(row, ["snapshotdate", "snapshot", "snapdate", "csmsdate"]),
+        totalInspectionsWithViolations: findFirstValue(row, ["totalinspectionswithviolation", "totalinspectionwithviolation", "inspectioncount"]),
+        totalViolations: findFirstValue(row, ["totalviolations", "totalviolation", "violationcount"]),
+        inspections: findFirstValue(row, ["totalinspectionswithviolation", "totalinspectionwithviolation", "inspectioncount", "totalinspection"]),
+        violations: findFirstValue(row, ["totalviolations", "totalviolation", "violationcount"]),
+        deficientFlags: {
+          rdDeficient: findFirstValue(row, ["rddeficient"]),
+          rdsvDeficient: findFirstValue(row, ["rdsvdeficient"]),
+          svDeficient: findFirstValue(row, ["svdeficient"])
+        },
         rdDeficient: findFirstValue(row, ["rddeficient"]),
         rdsvDeficient: findFirstValue(row, ["rdsvdeficient"]),
         svDeficient: findFirstValue(row, ["svdeficient"]),
-        snapShotDate: findFirstValue(row, ["snapshotdate", "snapdate"]),
-        inspections: findFirstValue(row, ["totalinspectionwithviolation", "inspectioncount", "totalinspection"]),
-        violations: findFirstValue(row, ["totalviolation", "violationcount"]),
-        totalInspectionWithViolation: findFirstValue(row, ["totalinspectionwithviolation"]),
-        totalViolation: findFirstValue(row, ["totalviolation"])
+        publicStatus: "available"
       };
     })
     .filter(Boolean)
@@ -667,15 +696,32 @@ function mapQcmobileBasics(raw) {
 
   return {
     categories,
-    snapShotDate: categories.find(row => row.snapShotDate)?.snapShotDate || findFirstValue(raw, ["snapshotdate", "snapdate"]),
+    snapShotDate: categories.find(row => row.snapShotDate)?.snapShotDate || findFirstValue(raw, ["snapshotdate", "snapshot", "snapdate", "csmsdate"]),
+    rawKeysFound: rawKeysFound(raw, [
+      "basicShortDesc",
+      "basicDesc",
+      "percentile",
+      "measure",
+      "value",
+      "score",
+      "snapShotDate",
+      "snapshotDate",
+      "totalInspectionWithViolation",
+      "totalInspectionsWithViolation",
+      "totalViolation",
+      "totalViolations",
+      "rdDeficient",
+      "rdsvDeficient",
+      "svDeficient"
+    ]),
     source: categories.length ? "FMCSA QCMobile BASIC public endpoint" : ""
   };
 }
 
 function mapQcmobileOos(raw) {
-  const totalInspections = findFirstValue(raw, ["totalinspections", "totalinspection", "inspectiontotal"]);
-  const vehicleInspections = findFirstValue(raw, ["vehicleinspections", "vehicleinspection"]);
-  const driverInspections = findFirstValue(raw, ["driverinspections", "driverinspection"]);
+  const totalInspections = findFirstValue(raw, ["totalinspections", "inspections", "totalinsp", "totalinspection", "inspectiontotal"]);
+  const vehicleInspections = findFirstValue(raw, ["vehicleinspections", "vehicleinspectioncount", "vehicleinspection"]);
+  const driverInspections = findFirstValue(raw, ["driverinspections", "driverinspectioncount", "driverinspection"]);
   const hazmatInspections = findFirstValue(raw, ["hazmatinspections", "hazmatinspection", "hminspection"]);
   const vehicleOos = findFirstValue(raw, ["vehicleooscount", "vehicleoos", "vehicleoutofservice"]);
   const driverOos = findFirstValue(raw, ["driverooscount", "driveroos", "driveroutofservice"]);
@@ -683,6 +729,9 @@ function mapQcmobileOos(raw) {
   const vehicleOosRate = rateValue(findFirstValue(raw, ["vehicleoospercent", "vehicleoosrate"]));
   const driverOosRate = rateValue(findFirstValue(raw, ["driveroospercent", "driveroosrate"]));
   const hazmatOosRate = rateValue(findFirstValue(raw, ["hazmatoospercent", "hazmatoosrate", "hmoosrate"]));
+  const nationalAverageVehicleOosRate = rateValue(findFirstValue(raw, ["nationalaveragevehicleoosrate", "nationalavgvehicleoos", "vehicleoosnationalaverage"]));
+  const nationalAverageDriverOosRate = rateValue(findFirstValue(raw, ["nationalaveragedriveroosrate", "nationalavgdriveroos", "driveroosnationalaverage"]));
+  const nationalAverageHazmatOosRate = rateValue(findFirstValue(raw, ["nationalaveragehazmatoosrate", "nationalavghazmatoos", "hazmatoosnationalaverage"]));
 
   return {
     totalInspections,
@@ -695,6 +744,35 @@ function mapQcmobileOos(raw) {
     vehicleOosRate: vehicleOosRate === "" ? percentValue(vehicleOos, vehicleInspections) : vehicleOosRate,
     driverOosRate: driverOosRate === "" ? percentValue(driverOos, driverInspections) : driverOosRate,
     hazmatOosRate: hazmatOosRate === "" ? percentValue(hazmatOos, hazmatInspections) : hazmatOosRate,
+    nationalAverageVehicleOosRate,
+    nationalAverageDriverOosRate,
+    nationalAverageHazmatOosRate,
+    rawKeysFound: rawKeysFound(raw, [
+      "totalInspections",
+      "inspections",
+      "totalInsp",
+      "vehicleInspections",
+      "vehicleInspectionCount",
+      "driverInspections",
+      "driverInspectionCount",
+      "hazmatInspections",
+      "vehicleOos",
+      "vehicleOosCount",
+      "vehicleOutOfService",
+      "driverOos",
+      "driverOosCount",
+      "driverOutOfService",
+      "hazmatOos",
+      "vehicleOosRate",
+      "vehicleOosPercent",
+      "driverOosRate",
+      "driverOosPercent",
+      "hazmatOosRate",
+      "nationalAverageVehicleOosRate",
+      "nationalAvgVehicleOos",
+      "nationalAverageDriverOosRate",
+      "nationalAvgDriverOos"
+    ]),
     source: "FMCSA QCMobile OOS public endpoint"
   };
 }
@@ -776,12 +854,38 @@ async function fetchQcmobilePublicProfileDetails(dot) {
   );
 
   const details = {};
+  const dataSources = {};
   settled.forEach((result, index) => {
     const [endpoint] = endpoints[index];
     if (result.status === "fulfilled" && result.value) {
       details[endpoint] = result.value;
+      dataSources[endpoint === "cargo-carried" ? "cargoCarried" : endpoint === "operation-classification" ? "operationClassification" : endpoint === "docket-numbers" ? "docketNumbers" : endpoint] = {
+        attempted: true,
+        success: Boolean(result.value?.source || Object.keys(result.value || {}).length),
+        recordCount: Array.isArray(result.value?.categories)
+          ? result.value.categories.length
+          : Array.isArray(result.value?.cargoTypes)
+            ? result.value.cargoTypes.length
+            : Array.isArray(result.value?.operationClassification)
+              ? result.value.operationClassification.length
+              : Array.isArray(result.value?.docketNumbers)
+                ? result.value.docketNumbers.length
+                : undefined,
+        rawKeysFound: result.value?.rawKeysFound || undefined
+      };
     } else if (result.status === "rejected") {
       logProviderFailure(`FMCSA QCMobile ${endpoint} lookup`, result.reason);
+      dataSources[endpoint === "cargo-carried" ? "cargoCarried" : endpoint === "operation-classification" ? "operationClassification" : endpoint === "docket-numbers" ? "docketNumbers" : endpoint] = {
+        attempted: true,
+        success: false,
+        error: result.reason?.response?.status ? `HTTP ${result.reason.response.status}` : "request failed"
+      };
+    } else {
+      dataSources[endpoint === "cargo-carried" ? "cargoCarried" : endpoint === "operation-classification" ? "operationClassification" : endpoint === "docket-numbers" ? "docketNumbers" : endpoint] = {
+        attempted: true,
+        success: false,
+        recordCount: 0
+      };
     }
   });
 
@@ -791,13 +895,14 @@ async function fetchQcmobilePublicProfileDetails(dot) {
     missingEndpoints: endpoints.map(([endpoint]) => endpoint).filter(endpoint => !details[endpoint])
   });
 
-  return Object.keys(details).length ? {
+  return Object.keys(details).length || Object.keys(dataSources).length ? {
     basics: details.basics || null,
     oos: details.oos || null,
     authority: details.authority || null,
     cargo: details["cargo-carried"] || null,
     operationClassification: details["operation-classification"] || null,
     docketNumbers: details["docket-numbers"] || null,
+    dataSources,
     source: "FMCSA QCMobile public profile endpoints"
   } : null;
 }
@@ -1307,6 +1412,20 @@ export async function getCarrierData({ dot, mc, name } = {}) {
       portalUrl: MOTUS_PORTAL_URL,
       notice: FMCSA_TRANSITION_NOTICE,
       status: "portal-only"
+    }
+  };
+
+  carrier.dataSourceStatus = {
+    carrierSnapshot: {
+      attempted: Boolean(dot || mc),
+      success: Boolean(apiResult || censusResult || saferData),
+      recordCount: apiResult || censusResult || saferData ? 1 : 0
+    },
+    ...(qcmobileDetails?.dataSources || {}),
+    insurance: {
+      attempted: false,
+      success: false,
+      recordCount: 0
     }
   };
 

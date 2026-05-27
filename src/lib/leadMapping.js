@@ -23,6 +23,9 @@ export const BASIC_CATEGORY_LABELS = {
   crashIndicator: "Crash Indicator",
 };
 
+export const BASIC_UNAVAILABLE_MESSAGE = "Unavailable from returned FMCSA data";
+export const BASIC_TEMPORARILY_UNAVAILABLE = "SMS/BASIC data temporarily unavailable";
+
 function normalizeBasicCategories(...sources) {
   const rows = [];
   sources.filter(Boolean).forEach((source) => {
@@ -37,6 +40,8 @@ function normalizeBasicCategories(...sources) {
           alert: item.alert,
           inspections: item.inspections ?? item.inspectionCount,
           violations: item.violations ?? item.violationCount,
+          publicStatus: item.publicStatus,
+          snapshotDate: item.snapshotDate ?? item.snapShotDate,
         });
       });
       return;
@@ -80,6 +85,7 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
   const publicLiability = raw.insuranceFilings?.publicLiability || raw.licensingInsurance || {};
   const safety = raw.safety || raw.safetyData || raw.safety_data || {};
   const smsSafety = raw.smsSafety || raw.raw?.smsSafety || {};
+  const inspectionSummary = raw.inspectionSummary || safety.inspectionSummary || {};
   const dotNumber = pick(raw.dotNumber, raw.dot_number, raw.usdot, raw.usdotNumber, raw.dot);
   const carrierName = pick(raw.carrierName, raw.legalName, raw.legal_name, raw.carrier_name, raw.name, "Unknown carrier");
   const insuranceCancelDate = pick(
@@ -126,20 +132,23 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
     crmRenewalDate: pick(raw.crmRenewalDate),
     estimatedRenewalDate: pick(raw.estimatedRenewalDate, raw.estimatedRenewalOpportunity),
     renewalDateSource: pick(raw.renewalDateSource, raw.dateSource),
-    totalInspections: pick(raw.totalInspections, safety.totalInspections, smsSafety.inspections),
-    vehicleInspections: pick(raw.vehicleInspections, safety.vehicleInspections, smsSafety.vehicleInspections),
-    driverInspections: pick(raw.driverInspections, safety.driverInspections, smsSafety.driverInspections),
-    hazmatInspections: pick(raw.hazmatInspections, safety.hazmatInspections, smsSafety.hazmatInspections),
+    totalInspections: pick(raw.totalInspections, inspectionSummary.totalInspections, safety.totalInspections, smsSafety.inspections),
+    vehicleInspections: pick(raw.vehicleInspections, inspectionSummary.vehicleInspections, safety.vehicleInspections, smsSafety.vehicleInspections),
+    driverInspections: pick(raw.driverInspections, inspectionSummary.driverInspections, safety.driverInspections, smsSafety.driverInspections),
+    hazmatInspections: pick(raw.hazmatInspections, inspectionSummary.hazmatInspections, safety.hazmatInspections, smsSafety.hazmatInspections),
     inspectionsWithViolations: pick(raw.inspectionsWithViolations, safety.inspectionsWithViolations),
     inspectionsWithoutViolations: pick(raw.inspectionsWithoutViolations, safety.inspectionsWithoutViolations),
-    totalViolations: pick(raw.totalViolations, safety.totalViolations),
-    oosViolations: pick(raw.oosViolations, safety.oosViolations),
-    vehicleOos: pick(raw.vehicleOos, safety.vehicleOos, smsSafety.vehicleOos),
-    driverOos: pick(raw.driverOos, safety.driverOos, smsSafety.driverOos),
-    hazmatOos: pick(raw.hazmatOos, safety.hazmatOos, smsSafety.hazmatOos),
-    driverOosRate: pick(raw.driverOosRate, raw.oosRates?.driver?.carrier, raw.oosRates?.driver, safety.driverOosRate, safety.oosRates?.driver?.carrier, safety.oosRates?.driver, smsSafety.oosRates?.driver?.carrier, smsSafety.oosRates?.driver),
-    vehicleOosRate: pick(raw.vehicleOosRate, raw.oosRates?.vehicle?.carrier, raw.oosRates?.vehicle, safety.vehicleOosRate, safety.oosRates?.vehicle?.carrier, safety.oosRates?.vehicle, smsSafety.oosRates?.vehicle?.carrier, smsSafety.oosRates?.vehicle),
-    hazmatOosRate: pick(raw.hazmatOosRate, raw.oosRates?.hazmat?.carrier, raw.oosRates?.hazmat, safety.hazmatOosRate, safety.oosRates?.hazmat?.carrier, safety.oosRates?.hazmat, smsSafety.oosRates?.hazmat?.carrier, smsSafety.oosRates?.hazmat),
+    totalViolations: pick(raw.totalViolations, inspectionSummary.totalViolations, safety.totalViolations),
+    oosViolations: pick(raw.oosViolations, inspectionSummary.oosViolations, safety.oosViolations),
+    vehicleOos: pick(raw.vehicleOos, inspectionSummary.vehicleOosCount, safety.vehicleOos, smsSafety.vehicleOos),
+    driverOos: pick(raw.driverOos, inspectionSummary.driverOosCount, safety.driverOos, smsSafety.driverOos),
+    hazmatOos: pick(raw.hazmatOos, inspectionSummary.hazmatOosCount, safety.hazmatOos, smsSafety.hazmatOos),
+    driverOosRate: pick(raw.driverOosRate, inspectionSummary.driverOosRate, raw.oosRates?.driver?.carrier, raw.oosRates?.driver, safety.driverOosRate, safety.oosRates?.driver?.carrier, safety.oosRates?.driver, smsSafety.oosRates?.driver?.carrier, smsSafety.oosRates?.driver),
+    vehicleOosRate: pick(raw.vehicleOosRate, inspectionSummary.vehicleOosRate, raw.oosRates?.vehicle?.carrier, raw.oosRates?.vehicle, safety.vehicleOosRate, safety.oosRates?.vehicle?.carrier, safety.oosRates?.vehicle, smsSafety.oosRates?.vehicle?.carrier, smsSafety.oosRates?.vehicle),
+    hazmatOosRate: pick(raw.hazmatOosRate, inspectionSummary.hazmatOosRate, raw.oosRates?.hazmat?.carrier, raw.oosRates?.hazmat, safety.hazmatOosRate, safety.oosRates?.hazmat?.carrier, safety.oosRates?.hazmat, smsSafety.oosRates?.hazmat?.carrier, smsSafety.oosRates?.hazmat),
+    nationalAverageVehicleOosRate: pick(raw.nationalAverageVehicleOosRate, inspectionSummary.nationalAverageVehicleOosRate, safety.oosRates?.vehicle?.nationalAverage, smsSafety.oosRates?.vehicle?.nationalAverage),
+    nationalAverageDriverOosRate: pick(raw.nationalAverageDriverOosRate, inspectionSummary.nationalAverageDriverOosRate, safety.oosRates?.driver?.nationalAverage, smsSafety.oosRates?.driver?.nationalAverage),
+    nationalAverageHazmatOosRate: pick(raw.nationalAverageHazmatOosRate, inspectionSummary.nationalAverageHazmatOosRate, safety.oosRates?.hazmat?.nationalAverage, smsSafety.oosRates?.hazmat?.nationalAverage),
     crashCount: pick(raw.crashCount, raw.crashTotal, safety.crashTotal),
     smsSnapshotDate: pick(raw.smsSnapshotDate, safety.smsSnapshotDate, smsSafety.smsSnapshotDate),
     basicScores: raw.basicScores || safety.basicScores || [],
@@ -154,6 +163,7 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
     smsProfileAvailable: Boolean(raw.smsProfileAvailable || safety.smsProfileAvailable || smsSafety.source),
     safetySource: pick(raw.safetySource, safety.source, smsSafety.source),
     inspectionHistory: raw.inspectionHistory || safety.inspectionHistory || raw.inspections || [],
+    inspectionSummary,
     raw,
   };
 }
@@ -205,10 +215,17 @@ export function buildInspectionBars(lead = {}) {
     {
       label: "Driver OOS",
       value: normalizedRate(lead.driverOosRate),
+      nationalAverage: normalizedRate(lead.nationalAverageDriverOosRate),
     },
     {
       label: "Vehicle OOS",
       value: normalizedRate(lead.vehicleOosRate),
+      nationalAverage: normalizedRate(lead.nationalAverageVehicleOosRate),
+    },
+    {
+      label: "Hazmat OOS",
+      value: normalizedRate(lead.hazmatOosRate),
+      nationalAverage: normalizedRate(lead.nationalAverageHazmatOosRate),
     },
   ].filter((bar) => bar.value !== null);
 

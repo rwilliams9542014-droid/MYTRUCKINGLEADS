@@ -13,7 +13,6 @@ import {
 
 const NOT_AVAILABLE = "Not available";
 const FMCSA_UNAVAILABLE = "Not available from public FMCSA data.";
-
 function valueOrUnavailable(value, fallback = NOT_AVAILABLE) {
   return value || value === 0 ? value : fallback;
 }
@@ -32,6 +31,30 @@ function asArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [value];
 }
 
+function normalizeLimit(value) {
+  if (!value && value !== 0) return "";
+  const text = String(value).trim();
+  if (!text) return "";
+  if (/coverage|limit|\$|source value/i.test(text)) return text;
+  return `Max Coverage: ${text} (source value)`;
+}
+
+function dedupeFilings(filings = []) {
+  const seen = new Set();
+  return filings.filter((filing) => {
+    const key = [
+      filing.title,
+      filing.company,
+      filing.reference,
+      filing.effectiveDate,
+      filing.cancelDate || filing.expirationDate,
+    ].map((value) => String(value || "").trim().toLowerCase()).join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function normalizeInsuranceFilings(carrier, lead) {
   const filings = [];
   const insuranceFilings = carrier.insuranceFilings || carrier.insurance_filings || {};
@@ -44,7 +67,7 @@ function normalizeInsuranceFilings(carrier, lead) {
       title: pick(lead.filingType, publicLiability.filingType, publicLiability.coverageInfo, "BIPD Liability"),
       company: pick(lead.insuranceCompany, publicLiability.insuranceCompany, publicLiability.company),
       reference: pick(carrier.insurancePolicyNumber, carrier.insurance_policy_number, publicLiability.policyNumber, publicLiability.formNumber),
-      limit: pick(publicLiability.limit, publicLiability.coverageLimit, carrier.insuranceLimit),
+      limit: normalizeLimit(pick(publicLiability.limit, publicLiability.coverageLimit, publicLiability.coverageInfo, carrier.insuranceLimit)),
       effectiveDate: lead.insuranceEffectiveDate,
       cancelDate: lead.insuranceCancelDate,
       expirationDate: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration, publicLiability.insuranceExpirationDate),
@@ -57,7 +80,7 @@ function normalizeInsuranceFilings(carrier, lead) {
       title: "Cargo",
       company: pick(cargo.insuranceCompany, cargo.company),
       reference: pick(cargo.policyNumber, cargo.formNumber, typeof cargo === "string" ? cargo : ""),
-      limit: pick(cargo.limit, cargo.coverageLimit),
+      limit: normalizeLimit(pick(cargo.limit, cargo.coverageLimit, cargo.coverageInfo)),
       effectiveDate: pick(cargo.effectiveDate, cargo.insuranceEffectiveDate),
       cancelDate: pick(cargo.cancelDate, cargo.cancellationDate),
       expirationDate: pick(cargo.expirationDate, cargo.insuranceExpirationDate),
@@ -70,7 +93,7 @@ function normalizeInsuranceFilings(carrier, lead) {
       title: pick(filing.filingType, filing.form, filing.type, `Filing ${index + 1}`),
       company: pick(filing.insuranceCompany, filing.company),
       reference: pick(filing.policyNumber, filing.formNumber, filing.docketNumber),
-      limit: pick(filing.limit, filing.coverageLimit),
+      limit: normalizeLimit(pick(filing.limit, filing.coverageLimit, filing.coverageInfo)),
       effectiveDate: pick(filing.effectiveDate, filing.insuranceEffectiveDate),
       cancelDate: pick(filing.cancelDate, filing.cancellationDate),
       expirationDate: pick(filing.expirationDate, filing.insuranceExpirationDate),
@@ -78,7 +101,8 @@ function normalizeInsuranceFilings(carrier, lead) {
     });
   });
 
-  return filings.length ? filings : [{
+  const deduped = dedupeFilings(filings);
+  return deduped.length ? deduped : [{
     title: "Insurance Filing",
     company: "",
     reference: "",
@@ -93,6 +117,7 @@ function normalizeInsuranceFilings(carrier, lead) {
 function normalizeCrashes(carrier, lead) {
   const crashes = firstObject(
     carrier.crashSummary,
+    carrier.safety?.crashSummary,
     carrier.crashes,
     carrier.crashHistory,
     carrier.safety?.crashes,
@@ -105,6 +130,10 @@ function normalizeCrashes(carrier, lead) {
     injury: pick(crashes.injury, crashes.injuryCrashes),
     tow: pick(crashes.tow, crashes.towaway, crashes.towAway, crashes.towawayCrashes),
   };
+}
+
+function formatRate(value) {
+  return value || value === 0 ? `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : "";
 }
 
 function normalizeCarrier(data) {
@@ -125,6 +154,7 @@ function normalizeCarrier(data) {
   const drivers = pick(carrier.drivers, carrier.driverCount, carrier.driver_count);
   const cargo = splitCargo(pick(carrier.cargoHauled, carrier.cargo, carrier.cargoCarried, carrier.cargoTypes, carrier.cargo_hauled));
   const safety = carrier.safety || {};
+  const inspectionSummary = carrier.inspectionSummary || safety.inspectionSummary || {};
 
   return {
     raw: carrier,
@@ -139,12 +169,12 @@ function normalizeCarrier(data) {
     zip,
     phone,
     email,
-    entityType: pick(carrier.entityType, carrier.entity_type),
+    entityType: pick(carrier.entityType, carrier.entity_type, carrier.carrierEntityType, carrier.carrierType, carrier.carrier?.entityType),
     operations: pick(carrier.operations, carrier.operationType, carrier.operationsScope, carrier.carrierOperation, carrier.carrier_operation),
     operationClassification: carrier.operationClassification || [],
     operatingStatus: pick(carrier.authorityStatus, carrier.authority_status, carrier.operatingStatus, carrier.operating_status, "Unknown"),
-    outOfServiceStatus: pick(carrier.outOfServiceStatus, carrier.out_of_service_status),
-    outOfServiceDate: pick(carrier.outOfServiceDate, carrier.out_of_service_date),
+    outOfServiceStatus: pick(carrier.outOfServiceStatus, carrier.out_of_service_status, carrier.oosStatus, carrier.isOutOfService, carrier.outOfService),
+    outOfServiceDate: pick(carrier.outOfServiceDate, carrier.out_of_service_date, carrier.outOfServiceDate, carrier.oosDate),
     safetyRating: pick(carrier.safetyRating, carrier.safety_rating, safety.safetyRating, "Not Rated"),
     safetyRatingDate: pick(carrier.safetyRatingDate, carrier.safety_rating_date, safety.safetyRatingDate),
     mcs150Date: pick(carrier.mcs150Date, carrier.mcs_150_date, carrier.mcs150_date),
@@ -161,27 +191,31 @@ function normalizeCarrier(data) {
     filingType: lead.filingType,
     renewalDisplay: getRenewalDisplay(lead),
     insuranceFilings: normalizeInsuranceFilings(carrier, lead),
-    totalInspections: lead.totalInspections,
-    vehicleInspections: lead.vehicleInspections,
-    driverInspections: lead.driverInspections,
-    hazmatInspections: lead.hazmatInspections,
+    totalInspections: pick(inspectionSummary.totalInspections, lead.totalInspections),
+    vehicleInspections: pick(inspectionSummary.vehicleInspections, lead.vehicleInspections),
+    driverInspections: pick(inspectionSummary.driverInspections, lead.driverInspections),
+    hazmatInspections: pick(inspectionSummary.hazmatInspections, lead.hazmatInspections),
     inspectionsWithViolations: lead.inspectionsWithViolations,
     inspectionsWithoutViolations: lead.inspectionsWithoutViolations,
-    totalViolations: lead.totalViolations,
-    oosViolations: lead.oosViolations,
-    vehicleOos: pick(lead.vehicleOos, carrier.vehicleOos, carrier.vehicle_oos, safety.vehicleOos, safety.vehicleOosCount),
-    driverOos: pick(lead.driverOos, carrier.driverOos, carrier.driver_oos, safety.driverOos, safety.driverOosCount),
-    hazmatOos: pick(lead.hazmatOos, carrier.hazmatOos, safety.hazmatOos),
-    driverOosRate: lead.driverOosRate,
-    vehicleOosRate: lead.vehicleOosRate,
-    hazmatOosRate: lead.hazmatOosRate,
+    totalViolations: pick(inspectionSummary.totalViolations, lead.totalViolations),
+    oosViolations: pick(inspectionSummary.oosViolations, lead.oosViolations),
+    vehicleOos: pick(inspectionSummary.vehicleOosCount, lead.vehicleOos, carrier.vehicleOos, carrier.vehicle_oos, safety.vehicleOos, safety.vehicleOosCount),
+    driverOos: pick(inspectionSummary.driverOosCount, lead.driverOos, carrier.driverOos, carrier.driver_oos, safety.driverOos, safety.driverOosCount),
+    hazmatOos: pick(inspectionSummary.hazmatOosCount, lead.hazmatOos, carrier.hazmatOos, safety.hazmatOos),
+    driverOosRate: pick(inspectionSummary.driverOosRate, lead.driverOosRate),
+    vehicleOosRate: pick(inspectionSummary.vehicleOosRate, lead.vehicleOosRate),
+    hazmatOosRate: pick(inspectionSummary.hazmatOosRate, lead.hazmatOosRate),
+    nationalAverageVehicleOosRate: pick(inspectionSummary.nationalAverageVehicleOosRate, lead.nationalAverageVehicleOosRate),
+    nationalAverageDriverOosRate: pick(inspectionSummary.nationalAverageDriverOosRate, lead.nationalAverageDriverOosRate),
+    nationalAverageHazmatOosRate: pick(inspectionSummary.nationalAverageHazmatOosRate, lead.nationalAverageHazmatOosRate),
     smsSnapshotDate: lead.smsSnapshotDate,
-    basicScores: lead.basicScores,
-    basicCategories: lead.basicCategories,
+    basicScores: safety.basicScores || lead.basicScores,
+    basicCategories: safety.basicCategories || lead.basicCategories,
     smsProfileAvailable: lead.smsProfileAvailable,
     safetySource: lead.safetySource,
     inspectionHistory: lead.inspectionHistory,
     crashSummary: normalizeCrashes(carrier, lead),
+    dataSources: carrier.dataSources || {},
     companyRep: pick(carrier.companyRep, carrier.companyOfficer1, carrier.company_rep),
   };
 }
@@ -265,9 +299,14 @@ function CrashHistoryCard({ crashes }) {
 function InspectionHistoryCard({ carrier }) {
   const tiles = [
     ["Total Inspections", carrier.totalInspections],
+    ["Vehicle Inspections", carrier.vehicleInspections],
+    ["Driver Inspections", carrier.driverInspections],
+    ["Hazmat Inspections", carrier.hazmatInspections],
     ["Vehicle OOS", carrier.vehicleOos],
-    ["Vehicle OOS Rate", carrier.vehicleOosRate ? `${carrier.vehicleOosRate}%` : ""],
-    ["Driver OOS Rate", carrier.driverOosRate ? `${carrier.driverOosRate}%` : ""],
+    ["Driver OOS", carrier.driverOos],
+    ["Hazmat OOS", carrier.hazmatOos],
+    ["Vehicle OOS Rate", formatRate(carrier.vehicleOosRate)],
+    ["Driver OOS Rate", formatRate(carrier.driverOosRate)],
   ];
   return (
     <ProfileCard title="Inspection History">
@@ -283,10 +322,7 @@ function InspectionHistoryCard({ carrier }) {
         <SafetyBarsPanel record={carrier} mode="inspection" />
       </div>
       <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <DetailItem label="Vehicle Inspections" value={carrier.vehicleInspections} />
-        <DetailItem label="Driver Inspections" value={carrier.driverInspections} />
-        <DetailItem label="Hazmat Inspections" value={carrier.hazmatInspections} />
-        <DetailItem label="Hazmat OOS Rate" value={carrier.hazmatOosRate ? `${carrier.hazmatOosRate}%` : ""} />
+        <DetailItem label="Hazmat OOS Rate" value={formatRate(carrier.hazmatOosRate)} />
         <DetailItem label="Total Violations" value={carrier.totalViolations} />
         <DetailItem label="OOS Violations" value={carrier.oosViolations} />
       </div>
@@ -304,7 +340,7 @@ function InsuranceFilingCard({ carrier }) {
               <div>
                 <p className="profile-label">{valueOrUnavailable(filing.title, "Filing")}</p>
                 <p className="profile-value">{valueOrUnavailable(filing.company, FMCSA_UNAVAILABLE)}</p>
-                <p className="mt-1 text-xs font-mono text-sky-100/35">{valueOrUnavailable(filing.reference, FMCSA_UNAVAILABLE)}</p>
+                <p className="mt-1 text-xs font-mono text-sky-100/35">Policy/Filing Number: {valueOrUnavailable(filing.reference, FMCSA_UNAVAILABLE)}</p>
               </div>
               {filing.limit && <Badge variant="success">{filing.limit}</Badge>}
             </div>
@@ -332,6 +368,7 @@ function CompanyDetailsCard({ carrier }) {
         <DetailItem label="Entity Type" value={carrier.entityType} />
         <DetailItem label="Fleet Size" value={fleet} />
         <DetailItem label="Operations" value={carrier.operations} />
+        <DetailItem label="Authority Status" value={carrier.operatingStatus} />
         <DetailItem label="Out-of-Service Status" value={carrier.outOfServiceStatus} />
         <DetailItem label="Out-of-Service Date" value={carrier.outOfServiceDate} />
       </div>

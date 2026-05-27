@@ -1,12 +1,23 @@
 import { Badge } from "@/components/ui";
-import { BASIC_CATEGORY_LABELS, INSPECTION_UNAVAILABLE, buildInspectionBars } from "@/lib/leadMapping";
+import {
+  BASIC_CATEGORY_LABELS,
+  BASIC_TEMPORARILY_UNAVAILABLE,
+  BASIC_UNAVAILABLE_MESSAGE,
+  INSPECTION_UNAVAILABLE,
+  buildInspectionBars,
+} from "@/lib/leadMapping";
 import SafetyScoreBar from "./SafetyScoreBar";
 
 function metricValue(value) {
   return value || value === 0 ? value : "Not available";
 }
 
-function inspectionColor(value) {
+function inspectionColor(value, nationalAverage = null) {
+  if (nationalAverage || nationalAverage === 0) {
+    if (value < nationalAverage) return "bg-accent-500";
+    if (value <= nationalAverage * 1.5) return "bg-warning-500";
+    return "bg-danger-500";
+  }
   if (value < 25) return "bg-accent-500";
   if (value < 50) return "bg-warning-500";
   return "bg-danger-500";
@@ -34,13 +45,20 @@ function normalizeBasics(record = {}) {
   ];
   const basics = record.basicCategories?.length
     ? record.basicCategories
-    : Object.entries(BASIC_CATEGORY_LABELS).map(([id, label]) => ({ id, label, percentile: "Not publicly available" }));
+    : Object.entries(BASIC_CATEGORY_LABELS).map(([id, label]) => ({ id, label, percentile: "", publicStatus: "unavailable" }));
 
   return basics.map((item) => {
     const label = item.label || BASIC_CATEGORY_LABELS[item.id] || item.id;
     return {
       ...item,
       label: label === "Hours-of-Service Compliance" ? "HOS Compliance" : label,
+      description: item.description || item.alert || item.threshold || (
+        item.publicStatus === "not_public"
+          ? "Not publicly available"
+          : item.publicStatus === "unavailable"
+            ? BASIC_UNAVAILABLE_MESSAGE
+            : ""
+      ),
     };
   }).sort((a, b) => {
     const aIndex = preferredOrder.indexOf(a.label);
@@ -69,12 +87,16 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
               value={item.percentile ?? item.measure}
               inspections={item.inspections}
               violations={item.violations}
-              description={item.alert || item.threshold || ""}
+              description={item.description}
             />
           ))}
         </div>
         {!hasBasics && (
-          <p className="text-sm text-navy-400">Public SMS data not available for this carrier/category.</p>
+          <p className="text-sm text-navy-400">
+            {record.dataSources?.basics?.attempted && record.dataSources?.basics?.success === false
+              ? BASIC_TEMPORARILY_UNAVAILABLE
+              : "Public SMS data not available for this carrier/category."}
+          </p>
         )}
       </div>
     );
@@ -93,7 +115,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
               <span className="text-white font-semibold">{Math.round(bar.value)}%</span>
             </div>
             <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
-              <div className={`h-full rounded-full ${inspectionColor(bar.value)}`} style={{ width: `${Math.round(bar.value)}%` }} />
+              <div className={`h-full rounded-full ${inspectionColor(bar.value, bar.nationalAverage)}`} style={{ width: `${Math.round(bar.value)}%` }} />
             </div>
           </div>
         ))}
@@ -117,7 +139,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
               <span className="text-white font-medium">{Math.round(bar.value)}%</span>
             </div>
             <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
-              <div className={`h-full rounded-full ${inspectionColor(bar.value)}`} style={{ width: `${Math.round(bar.value)}%` }} />
+              <div className={`h-full rounded-full ${inspectionColor(bar.value, bar.nationalAverage)}`} style={{ width: `${Math.round(bar.value)}%` }} />
             </div>
           </div>
         ))}
@@ -162,7 +184,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
               value={item.percentile ?? item.measure}
               inspections={item.inspections}
               violations={item.violations}
-              description={item.alert || item.threshold || ""}
+              description={item.description}
             />
           ))}
         </div>
@@ -181,7 +203,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
                   <span className="text-white font-medium">{Math.round(bar.value)}%</span>
                 </div>
                 <div className="h-2 rounded-full bg-navy-800 overflow-hidden">
-                  <div className={`h-full rounded-full ${inspectionColor(bar.value)}`} style={{ width: `${Math.round(bar.value)}%` }} />
+                  <div className={`h-full rounded-full ${inspectionColor(bar.value, bar.nationalAverage)}`} style={{ width: `${Math.round(bar.value)}%` }} />
                 </div>
               </div>
             ))}

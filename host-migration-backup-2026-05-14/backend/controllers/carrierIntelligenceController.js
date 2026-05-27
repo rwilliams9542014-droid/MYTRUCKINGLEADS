@@ -34,6 +34,10 @@ function numberOrNull(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== "") ?? "";
+}
+
 function formatDate(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -136,6 +140,163 @@ function yesNo(value) {
   return clean(value);
 }
 
+function sourceStatusFromCarrier(carrier = {}, qcmobileDetails = {}, insuranceSnapshot = null) {
+  const status = carrier.dataSourceStatus || carrier.raw?.liveCarrier?.dataSourceStatus || {};
+  return {
+    carrierSnapshot: status.carrierSnapshot || {
+      attempted: true,
+      success: Boolean(carrier.dotNumber || carrier.dot || carrier.legalName || carrier.carrierName),
+      recordCount: carrier.dotNumber || carrier.dot || carrier.legalName || carrier.carrierName ? 1 : 0
+    },
+    basics: status.basics || qcmobileDetails?.dataSources?.basics || {
+      attempted: Boolean(qcmobileDetails),
+      success: Boolean(qcmobileDetails?.basics?.categories?.length),
+      recordCount: qcmobileDetails?.basics?.categories?.length || 0,
+      rawKeysFound: qcmobileDetails?.basics?.rawKeysFound || []
+    },
+    oos: status.oos || qcmobileDetails?.dataSources?.oos || {
+      attempted: Boolean(qcmobileDetails),
+      success: Boolean(qcmobileDetails?.oos && Object.values(qcmobileDetails.oos).some(Boolean)),
+      rawKeysFound: qcmobileDetails?.oos?.rawKeysFound || []
+    },
+    authority: status.authority || qcmobileDetails?.dataSources?.authority || {
+      attempted: Boolean(qcmobileDetails),
+      success: Boolean(qcmobileDetails?.authority && Object.values(qcmobileDetails.authority).some(Boolean))
+    },
+    cargoCarried: status.cargoCarried || qcmobileDetails?.dataSources?.cargoCarried || {
+      attempted: Boolean(qcmobileDetails),
+      success: Boolean(qcmobileDetails?.cargo?.cargoTypes?.length),
+      recordCount: qcmobileDetails?.cargo?.cargoTypes?.length || 0
+    },
+    operationClassification: status.operationClassification || qcmobileDetails?.dataSources?.operationClassification || {
+      attempted: Boolean(qcmobileDetails),
+      success: Boolean(qcmobileDetails?.operationClassification?.operationClassification?.length),
+      recordCount: qcmobileDetails?.operationClassification?.operationClassification?.length || 0
+    },
+    docketNumbers: status.docketNumbers || qcmobileDetails?.dataSources?.docketNumbers || {
+      attempted: Boolean(qcmobileDetails),
+      success: Boolean(qcmobileDetails?.docketNumbers?.docketNumbers?.length),
+      recordCount: qcmobileDetails?.docketNumbers?.docketNumbers?.length || 0
+    },
+    insurance: {
+      attempted: true,
+      success: Boolean(insuranceSnapshot || carrier.licensingInsurance || carrier.insuranceCompany || carrier.bmcFilings?.length),
+      recordCount: Array.isArray(insuranceSnapshot?.bmcFilings)
+        ? insuranceSnapshot.bmcFilings.length
+        : Array.isArray(carrier.bmcFilings)
+          ? carrier.bmcFilings.length
+          : insuranceSnapshot || carrier.insuranceCompany ? 1 : 0
+    }
+  };
+}
+
+function normalizeBasicScores(qcmobileBasicCategories = [], smsSafety = {}, dataSource = {}) {
+  const returned = Array.isArray(qcmobileBasicCategories) ? qcmobileBasicCategories : [];
+  const byId = new Map();
+  returned.forEach((item = {}) => {
+    const id = clean(item.id || item.shortName);
+    if (!id) return;
+    byId.set(id, {
+      category: clean(item.category || item.label),
+      shortName: id,
+      percentile: numberOrNull(firstValue(item.percentile, item.value, item.score)),
+      measure: numberOrNull(item.measure),
+      snapshotDate: formatDate(firstValue(item.snapshotDate, item.snapShotDate, item.smsSnapshotDate, item.csmsDate)),
+      totalInspectionsWithViolations: numberOrNull(firstValue(item.totalInspectionsWithViolations, item.totalInspectionWithViolation, item.inspections)),
+      totalViolations: numberOrNull(firstValue(item.totalViolations, item.totalViolation, item.violations)),
+      deficientFlags: {
+        rdDeficient: firstValue(item.deficientFlags?.rdDeficient, item.rdDeficient),
+        rdsvDeficient: firstValue(item.deficientFlags?.rdsvDeficient, item.rdsvDeficient),
+        svDeficient: firstValue(item.deficientFlags?.svDeficient, item.svDeficient)
+      },
+      publicStatus: clean(item.publicStatus, "available")
+    });
+  });
+
+  const labels = {
+    unsafeDriving: "Unsafe Driving",
+    hoursOfService: "Hours-of-Service Compliance",
+    driverFitness: "Driver Fitness",
+    controlledSubstances: "Controlled Substances / Alcohol",
+    vehicleMaintenance: "Vehicle Maintenance",
+    hazmat: "Hazardous Materials Compliance",
+    crashIndicator: "Crash Indicator"
+  };
+
+  const basicsAttempted = dataSource?.attempted !== false;
+  const basicsSucceeded = Boolean(returned.length || dataSource?.success);
+  return Object.entries(labels).map(([id, label]) => {
+    if (byId.has(id)) return byId.get(id);
+    const fallbackValue = smsSafety?.basics?.[id];
+    if (fallbackValue !== undefined && fallbackValue !== null && fallbackValue !== "") {
+      return {
+        category: label,
+        shortName: id,
+        percentile: numberOrNull(fallbackValue),
+        measure: null,
+        snapshotDate: formatDate(smsSafety?.smsSnapshotDate),
+        totalInspectionsWithViolations: null,
+        totalViolations: null,
+        deficientFlags: {},
+        publicStatus: "available"
+      };
+    }
+    return {
+      category: label,
+      shortName: id,
+      percentile: null,
+      measure: null,
+      snapshotDate: "",
+      totalInspectionsWithViolations: null,
+      totalViolations: null,
+      deficientFlags: {},
+      publicStatus: !basicsAttempted || !basicsSucceeded
+        ? "unavailable"
+        : ["hazmat", "crashIndicator"].includes(id)
+          ? "not_public"
+          : "unavailable"
+    };
+  });
+}
+
+function rateOrCalculated(rate, count, denominator) {
+  const explicit = numberOrNull(rate);
+  if (explicit !== null) return explicit;
+  const countNumber = numberOrNull(count);
+  const denominatorNumber = numberOrNull(denominator);
+  if (countNumber === null || denominatorNumber === null || denominatorNumber <= 0) return null;
+  return Math.round((countNumber / denominatorNumber) * 1000) / 10;
+}
+
+function normalizeInspectionSummary({ qcmobileOos = {}, smsSafety = {}, saferData = {}, carrier = {} }) {
+  const totalInspections = numberOrNull(firstValue(qcmobileOos.totalInspections, saferData.totalInspections, smsSafety.inspections, carrier.totalInspections));
+  const vehicleInspections = numberOrNull(firstValue(qcmobileOos.vehicleInspections, smsSafety.vehicleInspections, carrier.vehicleInspections));
+  const driverInspections = numberOrNull(firstValue(qcmobileOos.driverInspections, smsSafety.driverInspections, carrier.driverInspections));
+  const hazmatInspections = numberOrNull(firstValue(qcmobileOos.hazmatInspections, smsSafety.hazmatInspections, carrier.hazmatInspections));
+  const vehicleOosCount = numberOrNull(firstValue(qcmobileOos.vehicleOos, smsSafety.vehicleOos, carrier.vehicleOos));
+  const driverOosCount = numberOrNull(firstValue(qcmobileOos.driverOos, smsSafety.driverOos, carrier.driverOos));
+  const hazmatOosCount = numberOrNull(firstValue(qcmobileOos.hazmatOos, smsSafety.hazmatOos, carrier.hazmatOos));
+
+  return {
+    totalInspections,
+    vehicleInspections,
+    driverInspections,
+    hazmatInspections,
+    vehicleOosCount,
+    driverOosCount,
+    hazmatOosCount,
+    vehicleOosRate: rateOrCalculated(firstValue(qcmobileOos.vehicleOosRate, smsSafety.oosRates?.vehicle?.carrier, smsSafety.oosRates?.vehicle), vehicleOosCount, vehicleInspections),
+    driverOosRate: rateOrCalculated(firstValue(qcmobileOos.driverOosRate, smsSafety.oosRates?.driver?.carrier, smsSafety.oosRates?.driver), driverOosCount, driverInspections),
+    hazmatOosRate: rateOrCalculated(firstValue(qcmobileOos.hazmatOosRate, smsSafety.oosRates?.hazmat?.carrier, smsSafety.oosRates?.hazmat), hazmatOosCount, hazmatInspections),
+    totalViolations: numberOrNull(firstValue(qcmobileOos.totalViolations, smsSafety.totalViolations, carrier.totalViolations)),
+    oosViolations: numberOrNull(firstValue(qcmobileOos.oosViolations, smsSafety.oosViolations, carrier.oosViolations)),
+    nationalAverageVehicleOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageVehicleOosRate, smsSafety.oosRates?.vehicle?.nationalAverage)),
+    nationalAverageDriverOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageDriverOosRate, smsSafety.oosRates?.driver?.nationalAverage)),
+    nationalAverageHazmatOosRate: numberOrNull(firstValue(qcmobileOos.nationalAverageHazmatOosRate, smsSafety.oosRates?.hazmat?.nationalAverage)),
+    source: qcmobileOos.source || smsSafety.source || saferData.source || "FMCSA public safety data"
+  };
+}
+
 function officialLinks(dotNumber, { includeSms = false } = {}) {
   const dot = encodeURIComponent(dotNumber);
   if (!dotNumber) return {};
@@ -227,6 +388,14 @@ function hasDirectSmsData(smsSafety = {}) {
     hasBasicCategories ||
     hasBasic ||
     hasOos
+  );
+}
+
+function hasQcmobileSafetyDetail(carrier = {}) {
+  const qcmobileDetails = carrier.qcmobileDetails || carrier.raw?.qcmobileDetails || carrier.raw?.liveCarrier?.qcmobileDetails || {};
+  return Boolean(
+    qcmobileDetails.basics?.categories?.length ||
+    (qcmobileDetails.oos && Object.values(qcmobileDetails.oos).some(Boolean))
   );
 }
 
@@ -437,6 +606,16 @@ function mergeInsurance(profile, insuranceSnapshot) {
     ),
     authorityStatus: profile.licensingInsurance?.authorityStatus || profile.authorityStatus
   };
+  profile.dataSources = {
+    ...(profile.dataSources || {}),
+    insurance: {
+      attempted: true,
+      success: true,
+      recordCount: Array.isArray(insuranceSnapshot.bmcFilings)
+        ? insuranceSnapshot.bmcFilings.length
+        : 1
+    }
+  };
   if (insuranceSnapshot.docketNumber && !profile.docketNumber) profile.docketNumber = insuranceSnapshot.docketNumber;
   return profile;
 }
@@ -455,6 +634,7 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
   const qcmobileOperation = qcmobileDetails?.operationClassification?.operationClassification || carrier.operationClassification || [];
   const qcmobileDockets = qcmobileDetails?.docketNumbers?.docketNumbers || carrier.docketNumbers || [];
   const qcmobileBasicCategories = qcmobileDetails?.basics?.categories || smsSafety?.basicCategories || [];
+  const dataSourceStatus = sourceStatusFromCarrier(carrier, qcmobileDetails);
   const physicalAddress = addressText(carrier.address) || clean(carrier.address);
   const mailingAddress =
     clean(carrier.mailingAddress) ||
@@ -483,21 +663,17 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
         ? saferData.cargoTypes
         : clean(carrier.cargo || saferData?.cargo).split(",").map(item => item.trim()).filter(Boolean)
     );
-  const safetyCategories = {
-    unsafeDriving: clean(smsSafety?.basics?.unsafeDriving, "Not publicly available"),
-    hoursOfService: clean(smsSafety?.basics?.hoursOfService, "Not publicly available"),
-    driverFitness: clean(smsSafety?.basics?.driverFitness, "Not publicly available"),
-    vehicleMaintenance: clean(smsSafety?.basics?.vehicleMaintenance, "Not publicly available"),
-    controlledSubstances: clean(smsSafety?.basics?.controlledSubstances, "Not publicly available"),
-    hazmat: clean(smsSafety?.basics?.hazmat, "Not publicly available"),
-    crashIndicator: clean(smsSafety?.basics?.crashIndicator, "Not publicly available")
-  };
-  qcmobileBasicCategories.forEach((category) => {
-    if (category.id) safetyCategories[category.id] = clean(category.percentile, "Not publicly available");
-  });
+  const basicScores = normalizeBasicScores(qcmobileBasicCategories, smsSafety, dataSourceStatus.basics);
+  const safetyCategories = basicScores.reduce((acc, category) => {
+    acc[category.shortName] = category.percentile ?? category.measure ?? "";
+    return acc;
+  }, {});
   const driverOosRate = clean(qcmobileOos.driverOosRate || smsSafety?.oosRates?.driver?.carrier || smsSafety?.oosRates?.driver);
   const vehicleOosRate = clean(qcmobileOos.vehicleOosRate || smsSafety?.oosRates?.vehicle?.carrier || smsSafety?.oosRates?.vehicle);
   const hazmatOosRate = clean(qcmobileOos.hazmatOosRate || smsSafety?.oosRates?.hazmat?.carrier || smsSafety?.oosRates?.hazmat);
+  const inspectionSummary = normalizeInspectionSummary({ qcmobileOos, smsSafety, saferData, carrier });
+  const snapshotDates = basicScores.map(score => score.snapshotDate).filter(Boolean).sort();
+  const smsSnapshotDate = snapshotDates[snapshotDates.length - 1] || formatDate(firstValue(smsSafety?.smsSnapshotDate, qcmobileDetails?.basics?.snapShotDate));
 
   return {
     dotNumber,
@@ -526,7 +702,7 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     authorityStatus: clean(qcmobileAuthority.authorityStatus || carrier.authorityStatus || saferData?.authorityStatus || census.status_code, "Not available"),
     outOfServiceStatus: clean(qcmobileAuthority.outOfServiceStatus || carrier.outOfServiceStatus),
     outOfServiceDate: clean(qcmobileAuthority.outOfServiceDate || carrier.outOfServiceDate),
-    entityType: clean(carrier.entityType || census.business_org_desc || census.carrier_operation || carrier.carrierOperation, "Not available"),
+    entityType: clean(firstValue(carrier.entityType, carrier.entity_type, carrier.carrierEntityType, carrier.carrierType, carrier.carrier?.entityType, census.business_org_desc, census.carrier_operation, carrier.carrierOperation), "Not available"),
     carrierOperation: clean(qcmobileOperation.join(", ") || carrier.carrierOperation || census.carrier_operation),
     operationsScope: clean(qcmobileOperation.join(", ") || carrier.operationsScope || carrier.operatingAuthority || census.carrier_operation || census.classdef),
     authoritySince,
@@ -553,29 +729,57 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     safety: {
       safetyRating: clean(smsSafety?.safetyRating || saferData?.safetyRating || carrier.safetyRating, "Unknown"),
       safetyRatingDate: clean(smsSafety?.safetyRatingDate || saferData?.safetyRatingDate || carrier.safetyRatingDate),
-      smsSnapshotDate: clean(smsSafety?.smsSnapshotDate || qcmobileDetails?.basics?.snapShotDate),
-      totalInspections: clean(qcmobileOos.totalInspections || saferData?.totalInspections || smsSafety?.inspections || carrier.totalInspections),
-      vehicleInspections: clean(qcmobileOos.vehicleInspections || carrier.vehicleInspections),
-      driverInspections: clean(qcmobileOos.driverInspections || carrier.driverInspections),
-      hazmatInspections: clean(qcmobileOos.hazmatInspections || carrier.hazmatInspections),
-      vehicleOos: clean(qcmobileOos.vehicleOos || smsSafety?.vehicleOos || carrier.vehicleOos),
-      driverOos: clean(qcmobileOos.driverOos || smsSafety?.driverOos || carrier.driverOos),
-      hazmatOos: clean(qcmobileOos.hazmatOos || smsSafety?.hazmatOos || carrier.hazmatOos),
-      driverOosRate,
-      vehicleOosRate,
-      hazmatOosRate,
+      smsSnapshotDate,
+      totalInspections: inspectionSummary.totalInspections,
+      vehicleInspections: inspectionSummary.vehicleInspections,
+      driverInspections: inspectionSummary.driverInspections,
+      hazmatInspections: inspectionSummary.hazmatInspections,
+      vehicleOos: inspectionSummary.vehicleOosCount,
+      driverOos: inspectionSummary.driverOosCount,
+      hazmatOos: inspectionSummary.hazmatOosCount,
+      driverOosRate: inspectionSummary.driverOosRate ?? driverOosRate,
+      vehicleOosRate: inspectionSummary.vehicleOosRate ?? vehicleOosRate,
+      hazmatOosRate: inspectionSummary.hazmatOosRate ?? hazmatOosRate,
       crashTotal: clean(saferData?.crashTotal || carrier.crashTotal),
       crashes: carrier.crashes || saferData?.crashes || null,
-      basicScores: carrier.basicScores || qcmobileBasicCategories || [],
-      basicCategories: qcmobileBasicCategories,
+      basicScores,
+      basicCategories: basicScores.map(score => ({
+        id: score.shortName,
+        label: score.category,
+        percentile: score.percentile,
+        measure: score.measure,
+        inspections: score.totalInspectionsWithViolations,
+        violations: score.totalViolations,
+        snapshotDate: score.snapshotDate,
+        publicStatus: score.publicStatus,
+        deficientFlags: score.deficientFlags
+      })),
       categories: safetyCategories,
+      inspectionSummary,
       oosRates: {
-        vehicle: vehicleOosRate,
-        driver: driverOosRate,
-        hazmat: hazmatOosRate
+        vehicle: {
+          carrier: inspectionSummary.vehicleOosRate,
+          nationalAverage: inspectionSummary.nationalAverageVehicleOosRate
+        },
+        driver: {
+          carrier: inspectionSummary.driverOosRate,
+          nationalAverage: inspectionSummary.nationalAverageDriverOosRate
+        },
+        hazmat: {
+          carrier: inspectionSummary.hazmatOosRate,
+          nationalAverage: inspectionSummary.nationalAverageHazmatOosRate
+        }
       },
       smsProfileAvailable: hasDirectSmsData(smsSafety),
       source: smsSafety?.source || qcmobileDetails?.source || saferData?.source || "Most recent cached safety record"
+    },
+    inspectionSummary,
+    crashSummary: {
+      total: numberOrNull(firstValue(saferData?.crashes?.total, carrier.crashes?.total, saferData?.crashTotal, carrier.crashTotal)),
+      fatal: numberOrNull(firstValue(saferData?.crashes?.fatal, carrier.crashes?.fatal)),
+      injury: numberOrNull(firstValue(saferData?.crashes?.injury, carrier.crashes?.injury)),
+      tow: numberOrNull(firstValue(saferData?.crashes?.tow, carrier.crashes?.tow)),
+      source: saferData?.source || "FMCSA SAFER Company Snapshot"
     },
     licensingInsurance: {
       insuranceCompany: clean(carrier.insuranceCompany),
@@ -588,7 +792,8 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
       bmcFilings: carrier.bmcFilings || []
     },
     lastUpdated: formatDate(carrier.lastUpdated || carrier.updatedAt || carrier.sourceLastSeenAt || new Date()),
-    dataSources: sourceLabels(carrier, sourceType),
+    sourceLabels: sourceLabels(carrier, sourceType),
+    dataSources: dataSourceStatus,
     sourceType,
     liveUnavailable,
     message: message || (liveUnavailable ? LIVE_FMCSA_FALLBACK_MESSAGE : "")
@@ -1311,7 +1516,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
   try {
     let profile = null;
     const cached = await findCachedCarrier(dotNumber);
-    if (cached && hasCargoData(cached)) {
+    if (cached && hasCargoData(cached) && hasQcmobileSafetyDetail(cached)) {
       profile = mapProfile(cached, { sourceType: "cached" });
       mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
     } else {
