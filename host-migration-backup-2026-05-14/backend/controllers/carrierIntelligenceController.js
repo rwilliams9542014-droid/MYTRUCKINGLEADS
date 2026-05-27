@@ -325,6 +325,11 @@ function rateOrCalculated(rate, count, denominator) {
 }
 
 function normalizeInspectionSummary({ qcmobileOos = {}, smsSafety = {}, saferData = {}, carrier = {} }) {
+  qcmobileOos = qcmobileOos && typeof qcmobileOos === "object" ? qcmobileOos : {};
+  smsSafety = smsSafety && typeof smsSafety === "object" ? smsSafety : {};
+  saferData = saferData && typeof saferData === "object" ? saferData : {};
+  carrier = carrier && typeof carrier === "object" ? carrier : {};
+
   const totalInspections = numberOrNull(firstValue(qcmobileOos.totalInspections, saferData.totalInspections, smsSafety.inspections, carrier.totalInspections));
   const vehicleInspections = numberOrNull(firstValue(qcmobileOos.vehicleInspections, saferData.vehicleInspections, smsSafety.vehicleInspections, carrier.vehicleInspections));
   const driverInspections = numberOrNull(firstValue(qcmobileOos.driverInspections, saferData.driverInspections, smsSafety.driverInspections, carrier.driverInspections));
