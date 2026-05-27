@@ -1,10 +1,10 @@
 import { Badge } from "@/components/ui";
 import {
   BASIC_CATEGORY_LABELS,
-  BASIC_TEMPORARILY_UNAVAILABLE,
   BASIC_UNAVAILABLE_MESSAGE,
   INSPECTION_UNAVAILABLE,
   buildInspectionBars,
+  normalizeBasicScores,
 } from "@/lib/leadMapping";
 import SafetyScoreBar from "./SafetyScoreBar";
 
@@ -24,13 +24,7 @@ function inspectionColor(value, nationalAverage = null) {
 }
 
 function hasPublicBasicValue(item = {}) {
-  const value = item.percentile ?? item.measure ?? "";
-  const text = String(value).trim().toLowerCase();
-  return Boolean(
-    (text && text !== "not available" && text !== "not publicly available") ||
-    item.violations ||
-    item.inspections
-  );
+  return item.hasRealValue === true;
 }
 
 function normalizeBasics(record = {}) {
@@ -43,15 +37,15 @@ function normalizeBasics(record = {}) {
     "Driver Fitness",
     "Hazardous Materials Compliance",
   ];
-  const basics = record.basicCategories?.length
-    ? record.basicCategories
-    : Object.entries(BASIC_CATEGORY_LABELS).map(([id, label]) => ({ id, label, percentile: "", publicStatus: "unavailable" }));
+  const basicSummary = normalizeBasicScores(record);
+  const basics = basicSummary.scores.filter((item) => item.hasRealValue);
 
   return basics.map((item) => {
-    const label = item.label || BASIC_CATEGORY_LABELS[item.id] || item.id;
+    const label = item.label || item.category || BASIC_CATEGORY_LABELS[item.id] || item.id;
     return {
       ...item,
       label: label === "Hours-of-Service Compliance" ? "HOS Compliance" : label,
+      percentile: item.value,
       description: item.description || item.alert || item.threshold || (
         item.publicStatus === "not_public"
           ? "Not publicly available"
@@ -84,7 +78,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
             <SafetyScoreBar
               key={item.id || item.label}
               label={item.label}
-              value={item.percentile ?? item.measure}
+              value={item.value ?? item.percentile ?? item.measure}
               inspections={item.inspections}
               violations={item.violations}
               description={item.description}
@@ -94,8 +88,8 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
         {!hasBasics && (
           <p className="text-sm text-navy-400">
             {record.dataSources?.basics?.attempted && record.dataSources?.basics?.success === false
-              ? BASIC_TEMPORARILY_UNAVAILABLE
-              : "Public SMS data not available for this carrier/category."}
+              ? "BASIC safety scores could not be loaded right now."
+              : "BASIC safety scores are not available from the current FMCSA data source for this carrier."}
           </p>
         )}
       </div>
@@ -181,7 +175,7 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
             <SafetyScoreBar
               key={item.id || item.label}
               label={item.label}
-              value={item.percentile ?? item.measure}
+              value={item.value ?? item.percentile ?? item.measure}
               inspections={item.inspections}
               violations={item.violations}
               description={item.description}

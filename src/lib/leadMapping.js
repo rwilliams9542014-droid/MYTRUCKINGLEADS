@@ -26,22 +26,111 @@ export const BASIC_CATEGORY_LABELS = {
 export const BASIC_UNAVAILABLE_MESSAGE = "Unavailable from returned FMCSA data";
 export const BASIC_TEMPORARILY_UNAVAILABLE = "SMS/BASIC data temporarily unavailable";
 
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function firstObject(...values) {
+  return values.find((value) => value && typeof value === "object" && !Array.isArray(value)) || {};
+}
+
+function valueFrom(raw = {}, keys = []) {
+  const source = safeObject(raw);
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null && source[key] !== "") return source[key];
+  }
+  return null;
+}
+
+function numberValue(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const text = String(value).trim();
+  if (!text || /^(n\/a|na|not available|not public|not publicly available|unavailable)$/i.test(text)) return null;
+  const parsed = Number(text.replace(/[%,$\s]/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizedRate(value) {
+  const num = numberValue(value);
+  if (num === null) return null;
+  return Math.max(0, Math.min(100, num <= 1 ? num * 100 : num));
+}
+
+function percent(numerator, denominator) {
+  const num = numberValue(numerator);
+  const den = numberValue(denominator);
+  if (num === null || den === null) return null;
+  if (den === 0) return 0;
+  return Math.max(0, Math.min(100, (num / den) * 100));
+}
+
+function categoryKey(value = "") {
+  const text = String(value || "").trim().toLowerCase();
+  if (/unsafe/.test(text)) return "unsafeDriving";
+  if (/hours|service|hos/.test(text)) return "hoursOfService";
+  if (/driver\s*fitness|fitness/.test(text)) return "driverFitness";
+  if (/controlled|substance|alcohol/.test(text)) return "controlledSubstances";
+  if (/vehicle|maintenance/.test(text)) return "vehicleMaintenance";
+  if (/hazard|hazmat|hm/.test(text)) return "hazmat";
+  if (/crash/.test(text)) return "crashIndicator";
+  return text.replace(/[^a-z0-9]+(.)/g, (_, chr) => chr.toUpperCase()).replace(/[^a-z0-9]/g, "");
+}
+
+function categoryLabel(value = "") {
+  const key = categoryKey(value);
+  return BASIC_CATEGORY_LABELS[key] || String(value || "").trim() || "BASIC";
+}
+
+export function normalizeInspectionSummary(raw = {}) {
+  const source = safeObject(raw);
+  const totalInspections = numberValue(valueFrom(source, ["totalInspections", "total_inspections", "total inspections", "total Inspections", "inspections", "totalInsp"]));
+  const vehicleInspections = numberValue(valueFrom(source, ["vehicleInspections", "vehicleInspectionCount", "vehicle_inspections", "vehicle inspections"]));
+  const driverInspections = numberValue(valueFrom(source, ["driverInspections", "driverInspectionCount", "driver_inspections", "driver inspections"]));
+  const hazmatInspections = numberValue(valueFrom(source, ["hazmatInspections", "hazmatInspectionCount", "hazmat_inspections", "hazmat inspections"]));
+  const vehicleOosCount = numberValue(valueFrom(source, ["vehicleOosCount", "vehicleOos", "vehicleOutOfService", "vehicle_oos", "vehicle OOS"]));
+  const driverOosCount = numberValue(valueFrom(source, ["driverOosCount", "driverOos", "driverOutOfService", "driver_oos", "driver OOS"]));
+  const hazmatOosCount = numberValue(valueFrom(source, ["hazmatOosCount", "hazmatOos", "hazmatOutOfService", "hazmat_oos", "hazmat OOS"]));
+  const vehicleOosRate = normalizedRate(valueFrom(source, ["vehicleOosRate", "vehicleOosPercent", "vehicleOOSPercent", "vehicle_oos_rate"])) ?? percent(vehicleOosCount, vehicleInspections);
+  const driverOosRate = normalizedRate(valueFrom(source, ["driverOosRate", "driverOosPercent", "driverOOSPercent", "driver_oos_rate"])) ?? percent(driverOosCount, driverInspections);
+  const hazmatOosRate = normalizedRate(valueFrom(source, ["hazmatOosRate", "hazmatOosPercent", "hazmatOOSPercent", "hazmat_oos_rate"])) ?? percent(hazmatOosCount, hazmatInspections);
+  const availableValues = [totalInspections, vehicleInspections, driverInspections, hazmatInspections, vehicleOosCount, driverOosCount, hazmatOosCount, vehicleOosRate, driverOosRate, hazmatOosRate];
+
+  return {
+    totalInspections,
+    vehicleInspections,
+    driverInspections,
+    hazmatInspections,
+    vehicleOosCount,
+    driverOosCount,
+    hazmatOosCount,
+    vehicleOosRate,
+    driverOosRate,
+    hazmatOosRate,
+    totalViolations: numberValue(valueFrom(source, ["totalViolations", "totalViolation", "total_violations"])),
+    oosViolations: numberValue(valueFrom(source, ["oosViolations", "oosViolation", "oos_violations"])),
+    nationalAverageVehicleOosRate: normalizedRate(valueFrom(source, ["nationalAverageVehicleOosRate", "nationalAvgVehicleOos"])),
+    nationalAverageDriverOosRate: normalizedRate(valueFrom(source, ["nationalAverageDriverOosRate", "nationalAvgDriverOos"])),
+    nationalAverageHazmatOosRate: normalizedRate(valueFrom(source, ["nationalAverageHazmatOosRate", "nationalAvgHazmatOos"])),
+    sourceStatus: availableValues.some((value) => value !== null) ? "available" : source.sourceStatus || "unavailable"
+  };
+}
+
 function normalizeBasicCategories(...sources) {
   const rows = [];
   sources.filter(Boolean).forEach((source) => {
     if (Array.isArray(source)) {
       source.forEach((item) => {
         rows.push({
-          id: item.id || item.key || item.category || item.name,
-          label: item.label || item.category || item.name,
+          id: item.id || item.key || item.category || item.name || item.basicShortDesc || item.basicDesc,
+          label: item.label || item.category || item.name || item.basicShortDesc || item.basicDesc,
           percentile: item.percentile ?? item.score ?? item.measure ?? item.value,
           measure: item.measure,
           threshold: item.threshold,
           alert: item.alert,
-          inspections: item.inspections ?? item.inspectionCount,
-          violations: item.violations ?? item.violationCount,
+          inspections: item.inspections ?? item.inspectionCount ?? item.totalInspectionsWithViolations ?? item.totalInspectionWithViolation,
+          violations: item.violations ?? item.violationCount ?? item.totalViolations ?? item.totalViolation,
           publicStatus: item.publicStatus,
-          snapshotDate: item.snapshotDate ?? item.snapShotDate,
+          snapshotDate: item.snapshotDate ?? item.snapShotDate ?? item.csmsDate,
         });
       });
       return;
@@ -80,12 +169,80 @@ function normalizeBasicCategories(...sources) {
     });
 }
 
+export function normalizeBasicScores(raw = {}) {
+  const source = safeObject(raw);
+  const safety = safeObject(source.safety || source.safetyData || source.safety_data);
+  const sms = safeObject(source.sms || source.smsSafety || source.raw?.smsSafety);
+  const rows = normalizeBasicCategories(
+    safety.basicScores,
+    source.basicScores,
+    source.basics,
+    sms.basics,
+    safety.basics,
+    safety.basicCategories,
+    source.basicCategories
+  );
+  const mappedScores = rows.map((row = {}) => {
+    const category = categoryLabel(row.label || row.category || row.basicShortDesc || row.basicDesc || row.id);
+    const rawValue = row.percentile ?? row.measure ?? row.score ?? row.value;
+    const value = numberValue(rawValue);
+    return {
+      category,
+      label: category,
+      id: categoryKey(category),
+      value,
+      displayValue: value ?? 0,
+      hasRealValue: value !== null,
+      status: value !== null
+        ? "available"
+        : row.publicStatus === "not_public"
+          ? "not_public"
+          : row.publicStatus === "error"
+            ? "error"
+            : "not_returned",
+      totalInspectionsWithViolations: numberValue(row.totalInspectionsWithViolations ?? row.totalInspectionWithViolation ?? row.inspections),
+      totalViolations: numberValue(row.totalViolations ?? row.totalViolation ?? row.violations),
+      inspections: numberValue(row.totalInspectionsWithViolations ?? row.totalInspectionWithViolation ?? row.inspections),
+      violations: numberValue(row.totalViolations ?? row.totalViolation ?? row.violations),
+      snapshotDate: row.snapshotDate ?? row.snapShotDate ?? row.csmsDate ?? null,
+      publicStatus: row.publicStatus
+    };
+  });
+  const seen = new Map();
+  mappedScores.forEach((score) => {
+    const key = score.id || score.category;
+    const existing = seen.get(key);
+    if (!existing || (!existing.hasRealValue && score.hasRealValue)) {
+      seen.set(key, score);
+    }
+  });
+  const scores = [...seen.values()];
+  const snapshotDate = scores.find((score) => score.snapshotDate)?.snapshotDate || source.smsSnapshotDate || safety.smsSnapshotDate || null;
+  const hasAnyRealScore = scores.some((score) => score.hasRealValue);
+  const dataSource = source.dataSources?.basics || safety.dataSources?.basics || {};
+
+  return {
+    snapshotDate,
+    scores,
+    hasAnyRealScore,
+    sourceStatus: hasAnyRealScore
+      ? "available"
+      : dataSource.attempted && dataSource.success === false
+        ? "error"
+        : scores.length
+          ? "not_found"
+          : "unavailable"
+  };
+}
+
 export function normalizeLeadRecord(raw = {}, type = "new_dot") {
+  raw = safeObject(raw);
   const insurance = raw.insurance || {};
   const publicLiability = raw.insuranceFilings?.publicLiability || raw.licensingInsurance || {};
-  const safety = raw.safety || raw.safetyData || raw.safety_data || {};
-  const smsSafety = raw.smsSafety || raw.raw?.smsSafety || {};
-  const inspectionSummary = raw.inspectionSummary || safety.inspectionSummary || {};
+  const safety = safeObject(raw.safety || raw.safetyData || raw.safety_data);
+  const smsSafety = safeObject(raw.smsSafety || raw.raw?.smsSafety);
+  const inspectionSummary = normalizeInspectionSummary(firstObject(raw.inspectionSummary, safety.inspectionSummary, raw.inspection_summary));
+  const basicSummary = normalizeBasicScores(raw);
   const dotNumber = pick(raw.dotNumber, raw.dot_number, raw.usdot, raw.usdotNumber, raw.dot);
   const carrierName = pick(raw.carrierName, raw.legalName, raw.legal_name, raw.carrier_name, raw.name, "Unknown carrier");
   const insuranceCancelDate = pick(
@@ -150,16 +307,10 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
     nationalAverageDriverOosRate: pick(raw.nationalAverageDriverOosRate, inspectionSummary.nationalAverageDriverOosRate, safety.oosRates?.driver?.nationalAverage, smsSafety.oosRates?.driver?.nationalAverage),
     nationalAverageHazmatOosRate: pick(raw.nationalAverageHazmatOosRate, inspectionSummary.nationalAverageHazmatOosRate, safety.oosRates?.hazmat?.nationalAverage, smsSafety.oosRates?.hazmat?.nationalAverage),
     crashCount: pick(raw.crashCount, raw.crashTotal, safety.crashTotal),
-    smsSnapshotDate: pick(raw.smsSnapshotDate, safety.smsSnapshotDate, smsSafety.smsSnapshotDate),
-    basicScores: raw.basicScores || safety.basicScores || [],
-    basicCategories: normalizeBasicCategories(
-      raw.basicCategories,
-      raw.basic_scores,
-      safety.basicCategories,
-      safety.basicScores,
-      safety.categories,
-      smsSafety.basics
-    ),
+    smsSnapshotDate: pick(basicSummary.snapshotDate, raw.smsSnapshotDate, safety.smsSnapshotDate, smsSafety.smsSnapshotDate),
+    basicScores: basicSummary.scores,
+    basicCategories: basicSummary.scores,
+    basicSummary,
     smsProfileAvailable: Boolean(raw.smsProfileAvailable || safety.smsProfileAvailable || smsSafety.source),
     safetySource: pick(raw.safetySource, safety.source, smsSafety.source),
     inspectionHistory: raw.inspectionHistory || safety.inspectionHistory || raw.inspections || [],
@@ -177,28 +328,11 @@ export function getRenewalDisplay(lead = {}) {
   return { label: UNAVAILABLE, date: null };
 }
 
-function numberValue(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(String(value).replace("%", ""));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function percent(numerator, denominator) {
-  const num = numberValue(numerator);
-  const den = numberValue(denominator);
-  if (num === null || den === null || den <= 0) return null;
-  return Math.max(0, Math.min(100, (num / den) * 100));
-}
-
-function normalizedRate(value) {
-  const num = numberValue(value);
-  if (num === null) return null;
-  return Math.max(0, Math.min(100, num <= 1 ? num * 100 : num));
-}
-
 export function buildInspectionBars(lead = {}) {
-  const totalInspections = numberValue(lead.totalInspections);
-  const totalViolations = numberValue(lead.totalViolations);
+  lead = safeObject(lead);
+  const inspectionSummary = normalizeInspectionSummary(firstObject(lead.inspectionSummary, lead));
+  const totalInspections = inspectionSummary.totalInspections ?? numberValue(lead.totalInspections);
+  const totalViolations = inspectionSummary.totalViolations ?? numberValue(lead.totalViolations);
   const bars = [
     {
       label: "Inspections with Violations",
@@ -214,20 +348,20 @@ export function buildInspectionBars(lead = {}) {
     },
     {
       label: "Driver OOS",
-      value: normalizedRate(lead.driverOosRate),
-      nationalAverage: normalizedRate(lead.nationalAverageDriverOosRate),
+      value: inspectionSummary.driverOosRate,
+      nationalAverage: inspectionSummary.nationalAverageDriverOosRate,
     },
     {
       label: "Vehicle OOS",
-      value: normalizedRate(lead.vehicleOosRate),
-      nationalAverage: normalizedRate(lead.nationalAverageVehicleOosRate),
+      value: inspectionSummary.vehicleOosRate,
+      nationalAverage: inspectionSummary.nationalAverageVehicleOosRate,
     },
     {
       label: "Hazmat OOS",
-      value: normalizedRate(lead.hazmatOosRate),
-      nationalAverage: normalizedRate(lead.nationalAverageHazmatOosRate),
+      value: inspectionSummary.hazmatOosRate,
+      nationalAverage: inspectionSummary.nationalAverageHazmatOosRate,
     },
   ].filter((bar) => bar.value !== null);
 
-  return { totalInspections, bars };
+  return { totalInspections, bars, inspectionSummary };
 }

@@ -7,6 +7,8 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import {
   getRenewalDisplay,
+  normalizeBasicScores,
+  normalizeInspectionSummary,
   normalizeLeadRecord,
   pick,
   splitCargo,
@@ -140,7 +142,7 @@ function formatRate(value) {
 function normalizeCarrier(data) {
   const carrier = data?.carrier || data?.profile || data?.result || data || {};
   const lead = normalizeLeadRecord(carrier, "profile");
-  const addressParts = carrier.addressParts || carrier.address || {};
+  const addressParts = firstObject(carrier.addressParts, carrier.address);
   const addressText = typeof carrier.address === "string"
     ? carrier.address
     : [addressParts.street, addressParts.city, addressParts.state, addressParts.zip].filter(Boolean).join(", ");
@@ -154,8 +156,9 @@ function normalizeCarrier(data) {
   const trucks = pick(carrier.powerUnits, carrier.power_units, carrier.vehicleCount, carrier.vehicle_count, carrier.fleetSize);
   const drivers = pick(carrier.drivers, carrier.driverCount, carrier.driver_count);
   const cargo = splitCargo(pick(carrier.cargoHauled, carrier.cargo, carrier.cargoCarried, carrier.cargoTypes, carrier.cargo_hauled));
-  const safety = carrier.safety || {};
-  const inspectionSummary = carrier.inspectionSummary || safety.inspectionSummary || {};
+  const safety = firstObject(carrier.safety);
+  const inspectionSummary = normalizeInspectionSummary(firstObject(carrier.inspectionSummary, safety.inspectionSummary, carrier.inspection_summary));
+  const basicSummary = normalizeBasicScores(carrier);
 
   return {
     raw: carrier,
@@ -209,9 +212,10 @@ function normalizeCarrier(data) {
     nationalAverageVehicleOosRate: pick(inspectionSummary.nationalAverageVehicleOosRate, lead.nationalAverageVehicleOosRate),
     nationalAverageDriverOosRate: pick(inspectionSummary.nationalAverageDriverOosRate, lead.nationalAverageDriverOosRate),
     nationalAverageHazmatOosRate: pick(inspectionSummary.nationalAverageHazmatOosRate, lead.nationalAverageHazmatOosRate),
-    smsSnapshotDate: lead.smsSnapshotDate,
-    basicScores: safety.basicScores || lead.basicScores,
-    basicCategories: safety.basicCategories || lead.basicCategories,
+    smsSnapshotDate: pick(basicSummary.snapshotDate, lead.smsSnapshotDate),
+    basicScores: basicSummary.scores,
+    basicCategories: basicSummary.scores,
+    basicSummary,
     smsProfileAvailable: lead.smsProfileAvailable,
     safetySource: lead.safetySource,
     inspectionHistory: lead.inspectionHistory,
