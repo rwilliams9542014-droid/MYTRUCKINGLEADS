@@ -25,7 +25,7 @@ export function requireSmsAccess(req, res, next) {
 export function requireBulkMessagingAccess(req, res, next) {
   try {
     const channel = req.path.includes("/sms/") ? "sms" : "email";
-    assertOutreachAccess(req.user, channel, countFromBody(req), { bulk: true });
+    assertOutreachAccess(req.user, channel, countFromBody(req), { bulk: channel === "sms" });
     next();
   } catch (err) {
     res.status(err.status || 403).json({ error: err.message });

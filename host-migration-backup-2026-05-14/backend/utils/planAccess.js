@@ -198,7 +198,7 @@ export function getPlanAccessSummary(user) {
     canUseTextMessaging: canUseTextMessaging(user),
     canSendEmail: canSendEmail(user),
     canSendSms: canSendSms(user),
-    bulkEmailAllowed: canUseBulkMessaging(user),
+    bulkEmailAllowed: canSendEmail(user),
     bulkSmsAllowed: canUseBulkMessaging(user),
     monthlyEmailLimit: getMonthlyEmailLimit(user),
     monthlySmsLimit: getMonthlySmsLimit(user),

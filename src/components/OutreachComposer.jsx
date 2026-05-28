@@ -3,32 +3,29 @@ import { Button, Modal } from "@/components/ui";
 import { api } from "@/lib/api";
 import PlanLockedFeature from "./PlanLockedFeature";
 
+const MERGE_FIELDS = [
+  "carrierName",
+  "dotNumber",
+  "mcNumber",
+  "phone",
+  "email",
+  "state",
+  "renewalDate",
+  "cargoHauled",
+  "powerUnits",
+  "drivers",
+  "agentName",
+  "agentEmail",
+  "agencyName",
+  "unsubscribeLink",
+];
+
 function leadName(lead = {}) {
   return lead.carrierName || lead.name || lead.carrier_name || "this lead";
 }
 
 function recipientFor(channel, lead = {}) {
   return channel === "email" ? (lead.email || "") : (lead.phone || "");
-}
-
-function signatureFor(user = {}) {
-  const name = user.name || [user.firstName, user.lastName].filter(Boolean).join(" ") || "";
-  return [
-    name,
-    user.businessName || user.business_name || "",
-    user.email || "",
-    user.phone || "",
-  ].filter(Boolean).join("\n");
-}
-
-function withoutSignature(body = "") {
-  return String(body || "").replace(/\n{2,}--\s*\n[\s\S]*$/m, "").trimEnd();
-}
-
-function appendSignature(body = "", signature = "") {
-  const message = withoutSignature(body);
-  const cleanSignature = String(signature || "").trim();
-  return cleanSignature ? `${message}\n\n-- \n${cleanSignature}` : message;
 }
 
 export default function OutreachComposer({ open, channel = "email", lead = {}, leads = [], intent = "new-dot", onClose }) {
@@ -40,9 +37,9 @@ export default function OutreachComposer({ open, channel = "email", lead = {}, l
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [signature, setSignature] = useState("");
   const [preview, setPreview] = useState(null);
   const [status, setStatus] = useState("");
+  const [sendResult, setSendResult] = useState(null);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -50,6 +47,7 @@ export default function OutreachComposer({ open, channel = "email", lead = {}, l
     let active = true;
     setStatus("");
     setPreview(null);
+    setSendResult(null);
     setTo(isBulk ? `${leads.length} selected leads` : recipientFor(channel, primaryLead));
     Promise.all([api.getOutreachTemplates(), api.getOutreachUsage()])
       .then(([templateData, usageData]) => {
@@ -57,7 +55,6 @@ export default function OutreachComposer({ open, channel = "email", lead = {}, l
         const list = templateData?.templates || [];
         setTemplates(list);
         setUsage(usageData);
-        setSignature(signatureFor(usageData?.user || usageData?.profile || {}));
         const preferred = list.find((item) => item.channel === channel && item.id.includes(intent))
           || list.find((item) => item.channel === channel);
         if (preferred) {
@@ -90,7 +87,7 @@ export default function OutreachComposer({ open, channel = "email", lead = {}, l
   async function previewMessage() {
     setStatus("");
     try {
-      const data = await api.previewOutreach({ channel, lead: primaryLead, to: isBulk ? primaryLead.email : to, subject, body: appendSignature(body, signature) });
+      const data = await api.previewOutreach({ channel, lead: primaryLead, to: isBulk ? primaryLead.email : to, subject, body });
       setPreview(data);
     } catch (err) {
       setStatus(err.message || "Preview could not be created.");
@@ -101,12 +98,17 @@ export default function OutreachComposer({ open, channel = "email", lead = {}, l
     event.preventDefault();
     setSending(true);
     setStatus("");
+    setSendResult(null);
     try {
-      const payloadBody = appendSignature(body, signature);
       const result = isBulk
-        ? await api.sendBulkOutreachEmail({ leads, subject, body: payloadBody })
-        : await api.sendOutreachEmail({ lead: primaryLead, to, subject, body: payloadBody });
-      setStatus(result.message || `${result.sent || 0} email${Number(result.sent || 0) === 1 ? "" : "s"} sent${result.failed ? `, ${result.failed} failed` : ""}.`);
+        ? await api.sendBulkOutreachEmail({ leads, subject, body })
+        : await api.sendOutreachEmail({ lead: primaryLead, to, subject, body });
+      setSendResult(result);
+      const sent = Number(result.sent || 0);
+      const skippedNoEmail = Number(result.skippedNoEmail || 0);
+      const suppressed = Number(result.suppressed || 0);
+      const failed = Number(result.failed || 0);
+      setStatus(result.message || `Sent: ${sent}. Skipped no email: ${skippedNoEmail}. Suppressed/opted out: ${suppressed}. Failed: ${failed}.`);
     } catch (err) {
       setStatus(err.message || "Message could not be sent.");
     } finally {
@@ -120,7 +122,7 @@ export default function OutreachComposer({ open, channel = "email", lead = {}, l
         {!canSend && <PlanLockedFeature />}
         {isBulk && (
           <div className="rounded-xl border border-brand-500/20 bg-brand-500/10 p-3 text-sm text-brand-100">
-            This will generate one personalized email for each selected lead with an email address.
+            This will generate one personalized email for each selected carrier. Carriers without email addresses are skipped and shown in the results.
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -145,12 +147,21 @@ export default function OutreachComposer({ open, channel = "email", lead = {}, l
           Message
           <textarea className="input-field mt-1 min-h-[220px]" value={body} onChange={(e) => setBody(e.target.value)} />
         </label>
-        <label className="text-xs text-navy-400 block">
-          Email Signature
-          <textarea className="input-field mt-1 min-h-[110px]" value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Your name&#10;Agency name&#10;Phone&#10;Email" />
-        </label>
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase text-navy-300">Mail merge preview</p>
+            <p className="text-xs text-navy-400">{isBulk ? `${leads.length} selected carrier${leads.length === 1 ? "" : "s"}` : "1 selected carrier"}</p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {MERGE_FIELDS.map((field) => (
+              <span key={field} className="rounded-full border border-white/10 bg-navy-950/60 px-2 py-1 text-[11px] text-navy-300">
+                {`{{${field}}}`}
+              </span>
+            ))}
+          </div>
+        </div>
         <p className="text-xs text-navy-500">
-          Sending uses server-side email credentials only. Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL`, or `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM` in Railway.
+          Sending uses server-side email credentials only. No provider keys are exposed in the browser.
         </p>
         {preview && (
           <div className="rounded-xl bg-navy-950/70 border border-white/[0.06] p-3 text-sm text-navy-300 whitespace-pre-wrap">
@@ -159,6 +170,18 @@ export default function OutreachComposer({ open, channel = "email", lead = {}, l
           </div>
         )}
         {status && <div className="rounded-xl bg-brand-500/10 border border-brand-500/20 p-3 text-sm text-brand-200">{status}</div>}
+        {sendResult?.results?.length > 0 && (
+          <div className="max-h-44 overflow-y-auto rounded-xl border border-white/[0.06] bg-navy-950/70 text-xs">
+            {sendResult.results.map((item, index) => (
+              <div key={`${item.email || item.dotNumber || item.carrierName || "result"}-${index}`} className="flex flex-col gap-1 border-b border-white/[0.05] px-3 py-2 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-navy-200">{item.carrierName || item.email || "Selected carrier"}</span>
+                <span className={item.status === "sent" ? "text-accent-300" : item.status === "failed" ? "text-danger-300" : "text-warning-300"}>
+                  {item.status || "processed"}{item.error ? ` - ${item.error}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex flex-wrap justify-end gap-2">
           <button type="button" className="btn-secondary px-4 py-2 text-sm" onClick={onClose}>Cancel</button>
           <button type="button" className="btn-secondary px-4 py-2 text-sm" onClick={previewMessage}>Preview</button>

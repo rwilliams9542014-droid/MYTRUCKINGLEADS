@@ -435,14 +435,25 @@ async function ensureOperationalTables() {
       carrier_name TEXT,
       recipient_email TEXT,
       recipient_phone TEXT,
+      dot_number TEXT,
       subject TEXT,
+      body_preview TEXT,
       message_preview TEXT,
+      provider TEXT,
+      reply_to TEXT,
       status TEXT NOT NULL,
       provider_message_id TEXT,
       error_message TEXT,
-      sent_at TIMESTAMPTZ DEFAULT NOW()
+      sent_at TIMESTAMPTZ DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  await query(`ALTER TABLE outreach_logs ADD COLUMN IF NOT EXISTS dot_number TEXT`);
+  await query(`ALTER TABLE outreach_logs ADD COLUMN IF NOT EXISTS body_preview TEXT`);
+  await query(`ALTER TABLE outreach_logs ADD COLUMN IF NOT EXISTS provider TEXT`);
+  await query(`ALTER TABLE outreach_logs ADD COLUMN IF NOT EXISTS reply_to TEXT`);
+  await query(`ALTER TABLE outreach_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
 
   await query(`
     CREATE INDEX IF NOT EXISTS idx_outreach_logs_user_sent
@@ -456,10 +467,12 @@ async function ensureOperationalTables() {
       month TEXT NOT NULL,
       emails_sent INTEGER NOT NULL DEFAULT 0,
       sms_sent INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(user_id, month)
     )
   `);
+  await query(`ALTER TABLE outreach_usage ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
 }
 
 connectMongo()

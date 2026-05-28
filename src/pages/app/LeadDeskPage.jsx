@@ -43,6 +43,24 @@ function normalizeLead(lead, type) {
   };
 }
 
+function leadForOutreach(lead, activeTab) {
+  return {
+    ...lead,
+    carrierName: lead.name,
+    dotNumber: lead.dot,
+    mcNumber: lead.mc,
+    phone: lead.phone,
+    email: lead.email,
+    state: lead.state,
+    cargoHauled: Array.isArray(lead.cargo) ? lead.cargo.join(", ") : lead.cargo,
+    renewalDate: lead.renewalDisplay?.date || "",
+    renewalDateSource: lead.renewalDisplay?.label || "",
+    leadType: activeTab === "renewal" ? "Renewal Opportunity" : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
+    powerUnits: lead.trucks,
+    drivers: lead.drivers,
+  };
+}
+
 export default function LeadDeskPage() {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState("new_dot");
@@ -249,31 +267,17 @@ export default function LeadDeskPage() {
   function openComposer(channel, lead) {
     setComposer({
       channel: "email",
-      lead: {
-        ...lead,
-        carrierName: lead.name,
-        dotNumber: lead.dot,
-        mcNumber: lead.mc,
-        renewalDate: lead.renewalDisplay?.date || "",
-        renewalDateSource: lead.renewalDisplay?.label || "",
-      },
+      lead: leadForOutreach(lead, activeTab),
     });
   }
 
   function openBulkEmailComposer() {
     const selectedLeads = filteredLeads
-      .filter((lead) => selectedLeadIds.includes(lead.id) && lead.email)
-      .map((lead) => ({
-        ...lead,
-        carrierName: lead.name,
-        dotNumber: lead.dot,
-        mcNumber: lead.mc,
-        renewalDate: lead.renewalDisplay?.date || "",
-        renewalDateSource: lead.renewalDisplay?.label || "",
-      }));
+      .filter((lead) => selectedLeadIds.includes(lead.id))
+      .map((lead) => leadForOutreach(lead, activeTab));
 
     if (!selectedLeads.length) {
-      setSaveMessage("Select at least one lead with an email address.");
+      setSaveMessage("Select at least one lead before emailing.");
       return;
     }
 
@@ -281,7 +285,6 @@ export default function LeadDeskPage() {
   }
 
   function toggleSelectedLead(lead) {
-    if (!lead.email) return;
     setSelectedLeadIds((current) => (
       current.includes(lead.id)
         ? current.filter((id) => id !== lead.id)
@@ -289,11 +292,11 @@ export default function LeadDeskPage() {
     ));
   }
 
-  function toggleAllVisibleEmailLeads() {
-    const visibleEmailIds = filteredLeads.filter((lead) => lead.email).map((lead) => lead.id);
-    if (!visibleEmailIds.length) return;
-    const allSelected = visibleEmailIds.every((id) => selectedLeadIds.includes(id));
-    setSelectedLeadIds(allSelected ? [] : visibleEmailIds);
+  function toggleAllVisibleLeads() {
+    const visibleIds = filteredLeads.map((lead) => lead.id);
+    if (!visibleIds.length) return;
+    const allSelected = visibleIds.every((id) => selectedLeadIds.includes(id));
+    setSelectedLeadIds(allSelected ? [] : visibleIds);
   }
 
   function csvValue(value) {
@@ -308,8 +311,8 @@ export default function LeadDeskPage() {
     return "";
   }
 
-  function exportCsv() {
-    if (!filteredLeads.length) return;
+  function exportCsv(rowsToExport = filteredLeads, fileLabel = "") {
+    if (!rowsToExport.length) return;
     const headers = [
       "DOT Number",
       "MC Number",
@@ -333,7 +336,7 @@ export default function LeadDeskPage() {
       "Status",
       "Last Refreshed",
     ];
-    const rows = filteredLeads.map((lead) => [
+    const rows = rowsToExport.map((lead) => [
       lead.dot,
       lead.mc,
       lead.name,
@@ -360,12 +363,17 @@ export default function LeadDeskPage() {
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const today = formatDate(new Date());
-    const type = activeTab === "renewal" ? "renewal-leads" : activeTab === "new_dot" ? "new-dot-leads" : "marketplace-leads";
+    const type = fileLabel || (activeTab === "renewal" ? "renewal-leads" : activeTab === "new_dot" ? "new-dot-leads" : "marketplace-leads");
     const link = document.createElement("a");
     link.href = url;
     link.download = `mytruckingleads-${type}-${today}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  function exportSelectedCsv() {
+    const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
+    exportCsv(selectedRows, "selected-leads");
   }
 
   async function copyEmails() {
@@ -479,9 +487,11 @@ export default function LeadDeskPage() {
               <button type="button" onClick={resetFilters} className="btn-secondary px-4 py-2 text-sm">Reset Filters</button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={exportCsv} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
+              <button type="button" onClick={() => exportCsv()} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
+              <button type="button" onClick={exportSelectedCsv} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Export Selected</button>
               <button type="button" onClick={copyEmails} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
-              <button type="button" onClick={openBulkEmailComposer} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Email Selected</button>
+              <button type="button" onClick={openBulkEmailComposer} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Email Selected Leads</button>
+              <button type="button" onClick={() => setSelectedLeadIds([])} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Clear Selection</button>
             </div>
           </div>
         </form>
@@ -499,9 +509,9 @@ export default function LeadDeskPage() {
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-white/20 bg-navy-900"
-                    checked={filteredLeads.filter((lead) => lead.email).length > 0 && filteredLeads.filter((lead) => lead.email).every((lead) => selectedLeadIds.includes(lead.id))}
-                    onChange={toggleAllVisibleEmailLeads}
-                    aria-label="Select all visible leads with emails"
+                    checked={filteredLeads.length > 0 && filteredLeads.every((lead) => selectedLeadIds.includes(lead.id))}
+                    onChange={toggleAllVisibleLeads}
+                    aria-label="Select all visible leads"
                   />
                 </th>
                 {["Company", "DOT / MC", "Location", "Fleet", "Cargo", "MCS-150", activeTab === "new_dot" ? "Added / First Seen" : activeTab === "renewal" ? "Renewal / Filing Date" : "Submitted", "Status", "Actions"].map((heading) => (
@@ -518,7 +528,6 @@ export default function LeadDeskPage() {
                         type="checkbox"
                         className="h-4 w-4 rounded border-white/20 bg-navy-900"
                         checked={selectedLeadIds.includes(lead.id)}
-                        disabled={!lead.email}
                         onChange={() => toggleSelectedLead(lead)}
                         aria-label={`Select ${lead.name}`}
                       />
@@ -560,7 +569,7 @@ export default function LeadDeskPage() {
                       <div className="flex items-center gap-3">
                         {lead.dot && <Link to={`/carrier/${lead.dot}`} state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View Carrier Profile</Link>}
                         {lead.dot && <button onClick={() => toggleDetails(lead)} className="text-xs text-navy-300 hover:text-white font-medium">{expandedDot === lead.dot ? "Hide" : "Details"}</button>}
-                        {lead.email && <button onClick={() => openComposer("email", lead)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email</button>}
+                        <button onClick={() => openComposer("email", lead)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email This Carrier</button>
                         {activeTab === "hot" ? (
                           <Button size="sm" className="text-xs">Buy</Button>
                         ) : (
@@ -591,7 +600,7 @@ export default function LeadDeskPage() {
                             <p className="text-xs text-navy-500 uppercase mb-2">Actions</p>
                             <div className="flex flex-wrap gap-2">
                               {lead.dot && <Link to={`/carrier/${lead.dot}`} state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">View Carrier Profile</Link>}
-                              {lead.email && <button onClick={() => openComposer("email", lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Email This Lead</button>}
+                              <button onClick={() => openComposer("email", lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Email This Carrier</button>
                               <button onClick={() => saveLead(lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Add to CRM</button>
                               <button onClick={() => loadSafetyDetails(lead, { force: true })} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Refresh FMCSA Data</button>
                               <span className="text-xs text-navy-500 self-center">Ask AI unavailable unless backend supports it.</span>

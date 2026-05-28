@@ -34,6 +34,11 @@ function normalizeLead(payload = {}) {
     contactName: lead.contactName || lead.contact_name || "",
     email: lead.email || payload.to || "",
     phone: lead.phone || payload.to || "",
+    state: lead.state || "",
+    cargoHauled: lead.cargoHauled || lead.cargo_hauled || lead.cargo || "",
+    powerUnits: lead.powerUnits || lead.power_units || lead.trucks || lead.vehicle_count || "",
+    drivers: lead.drivers || lead.driver_count || "",
+    leadType: lead.leadType || lead.lead_type || "",
     renewalDate: lead.renewalDate || lead.renewalDisplay?.date || "",
     renewalDateSource: lead.renewalDateSource || lead.renewalDisplay?.label || ""
   };
@@ -189,7 +194,7 @@ export async function unsubscribeEmail(req, res) {
       return res.status(400).send("Unsubscribe link is invalid or expired.");
     }
     await suppressContact({ channel: "email", email, reason: "unsubscribe", source: "email_link" });
-    res.send("You have been unsubscribed.");
+    res.send("You have been unsubscribed from future outreach emails.");
   } catch {
     res.status(500).send("Unsubscribe could not be completed.");
   }

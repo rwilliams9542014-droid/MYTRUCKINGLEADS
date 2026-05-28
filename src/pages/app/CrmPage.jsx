@@ -29,9 +29,35 @@ function normalizeLead(lead) {
     nextFollowUp: lead.next_follow_up || lead.nextFollowUp || "",
     lastContacted: lead.last_contacted || lead.lastContacted || "",
     trucks: lead.vehicle_count || lead.fleetSize || "",
+    powerUnits: lead.power_units || lead.powerUnits || lead.vehicle_count || lead.fleetSize || "",
+    drivers: lead.drivers || lead.driver_count || "",
+    cargoHauled: lead.cargo_hauled || lead.cargoHauled || lead.cargo || "",
+    renewalDate: lead.renewal_date || lead.renewalDate || lead.insurance_expiration || "",
     value: lead.estimated_value || "",
     lastActivity: lead.notes || "Saved lead",
   };
+}
+
+function leadForOutreach(lead) {
+  return {
+    ...lead,
+    carrierName: lead.name,
+    dotNumber: lead.dot,
+    mcNumber: lead.mc,
+    phone: lead.phone,
+    email: lead.email,
+    state: lead.state,
+    cargoHauled: lead.cargoHauled,
+    renewalDate: lead.renewalDate,
+    leadType: lead.leadType,
+    powerUnits: lead.powerUnits || lead.trucks,
+    drivers: lead.drivers,
+  };
+}
+
+function csvValue(value) {
+  const text = value === undefined || value === null ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 export default function CrmPage() {
@@ -43,6 +69,7 @@ export default function CrmPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [composer, setComposer] = useState(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -92,13 +119,62 @@ export default function CrmPage() {
   function openComposer(channel, lead) {
     setComposer({
       channel: "email",
-      lead: {
-        ...lead,
-        carrierName: lead.name,
-        dotNumber: lead.dot,
-        mcNumber: lead.mc,
-      },
+      lead: leadForOutreach(lead),
     });
+  }
+
+  function openBulkEmailComposer() {
+    const selectedLeads = allCards
+      .filter((lead) => selectedLeadIds.includes(lead.id))
+      .map(leadForOutreach);
+    if (!selectedLeads.length) {
+      setError("Select at least one CRM carrier before emailing.");
+      return;
+    }
+    setComposer({ channel: "email", leads: selectedLeads });
+  }
+
+  function toggleSelectedLead(lead) {
+    setSelectedLeadIds((current) => (
+      current.includes(lead.id)
+        ? current.filter((id) => id !== lead.id)
+        : [...current, lead.id]
+    ));
+  }
+
+  function toggleAllVisibleLeads() {
+    const visibleIds = allCards.map((lead) => lead.id);
+    if (!visibleIds.length) return;
+    const allSelected = visibleIds.every((id) => selectedLeadIds.includes(id));
+    setSelectedLeadIds(allSelected ? [] : visibleIds);
+  }
+
+  function exportSelectedCsv() {
+    const selectedRows = allCards.filter((lead) => selectedLeadIds.includes(lead.id));
+    if (!selectedRows.length) return;
+    const headers = ["Carrier Name", "DOT Number", "MC Number", "Phone", "Email", "State", "Lead Type", "Status", "Power Units", "Drivers", "Cargo Hauled", "Renewal Date"];
+    const rows = selectedRows.map((lead) => [
+      lead.name,
+      lead.dot,
+      lead.mc,
+      lead.phone,
+      lead.email,
+      lead.state,
+      lead.leadType,
+      lead.status,
+      lead.powerUnits || lead.trucks,
+      lead.drivers,
+      lead.cargoHauled,
+      lead.renewalDate,
+    ].map(csvValue).join(","));
+    const csv = [headers.map(csvValue).join(","), ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "mytruckingleads-crm-selected.csv";
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -110,18 +186,23 @@ export default function CrmPage() {
             {loading ? "Loading saved clients..." : `${allCards.length} saved client${allCards.length === 1 ? "" : "s"}`}
           </p>
         </div>
-        <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
-          {["kanban", "table"].map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg transition-all border ${
-                viewMode === mode ? "bg-brand-500/20 text-brand-300 border-brand-500/30" : "text-navy-400 border-transparent hover:text-white hover:bg-white/5"
-              }`}
-            >
-              {mode === "kanban" ? "Kanban View" : "Table View"}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={exportSelectedCsv} disabled={!selectedLeadIds.length} className="btn-secondary px-3 py-2 text-sm">Export Selected</button>
+          <button type="button" onClick={openBulkEmailComposer} disabled={!selectedLeadIds.length} className="btn-secondary px-3 py-2 text-sm">Email Selected Leads</button>
+          <button type="button" onClick={() => setSelectedLeadIds([])} disabled={!selectedLeadIds.length} className="btn-secondary px-3 py-2 text-sm">Clear Selection</button>
+          <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
+            {["kanban", "table"].map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-all border ${
+                  viewMode === mode ? "bg-brand-500/20 text-brand-300 border-brand-500/30" : "text-navy-400 border-transparent hover:text-white hover:bg-white/5"
+                }`}
+              >
+                {mode === "kanban" ? "Kanban View" : "Table View"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -161,10 +242,19 @@ export default function CrmPage() {
                     className="rounded-xl border border-white/[0.06] bg-navy-900/45 p-3 cursor-grab active:cursor-grabbing hover:border-white/12 hover:bg-navy-900/70 transition-all duration-200 group"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} state={{ from: `${location.pathname}${location.search}`, label: "Back to CRM" }} className="text-sm font-semibold text-white group-hover:text-brand-300 transition-colors hover:underline line-clamp-2">
-                        {card.name}
-                      </Link>
-                      {card.state && <Badge variant="outline" className="text-[10px]">{card.state}</Badge>}
+                      <div className="flex items-start gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 rounded border-white/20 bg-navy-900"
+                          checked={selectedLeadIds.includes(card.id)}
+                          onChange={() => toggleSelectedLead(card)}
+                          aria-label={`Select ${card.name}`}
+                        />
+                        <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} state={{ from: `${location.pathname}${location.search}`, label: "Back to CRM" }} className="text-sm font-semibold text-white group-hover:text-brand-300 transition-colors hover:underline line-clamp-2">
+                          {card.name}
+                        </Link>
+                      </div>
+                      {card.state && <Badge variant="outline" className="text-[10px] shrink-0">{card.state}</Badge>}
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-navy-400">
                       {card.dot && <span className="font-mono">DOT {card.dot}</span>}
@@ -179,7 +269,7 @@ export default function CrmPage() {
                     {card.nextFollowUp && <p className="text-[11px] text-navy-400 mt-2">Next follow-up: {card.nextFollowUp}</p>}
                     <p className="text-[11px] text-navy-500 mt-2 line-clamp-2">{card.lastActivity}</p>
                     <div className="flex flex-wrap gap-2 mt-3">
-                      {card.email && <button type="button" onClick={() => openComposer("email", card)} className="text-[11px] text-brand-400 hover:text-brand-300">Email</button>}
+                      <button type="button" onClick={() => openComposer("email", card)} className="text-[11px] text-brand-400 hover:text-brand-300">Email This Carrier</button>
                     </div>
                   </div>
                 ))}
@@ -199,6 +289,15 @@ export default function CrmPage() {
             <table className="premium-table w-full min-w-[1120px] border-collapse">
               <thead>
                 <tr className="border-b border-white/10 bg-navy-900/70">
+                  <th className="sticky top-0 text-left text-xs font-semibold text-navy-200 uppercase tracking-wider px-4 py-3 border-r border-white/[0.06] bg-navy-900/95">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-white/20 bg-navy-900"
+                      checked={allCards.length > 0 && allCards.every((lead) => selectedLeadIds.includes(lead.id))}
+                      onChange={toggleAllVisibleLeads}
+                      aria-label="Select all CRM carriers"
+                    />
+                  </th>
                   {["Company / Carrier", "DOT #", "MC #", "Phone", "Email", "State", "Lead Type", "Status", "Next Follow-Up", "Last Contacted", "Action"].map((heading) => (
                     <th key={heading} className="sticky top-0 text-left text-xs font-semibold text-navy-200 uppercase tracking-wider px-4 py-3 border-r border-white/[0.06] last:border-r-0 bg-navy-900/95">{heading}</th>
                   ))}
@@ -207,6 +306,15 @@ export default function CrmPage() {
               <tbody>
                 {allCards.map((card) => (
                   <tr key={card.id} className="border-b border-white/[0.06] odd:bg-white/[0.015] hover:bg-white/[0.04] transition-colors">
+                    <td className="px-4 py-3 border-r border-white/[0.04]">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-white/20 bg-navy-900"
+                        checked={selectedLeadIds.includes(card.id)}
+                        onChange={() => toggleSelectedLead(card)}
+                        aria-label={`Select ${card.name}`}
+                      />
+                    </td>
                     <td className="px-4 py-3 border-r border-white/[0.04]">
                       <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} state={{ from: `${location.pathname}${location.search}`, label: "Back to CRM" }} className="text-sm font-medium text-white hover:text-brand-300 transition-colors">
                         {card.name}
@@ -225,7 +333,7 @@ export default function CrmPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} state={{ from: `${location.pathname}${location.search}`, label: "Back to CRM" }} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>
-                        {card.email && <button type="button" onClick={() => openComposer("email", card)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email</button>}
+                        <button type="button" onClick={() => openComposer("email", card)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email This Carrier</button>
                       </div>
                     </td>
                   </tr>
@@ -246,6 +354,7 @@ export default function CrmPage() {
         open={Boolean(composer)}
         channel="email"
         lead={composer?.lead || {}}
+        leads={composer?.leads || []}
         intent="renewal"
         onClose={() => setComposer(null)}
       />

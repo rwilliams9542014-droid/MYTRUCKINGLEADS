@@ -57,28 +57,28 @@ import{t as e}from"./jsx-runtime-CUBmso4R.js";import{n as t}from"./chunk-OE4NN4T
 
         .mtl-bg-truck,
         .mtl-bg-us {
-          position: absolute;
+          position: fixed;
           z-index: 1;
           pointer-events: none;
           user-select: none;
           mix-blend-mode: screen;
-          filter: saturate(1.08) drop-shadow(0 0 34px rgba(18, 132, 255, 0.42));
+          filter: saturate(1.18) contrast(1.06) drop-shadow(0 0 42px rgba(18, 132, 255, 0.58));
         }
 
         .mtl-bg-truck {
-          left: -52px;
-          bottom: 40px;
-          width: min(34vw, 540px);
-          opacity: 0.42;
-          mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 64%, transparent 100%);
+          left: -78px;
+          bottom: 22px;
+          width: min(46vw, 760px);
+          opacity: 0.62;
+          mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 72%, transparent 100%);
         }
 
         .mtl-bg-us {
-          right: -8px;
-          top: 220px;
-          width: min(34vw, 590px);
-          opacity: 0.42;
-          mask-image: radial-gradient(circle at center, #000 0%, #000 54%, transparent 78%);
+          right: -48px;
+          top: 150px;
+          width: min(45vw, 780px);
+          opacity: 0.58;
+          mask-image: radial-gradient(circle at center, #000 0%, #000 62%, transparent 84%);
         }
 
         .mtl-hero-inner {
@@ -370,7 +370,7 @@ import{t as e}from"./jsx-runtime-CUBmso4R.js";import{n as t}from"./chunk-OE4NN4T
         @media (max-width: 1100px) {
           .mtl-bg-truck,
           .mtl-bg-us {
-            opacity: 0.28;
+            opacity: 0.42;
           }
 
           .mtl-feature-grid,

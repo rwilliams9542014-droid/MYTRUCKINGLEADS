@@ -7,70 +7,81 @@ import {
   canUseBulkMessaging,
   getMonthlyEmailLimit,
   getMonthlySmsLimit,
-  getPlanAccessSummary
+  getPlanAccessSummary,
+  getUserPlan
 } from "../utils/planAccess.js";
 
 const DEFAULT_TEMPLATES = [
   {
-    id: "renewal-info-request-email",
-    channel: "email",
-    name: "Renewal / Quote Info Request Email",
-    subject: "Trucking Insurance Quote Info Needed for {{carrierName}}",
-    body: `Hi {{contactName}},
-
-I am reaching out about trucking insurance options for {{carrierName}}.
-
-To quote accurately, please send:
-- current declarations page
-- loss runs
-- vehicle schedule
-- driver list
-- IFTA report if applicable
-- cargo hauled
-- current coverage details
-- best phone/email contact
-- target effective/renewal date
-
-DOT: {{dotNumber}}
-MC: {{mcNumber}}
-Renewal/Filing Date: {{renewalDate}} {{renewalDateSource}}
-
-Thank you,
-{{agentName}}
-{{agencyName}}
-{{agentEmail}}
-{{agentPhone}}
-
-Unsubscribe: {{unsubscribeLink}}`
-  },
-  {
     id: "new-dot-quote-request-email",
     channel: "email",
-    name: "New DOT Lead Quote Request Email",
-    subject: "Need Help With Commercial Trucking Coverage?",
-    body: `Hi {{contactName}},
+    name: "New DOT Lead Quote Request",
+    subject: "Commercial Trucking Coverage Help",
+    body: `Hello {{carrierName}},
 
-I saw {{carrierName}} is active in trucking and wanted to ask if you need help with commercial trucking coverage.
+I saw your DOT #{{dotNumber}} and wanted to see if you need help reviewing commercial trucking coverage.
 
-To get options started, please send:
-- vehicle list
-- driver list
-- cargo hauled
-- radius
-- desired effective date
-- current coverage if any
-- best contact number
+To quote accurately, we usually need:
+- Driver list
+- Vehicle list
+- Cargo hauled
+- Current coverage if already insured
+- Loss runs if available
 
-DOT: {{dotNumber}}
-MC: {{mcNumber}}
+If you would like help, reply to this email and we can get started.
 
 Thank you,
 {{agentName}}
-{{agencyName}}
-{{agentEmail}}
-{{agentPhone}}
 
-Unsubscribe: {{unsubscribeLink}}`
+To stop receiving emails, click here:
+{{unsubscribeLink}}`
+  },
+  {
+    id: "renewal-opportunity-quote-request-email",
+    channel: "email",
+    name: "Renewal Opportunity Quote Request",
+    subject: "Upcoming Trucking Coverage Review",
+    body: `Hello {{carrierName}},
+
+I'm reaching out because your trucking coverage may be coming up for review.
+
+To quote accurately, we usually need:
+- Current policy declarations page
+- Driver list
+- Vehicle list
+- Loss runs
+- IFTA reports if available
+- Cargo hauled details
+
+If you would like help comparing options, reply to this email and we can get started.
+
+Thank you,
+{{agentName}}
+
+To stop receiving emails, click here:
+{{unsubscribeLink}}`
+  },
+  {
+    id: "general-carrier-outreach-email",
+    channel: "email",
+    name: "General Carrier Outreach",
+    subject: "Quick Trucking Coverage Question",
+    body: `Hello {{carrierName}},
+
+I wanted to see if you would like help reviewing options for your commercial trucking coverage.
+
+Your DOT information shows:
+DOT #: {{dotNumber}}
+Power Units: {{powerUnits}}
+Cargo Hauled: {{cargoHauled}}
+
+If you would like a quote, reply to this email and I can let you know what information is needed.
+
+Thank you,
+{{agentName}}
+
+To stop receiving emails, click here:
+{{unsubscribeLink}}`
   },
   {
     id: "renewal-sms",
@@ -96,6 +107,11 @@ function clean(value) {
   return String(value || "").trim();
 }
 
+function cleanFallback(value) {
+  const text = clean(value);
+  return text || "Not available";
+}
+
 function normalizePhone(value) {
   return clean(value).replace(/[^\d+]/g, "");
 }
@@ -119,7 +135,7 @@ function unsubscribeToken({ userId, email }) {
 
 function unsubscribeLink({ userId, email }) {
   if (!email) return "";
-  const appUrl = String(process.env.APP_URL || process.env.FRONTEND_URL || "https://www.mytruckingleads.com").replace(/\/$/, "");
+  const appUrl = String(process.env.APP_BASE_URL || process.env.APP_URL || process.env.FRONTEND_URL || "https://www.mytruckingleads.com").replace(/\/$/, "");
   return `${appUrl}/unsubscribe/${unsubscribeToken({ userId, email })}?email=${encodeURIComponent(email)}&uid=${encodeURIComponent(userId)}`;
 }
 
@@ -133,7 +149,27 @@ export function getDefaultTemplates() {
 }
 
 export function renderTemplate(template, fields = {}) {
-  return String(template || "").replace(/\{\{(\w+)\}\}/g, (_, key) => clean(fields[key]));
+  return String(template || "").replace(/\{\{(\w+)\}\}/g, (_, key) => cleanFallback(fields[key]));
+}
+
+function replyToForUser(user = {}) {
+  return clean(user.reply_email || user.replyEmail || user.email || process.env.DEFAULT_REPLY_TO_EMAIL);
+}
+
+function assertEmailConfigured(replyTo) {
+  const provider = clean(process.env.EMAIL_PROVIDER || "resend").toLowerCase();
+  if (!replyTo) {
+    throw Object.assign(new Error("Reply email is required before sending outreach."), { status: 400 });
+  }
+  if (provider !== "resend") {
+    throw Object.assign(new Error("Email sending is not configured yet."), { status: 503 });
+  }
+  if (!clean(process.env.RESEND_API_KEY)) {
+    throw Object.assign(new Error("Email sending is not configured yet."), { status: 503 });
+  }
+  if (!clean(process.env.RESEND_FROM_EMAIL)) {
+    throw Object.assign(new Error("Sender email is not configured yet."), { status: 503 });
+  }
 }
 
 async function usageForUser(userId) {
@@ -168,7 +204,7 @@ export function assertOutreachAccess(user, channel, count = 1, { bulk = false } 
     throw err;
   }
 
-  if (bulk && !canUseBulkMessaging(user)) {
+  if (bulk && channel !== "email" && !canUseBulkMessaging(user)) {
     const err = new Error("Bulk outreach is available on the top plan.");
     err.status = 403;
     throw err;
@@ -243,23 +279,29 @@ async function incrementUsage(userId, channel, amount = 1) {
   );
 }
 
-async function logOutreach({ userId, channel, lead, recipientEmail, recipientPhone, subject, body, status, providerMessageId = "", errorMessage = "" }) {
+async function logOutreach({ userId, channel, lead, recipientEmail, recipientPhone, subject, body, status, provider = "", providerMessageId = "", errorMessage = "", replyTo = "" }) {
+  const dotNumber = lead?.dotNumber || lead?.dot || lead?.dot_number || null;
+  const bodyPreview = clean(body).slice(0, 500);
   await query(
     `INSERT INTO outreach_logs (
        user_id, channel, lead_id, carrier_dot, carrier_name, recipient_email,
-       recipient_phone, subject, message_preview, status, provider_message_id,
-       error_message, sent_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())`,
+       recipient_phone, dot_number, subject, body_preview, message_preview, provider,
+       reply_to, status, provider_message_id, error_message, sent_at, created_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW())`,
     [
       userId,
       channel,
       lead?.id || null,
-      lead?.dotNumber || lead?.dot || null,
+      dotNumber,
       lead?.carrierName || lead?.name || "",
       recipientEmail || null,
       recipientPhone || null,
+      dotNumber,
       subject || "",
-      clean(body).slice(0, 500),
+      bodyPreview,
+      bodyPreview,
+      provider || "",
+      replyTo || "",
       status,
       providerMessageId || "",
       errorMessage || ""
@@ -292,12 +334,62 @@ async function sendTwilioSms({ to, body }) {
 
 export async function sendEmailOutreach({ user, lead = {}, to, subject, body }) {
   const recipientEmail = clean(to || lead.email);
+  const replyTo = replyToForUser(user);
   assertOutreachAccess(user, "email");
+  if (!recipientEmail) {
+    await logOutreach({
+      userId: user.id,
+      channel: "email",
+      lead,
+      recipientEmail: null,
+      subject,
+      body,
+      status: "skipped_no_email",
+      errorMessage: "Carrier has no email address.",
+      replyTo
+    });
+    return {
+      sent: 0,
+      skipped: 1,
+      skippedNoEmail: 1,
+      suppressed: 0,
+      failed: 0,
+      status: "skipped_no_email",
+      carrierName: lead.carrierName || lead.name || "",
+      dotNumber: lead.dotNumber || lead.dot || ""
+    };
+  }
+  try {
+    assertEmailConfigured(replyTo);
+  } catch (err) {
+    await logOutreach({
+      userId: user.id,
+      channel: "email",
+      lead,
+      recipientEmail,
+      subject,
+      body,
+      status: "failed",
+      errorMessage: err.message,
+      replyTo
+    });
+    throw err;
+  }
   await assertUsageAvailable(user, "email", 1);
-  if (!recipientEmail) throw Object.assign(new Error("Recipient email is required."), { status: 400 });
   if (await isSuppressed({ channel: "email", email: recipientEmail })) {
-    await logOutreach({ userId: user.id, channel: "email", lead, recipientEmail, subject, body, status: "skipped", errorMessage: "Recipient opted out." });
-    return { skipped: 1, sent: 0, message: "Recipient is opted out." };
+    await logOutreach({ userId: user.id, channel: "email", lead, recipientEmail, subject, body, status: "suppressed", errorMessage: "Recipient opted out.", replyTo });
+    return {
+      skipped: 1,
+      skippedNoEmail: 0,
+      suppressed: 1,
+      sent: 0,
+      failed: 0,
+      status: "suppressed",
+      message: "Recipient is opted out.",
+      carrierName: lead.carrierName || lead.name || "",
+      dotNumber: lead.dotNumber || lead.dot || "",
+      email: recipientEmail
+    };
   }
 
   const fields = {
@@ -307,21 +399,41 @@ export async function sendEmailOutreach({ user, lead = {}, to, subject, body }) 
     contactName: lead.contactName || lead.carrierName || lead.name || "",
     dotNumber: lead.dotNumber || lead.dot || "",
     mcNumber: lead.mcNumber || lead.mc || "",
+    phone: lead.phone || "",
+    email: recipientEmail,
+    state: lead.state || "",
+    renewalDate: lead.renewalDate || "",
+    cargoHauled: Array.isArray(lead.cargoHauled) ? lead.cargoHauled.join(", ") : (lead.cargoHauled || lead.cargo || ""),
+    powerUnits: lead.powerUnits || lead.trucks || "",
+    drivers: lead.drivers || "",
+    leadType: lead.leadType || "",
     unsubscribeLink: unsubscribeLink({ userId: user.id, email: recipientEmail })
   };
   const renderedSubject = renderTemplate(subject, fields);
   const renderedBody = renderTemplate(body, fields);
   const html = `<div style="font-family:Arial,sans-serif;white-space:pre-wrap">${renderedBody.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
-  const result = await sendEmailMessage({ to: recipientEmail, subject: renderedSubject, html, text: renderedBody });
+  const result = await sendEmailMessage({ to: recipientEmail, subject: renderedSubject, html, text: renderedBody, replyTo });
 
   if (!result.success) {
-    await logOutreach({ userId: user.id, channel: "email", lead, recipientEmail, subject: renderedSubject, body: renderedBody, status: "failed", errorMessage: result.message });
+    await logOutreach({ userId: user.id, channel: "email", lead, recipientEmail, subject: renderedSubject, body: renderedBody, status: "failed", provider: result.provider || "resend", errorMessage: result.message, replyTo });
     throw Object.assign(new Error(result.message || "Email provider failed."), { status: 503 });
   }
 
   await incrementUsage(user.id, "email", 1);
-  await logOutreach({ userId: user.id, channel: "email", lead, recipientEmail, subject: renderedSubject, body: renderedBody, status: "sent", providerMessageId: result.messageId });
-  return { sent: 1, skipped: 0, providerMessageId: result.messageId || "" };
+  await logOutreach({ userId: user.id, channel: "email", lead, recipientEmail, subject: renderedSubject, body: renderedBody, status: "sent", provider: result.provider || "resend", providerMessageId: result.messageId, replyTo });
+  return {
+    sent: 1,
+    skipped: 0,
+    skippedNoEmail: 0,
+    suppressed: 0,
+    failed: 0,
+    status: "sent",
+    providerMessageId: result.messageId || "",
+    carrierName: lead.carrierName || lead.name || "",
+    dotNumber: lead.dotNumber || lead.dot || "",
+    email: recipientEmail,
+    replyTo
+  };
 }
 
 export async function sendSmsOutreach({ user, lead = {}, to, body }) {
@@ -358,19 +470,37 @@ export async function sendSmsOutreach({ user, lead = {}, to, body }) {
 
 export async function sendBulkEmailOutreach({ user, leads = [], subject, body }) {
   assertOutreachAccess(user, "email", leads.length, { bulk: true });
-  await assertUsageAvailable(user, "email", leads.length);
+  const plan = getUserPlan(user);
+  const perBatchLimit = plan === "premium" ? 500 : 50;
+  if (leads.length > perBatchLimit) {
+    throw Object.assign(new Error(`Email selected leads is limited to ${perBatchLimit} carriers per send on your plan.`), { status: 403 });
+  }
   const results = [];
   for (const lead of leads) {
     try {
       results.push(await sendEmailOutreach({ user, lead, to: lead.email, subject, body }));
     } catch (err) {
-      results.push({ sent: 0, skipped: 0, error: err.message });
+      const failure = {
+        sent: 0,
+        skipped: 0,
+        skippedNoEmail: 0,
+        suppressed: 0,
+        failed: 1,
+        status: "failed",
+        carrierName: lead.carrierName || lead.name || "",
+        dotNumber: lead.dotNumber || lead.dot || "",
+        email: lead.email || "",
+        error: err.message
+      };
+      results.push(failure);
     }
   }
   return {
     sent: results.reduce((sum, item) => sum + Number(item.sent || 0), 0),
     skipped: results.reduce((sum, item) => sum + Number(item.skipped || 0), 0),
-    failed: results.filter((item) => item.error).length,
+    skippedNoEmail: results.reduce((sum, item) => sum + Number(item.skippedNoEmail || 0), 0),
+    suppressed: results.reduce((sum, item) => sum + Number(item.suppressed || 0), 0),
+    failed: results.reduce((sum, item) => sum + Number(item.failed || (item.error ? 1 : 0)), 0),
     results
   };
 }
