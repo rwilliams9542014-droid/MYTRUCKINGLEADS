@@ -461,6 +461,18 @@ export default function CarrierProfilePage() {
     };
   }, [carrier]);
 
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("mtl:scout-context", {
+      detail: { carrier: carrier ? outreachLead : null },
+    }));
+
+    return () => {
+      window.dispatchEvent(new CustomEvent("mtl:scout-context", {
+        detail: { carrier: null },
+      }));
+    };
+  }, [carrier, outreachLead]);
+
   function emailCarrier() {
     const result = openEmailClientForLeads([outreachLead]);
     setSaveStatus(result.message);
