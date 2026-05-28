@@ -77,7 +77,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen premium-shell flex text-white">
+    <div className="min-h-screen premium-shell app-shell-background flex text-white">
       {mobileOpen && (
         <div
           className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"

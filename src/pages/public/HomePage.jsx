@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 
 const features = [
   ["New DOT Leads", "Find recently registered trucking companies before competitors start calling."],
-  ["Renewal Opportunities", "Prioritize outreach around public filing and renewal signals."],
-  ["FMCSA Data", "Review carrier identity, authority, safety, insurance, and fleet details from one workspace."],
+  ["Renewal Opportunities", "Prioritize outreach around renewal timing and buying signals."],
+  ["Carrier Intelligence", "Review carrier identity, authority, safety, insurance, and fleet details from one workspace."],
   ["Built-In CRM", "Move prospects from search to follow-up without leaving the trucking lead workflow."],
 ];
 
@@ -443,7 +443,7 @@ export default function HomePage() {
           <div className="mtl-subline">
             <span>New DOT Leads</span><i />
             <span>Renewal Opportunities</span><i />
-            <span>FMCSA Data</span><i />
+            <span>Carrier Intelligence</span><i />
             <span>Built-In CRM</span>
           </div>
 
@@ -483,7 +483,7 @@ export default function HomePage() {
       <section className="mtl-section">
         <div className="mtl-section-header">
           <p className="mtl-section-eyebrow">Workflow</p>
-          <h2>A cleaner way to turn public carrier data into a working pipeline.</h2>
+          <h2>A cleaner way to turn carrier intelligence into a working pipeline.</h2>
         </div>
 
         <div className="mtl-flow">
@@ -499,10 +499,10 @@ export default function HomePage() {
 
       <section className="mtl-cta">
         <h2>Ready to work trucking leads with better timing?</h2>
-        <p>Start with carrier discovery, review the signals that matter, and keep every prospect moving through a focused CRM.</p>
+        <p>Agents can start with carrier discovery. Trucking companies looking for insurance can request a quote directly.</p>
         <div className="mtl-actions">
           <Link to="/signup" className="mtl-btn-primary">Start Free Trial</Link>
-          <Link to="/quote-request" className="mtl-btn-secondary">Get Truck Quote</Link>
+          <Link to="/quote-request" className="mtl-btn-secondary">Truckers: Get a Quote</Link>
         </div>
       </section>
     </div>

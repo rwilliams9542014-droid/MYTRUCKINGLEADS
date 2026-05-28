@@ -31,8 +31,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 pt-24 pb-12">
-      <div className="w-full max-w-md">
+    <div className="relative min-h-screen overflow-hidden px-6 pt-28 pb-12">
+      <div className="absolute inset-0" aria-hidden="true">
+        <img
+          src="/assets/sign-in-background.png"
+          alt=""
+          className="h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-[#020713]/55" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_52%,rgba(34,211,238,0.08),transparent_28rem),linear-gradient(90deg,rgba(2,7,19,0.92)_0%,rgba(2,7,19,0.72)_42%,rgba(2,7,19,0.28)_100%)]" />
+      </div>
+
+      <div className="relative z-10 flex min-h-[calc(100vh-10rem)] items-center justify-start max-w-7xl mx-auto">
+        <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex justify-center mb-5">
             <img
@@ -92,6 +103,7 @@ export default function LoginPage() {
             Start your free trial
           </Link>
         </p>
+        </div>
       </div>
     </div>
   );

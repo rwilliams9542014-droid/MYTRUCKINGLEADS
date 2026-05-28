@@ -29,7 +29,7 @@ export function PublicLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen premium-shell">
+    <div className="min-h-screen premium-shell public-shell-background">
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled
@@ -48,7 +48,7 @@ export function PublicLayout() {
 
           <nav className="hidden md:flex items-center gap-8 rounded-full border border-cyan-300/10 bg-white/[0.025] px-5 py-2 backdrop-blur-xl">
             <NavLink to="/pricing">Pricing</NavLink>
-            <NavLink to="/quote-request">Get Truck Quote</NavLink>
+            <NavLink to="/quote-request">Truckers: Get a Quote</NavLink>
           </nav>
 
           <div className="hidden md:flex items-center gap-3">
@@ -86,7 +86,7 @@ export function PublicLayout() {
           <div className="md:hidden absolute top-full left-0 right-0 bg-[#03101f]/95 backdrop-blur-xl border-b border-cyan-300/10 p-6 animate-slide-up">
             <nav className="flex flex-col gap-4">
               <Link to="/pricing" className="text-white font-medium" onClick={() => setMobileOpen(false)}>Pricing</Link>
-              <Link to="/quote-request" className="text-white font-medium" onClick={() => setMobileOpen(false)}>Get Truck Quote</Link>
+              <Link to="/quote-request" className="text-white font-medium" onClick={() => setMobileOpen(false)}>Truckers: Get a Quote</Link>
               <hr className="border-white/10" />
               {user ? (
                 <Link to="/dashboard" className="btn-primary text-center" onClick={() => setMobileOpen(false)}>Dashboard</Link>

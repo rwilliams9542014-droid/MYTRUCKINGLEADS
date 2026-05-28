@@ -339,3 +339,43 @@ export async function getCurrentUser(req, res, next) {
     next(err);
   }
 }
+
+export async function updatePassword(req, res, next) {
+  try {
+    if (!req.user) {
+      return next(new AuthenticationError("Not authenticated"));
+    }
+
+    const currentPassword = String(req.body?.currentPassword || req.body?.current_password || "");
+    const newPassword = validatePassword(req.body?.newPassword || req.body?.new_password);
+
+    if (!currentPassword) {
+      return next(new ValidationError("Current password is required"));
+    }
+
+    const result = await query(
+      "SELECT id, password_hash FROM users WHERE id = $1",
+      [req.user.id]
+    );
+
+    const user = result.rows[0];
+    if (!user) {
+      return next(new AuthenticationError("Not authenticated"));
+    }
+
+    const matches = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!matches) {
+      return next(new AuthenticationError("Current password is incorrect"));
+    }
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    await query(
+      "UPDATE users SET password_hash = $1 WHERE id = $2",
+      [hash, req.user.id]
+    );
+
+    res.json({ success: true, message: "Password updated successfully." });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -1,46 +1,52 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, Button, Input, Badge } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
-
-const themeModes = [
-  { id: "dark", label: "Dark" },
-  { id: "light", label: "Light" },
-  { id: "system", label: "System" },
-];
-
-const colorSchemes = [
-  { id: "blue", label: "Blue", swatch: "bg-brand-500" },
-  { id: "slate", label: "Slate", swatch: "bg-slate-500" },
-  { id: "green", label: "Green", swatch: "bg-emerald-500" },
-];
-
-function applyTheme(mode, scheme) {
-  const resolved = mode === "system"
-    ? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
-    : mode;
-  document.documentElement.dataset.themeMode = resolved;
-  document.documentElement.dataset.themePreference = mode;
-  document.documentElement.dataset.colorScheme = scheme;
-}
+import { api } from "@/lib/api";
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
-  const [themeMode, setThemeMode] = useState(() => localStorage.getItem("mtlDisplayMode") || "dark");
-  const [colorScheme, setColorScheme] = useState(() => localStorage.getItem("mtlColorScheme") || "blue");
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    applyTheme(themeMode, colorScheme);
-    localStorage.setItem("mtlDisplayMode", themeMode);
-    localStorage.setItem("mtlColorScheme", colorScheme);
-  }, [themeMode, colorScheme]);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const tabs = [
     { id: "profile", label: "Profile" },
+    { id: "security", label: "Security" },
     { id: "subscription", label: "Subscription" },
-    { id: "appearance", label: "Appearance" },
   ];
+
+  async function updatePassword(e) {
+    e.preventDefault();
+    setMessage("");
+
+    if (passwordForm.newPassword.length < 8) {
+      setMessage("New password must be at least 8 characters.");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setMessage("New password and confirmation do not match.");
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await api.updatePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setMessage("Password updated successfully.");
+    } catch (err) {
+      setMessage(err.status === 404 ? "Password updates are not enabled on the server yet." : (err.message || "Password could not be updated."));
+    } finally {
+      setPasswordLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl">
@@ -96,6 +102,39 @@ export default function SettingsPage() {
 
       {message && <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl p-3 text-sm text-brand-200">{message}</div>}
 
+      {activeTab === "security" && (
+        <Card>
+          <h2 className="text-lg font-semibold text-white mb-6">Change Password</h2>
+          <form onSubmit={updatePassword} className="space-y-5 max-w-xl">
+            <Input
+              label="Current Password"
+              type="password"
+              autoComplete="current-password"
+              value={passwordForm.currentPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+              required
+            />
+            <Input
+              label="New Password"
+              type="password"
+              autoComplete="new-password"
+              value={passwordForm.newPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+              required
+            />
+            <Input
+              label="Confirm New Password"
+              type="password"
+              autoComplete="new-password"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+              required
+            />
+            <Button type="submit" loading={passwordLoading}>Update Password</Button>
+          </form>
+        </Card>
+      )}
+
       {/* Subscription Tab */}
       {activeTab === "subscription" && (
         <div className="space-y-6">
@@ -145,44 +184,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {activeTab === "appearance" && (
-        <Card>
-          <h2 className="text-lg font-semibold text-white mb-6">Appearance</h2>
-          <div className="space-y-6">
-            <div>
-              <p className="text-sm font-medium text-navy-200 mb-3">Display Mode</p>
-              <div className="flex flex-wrap gap-2">
-                {themeModes.map((mode) => (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() => setThemeMode(mode.id)}
-                    className={`px-4 py-2 text-sm rounded-lg border transition-colors ${themeMode === mode.id ? "bg-brand-500/20 text-brand-200 border-brand-500/40" : "text-navy-300 border-white/10 hover:bg-white/5"}`}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-navy-200 mb-3">Color Scheme</p>
-              <div className="flex flex-wrap gap-2">
-                {colorSchemes.map((scheme) => (
-                  <button
-                    key={scheme.id}
-                    type="button"
-                    onClick={() => setColorScheme(scheme.id)}
-                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg border transition-colors ${colorScheme === scheme.id ? "bg-brand-500/20 text-brand-200 border-brand-500/40" : "text-navy-300 border-white/10 hover:bg-white/5"}`}
-                  >
-                    <span className={`w-3 h-3 rounded-full ${scheme.swatch}`} />
-                    {scheme.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

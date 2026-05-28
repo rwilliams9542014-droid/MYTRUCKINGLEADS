@@ -162,6 +162,10 @@ export const api = {
     method: "PUT",
     body: JSON.stringify(data),
   }),
+  updatePassword: (data) => requestWithFallback("/api/auth/password", "/api/auth/change-password", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }),
   updateNotifications: (data) => apiRequest("/api/auth/notifications", {
     method: "PUT",
     body: JSON.stringify(data),
