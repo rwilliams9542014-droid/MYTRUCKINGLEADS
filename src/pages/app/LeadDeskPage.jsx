@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Badge, Button, Card } from "@/components/ui";
 import OutreachComposer from "@/components/OutreachComposer";
@@ -12,6 +12,8 @@ import {
 } from "@/lib/leadMapping";
 
 const stateOptions = ["Any","AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+const LEAD_DESK_STATE_KEY = "mytruckingleads.leadDeskState.v1";
+const pageSizeOptions = [20, 30, 40];
 
 function formatDate(date) {
   return date.toISOString().split("T")[0];
@@ -61,25 +63,39 @@ function leadForOutreach(lead, activeTab) {
   };
 }
 
+function loadSavedLeadDeskState() {
+  if (typeof window === "undefined") return {};
+  try {
+    const saved = window.sessionStorage.getItem(LEAD_DESK_STATE_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function LeadDeskPage() {
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState("new_dot");
-  const [search, setSearch] = useState("");
-  const [state, setState] = useState("Any");
-  const [datePreset, setDatePreset] = useState("last_7");
-  const [customFrom, setCustomFrom] = useState(dateRange(7).from);
-  const [customTo, setCustomTo] = useState(dateRange(7).to);
-  const [leads, setLeads] = useState([]);
+  const savedState = useMemo(loadSavedLeadDeskState, []);
+  const didMountRef = useRef(false);
+  const [activeTab, setActiveTab] = useState(savedState.activeTab || "new_dot");
+  const [search, setSearch] = useState(savedState.search || "");
+  const [state, setState] = useState(savedState.state || "Any");
+  const [datePreset, setDatePreset] = useState(savedState.datePreset || "last_7");
+  const [customFrom, setCustomFrom] = useState(savedState.customFrom || dateRange(7).from);
+  const [customTo, setCustomTo] = useState(savedState.customTo || dateRange(7).to);
+  const [leads, setLeads] = useState(Array.isArray(savedState.leads) ? savedState.leads : []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [expandedDot, setExpandedDot] = useState("");
   const [safetyDetails, setSafetyDetails] = useState({});
-  const [hasSearched, setHasSearched] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState("");
-  const [leadSourceMeta, setLeadSourceMeta] = useState(null);
+  const [hasSearched, setHasSearched] = useState(Boolean(savedState.hasSearched));
+  const [lastUpdated, setLastUpdated] = useState(savedState.lastUpdated || "");
+  const [leadSourceMeta, setLeadSourceMeta] = useState(savedState.leadSourceMeta || null);
   const [composer, setComposer] = useState(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
+  const [pageSize, setPageSize] = useState(pageSizeOptions.includes(Number(savedState.pageSize)) ? Number(savedState.pageSize) : 20);
+  const [currentPage, setCurrentPage] = useState(Number(savedState.currentPage) > 0 ? Number(savedState.currentPage) : 1);
 
   const range = useMemo(() => {
     if (datePreset === "custom") return { from: customFrom, to: customTo };
@@ -122,7 +138,18 @@ export default function LeadDeskPage() {
     ].some((value) => String(value || "").toLowerCase().includes(term)));
   }, [leads, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedLeads = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredLeads.slice(start, start + pageSize);
+  }, [filteredLeads, pageSize, safeCurrentPage]);
+
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
     setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
     setLeads([]);
     setError("");
@@ -132,11 +159,38 @@ export default function LeadDeskPage() {
     setLastUpdated("");
     setLeadSourceMeta(null);
     setSelectedLeadIds([]);
+    setCurrentPage(1);
   }, [activeTab]);
 
   useEffect(() => {
     setSelectedLeadIds((current) => current.filter((id) => filteredLeads.some((lead) => lead.id === id)));
   }, [filteredLeads]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(LEAD_DESK_STATE_KEY, JSON.stringify({
+        activeTab,
+        search,
+        state,
+        datePreset,
+        customFrom,
+        customTo,
+        leads,
+        hasSearched,
+        lastUpdated,
+        leadSourceMeta,
+        pageSize,
+        currentPage: safeCurrentPage,
+      }));
+    } catch {
+      // Session storage can be unavailable in private browsing modes.
+    }
+  }, [activeTab, customFrom, customTo, currentPage, datePreset, hasSearched, lastUpdated, leadSourceMeta, leads, pageSize, safeCurrentPage, search, state]);
 
   async function runSearch(event) {
     event?.preventDefault();
@@ -179,6 +233,7 @@ export default function LeadDeskPage() {
 
       setLeads(rows.map((lead) => normalizeLead(lead, activeTab)));
       setHasSearched(true);
+      setCurrentPage(1);
       setLastUpdated(new Date().toLocaleString());
       setLeadSourceMeta({
         source: data?.dataSource || data?.source || "",
@@ -189,6 +244,7 @@ export default function LeadDeskPage() {
     } catch (err) {
       setHasSearched(true);
       setLeads([]);
+      setCurrentPage(1);
       setLeadSourceMeta(null);
       setError(err.message || "Leads could not be loaded.");
     } finally {
@@ -202,6 +258,7 @@ export default function LeadDeskPage() {
     setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
     setCustomFrom(dateRange(7).from);
     setCustomTo(dateRange(7).to);
+    setCurrentPage(1);
   }
 
   async function loadSafetyDetails(lead, { force = false } = {}) {
@@ -293,10 +350,14 @@ export default function LeadDeskPage() {
   }
 
   function toggleAllVisibleLeads() {
-    const visibleIds = filteredLeads.map((lead) => lead.id);
+    const visibleIds = paginatedLeads.map((lead) => lead.id);
     if (!visibleIds.length) return;
     const allSelected = visibleIds.every((id) => selectedLeadIds.includes(id));
-    setSelectedLeadIds(allSelected ? [] : visibleIds);
+    setSelectedLeadIds((current) => (
+      allSelected
+        ? current.filter((id) => !visibleIds.includes(id))
+        : Array.from(new Set([...current, ...visibleIds]))
+    ));
   }
 
   function csvValue(value) {
@@ -444,14 +505,23 @@ export default function LeadDeskPage() {
                 className="input-field pl-10"
                 placeholder="Search company, DOT, city, phone, or email"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
             </div>
-            <select className="input-field" value={state} onChange={(e) => setState(e.target.value)}>
+            <select className="input-field" value={state} onChange={(e) => {
+              setState(e.target.value);
+              setCurrentPage(1);
+            }}>
               {stateOptions.map((item) => <option key={item} value={item} className="bg-navy-900">{item}</option>)}
             </select>
             {activeTab !== "hot" && (
-              <select className="input-field" value={datePreset} onChange={(e) => setDatePreset(e.target.value)}>
+              <select className="input-field" value={datePreset} onChange={(e) => {
+                setDatePreset(e.target.value);
+                setCurrentPage(1);
+              }}>
                 {activeTab === "renewal" ? (
                   <>
                     <option value="next_7" className="bg-navy-900">Next 7 Days</option>
@@ -474,8 +544,14 @@ export default function LeadDeskPage() {
 
           {activeTab !== "hot" && datePreset === "custom" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="date" className="input-field" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-              <input type="date" className="input-field" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+              <input type="date" className="input-field" value={customFrom} onChange={(e) => {
+                setCustomFrom(e.target.value);
+                setCurrentPage(1);
+              }} />
+              <input type="date" className="input-field" value={customTo} onChange={(e) => {
+                setCustomTo(e.target.value);
+                setCurrentPage(1);
+              }} />
             </div>
           )}
 
@@ -501,6 +577,47 @@ export default function LeadDeskPage() {
       {saveMessage && <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl p-3 text-sm text-brand-200">{saveMessage}</div>}
 
       <Card className="!p-0 overflow-hidden">
+        {hasSearched && filteredLeads.length > 0 && (
+          <div className="flex flex-col gap-3 border-b border-white/[0.06] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-navy-300">
+              Showing {(safeCurrentPage - 1) * pageSize + 1}-{Math.min(safeCurrentPage * pageSize, filteredLeads.length)} of {filteredLeads.length}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs text-navy-400">
+                Leads per page
+                <select
+                  className="input-field ml-2 h-9 w-24 py-1 text-sm"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  {pageSizeOptions.map((size) => (
+                    <option key={size} value={size} className="bg-navy-900">{size}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn-secondary px-3 py-2 text-sm"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={safeCurrentPage <= 1}
+              >
+                Previous
+              </button>
+              <span className="text-xs text-navy-400">Page {safeCurrentPage} of {totalPages}</span>
+              <button
+                type="button"
+                className="btn-secondary px-3 py-2 text-sm"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={safeCurrentPage >= totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="premium-table w-full min-w-[1100px]">
             <thead>
@@ -509,7 +626,7 @@ export default function LeadDeskPage() {
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-white/20 bg-navy-900"
-                    checked={filteredLeads.length > 0 && filteredLeads.every((lead) => selectedLeadIds.includes(lead.id))}
+                    checked={paginatedLeads.length > 0 && paginatedLeads.every((lead) => selectedLeadIds.includes(lead.id))}
                     onChange={toggleAllVisibleLeads}
                     aria-label="Select all visible leads"
                   />
@@ -520,7 +637,7 @@ export default function LeadDeskPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredLeads.map((lead) => (
+              {paginatedLeads.map((lead) => (
                 <Fragment key={lead.id}>
                   <tr className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-3">
