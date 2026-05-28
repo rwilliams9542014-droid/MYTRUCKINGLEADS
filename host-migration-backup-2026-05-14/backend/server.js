@@ -284,6 +284,7 @@ async function ensureUserAccountSchema() {
       ADD COLUMN IF NOT EXISTS billing_postal_code TEXT,
       ADD COLUMN IF NOT EXISTS billing_country TEXT DEFAULT 'US',
       ADD COLUMN IF NOT EXISTS lead_state TEXT,
+      ADD COLUMN IF NOT EXISTS lead_states TEXT[] DEFAULT '{}',
       ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user',
       ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT,
       ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT,
@@ -297,6 +298,8 @@ async function ensureUserAccountSchema() {
       ADD COLUMN IF NOT EXISTS daily_saved_prospects INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS monthly_export_rows INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS monthly_export_reset_at TIMESTAMPTZ DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS daily_export_rows INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS daily_export_reset_at TIMESTAMPTZ DEFAULT NOW(),
       ADD COLUMN IF NOT EXISTS last_usage_reset_at TIMESTAMPTZ DEFAULT NOW()
   `);
 

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, Button } from "@/components/ui";
-import OutreachComposer from "@/components/OutreachComposer";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { canUseAiEmailDraft, copyAiEmailDraft, openEmailClientForLeads } from "@/lib/emailDrafts";
 import {
   getRenewalDisplay,
   normalizeBasicScores,
@@ -417,9 +417,9 @@ export default function CarrierProfilePage() {
   const [loading, setLoading] = useState(Boolean(dot));
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
-  const [composer, setComposer] = useState(null);
   const backTo = location.state?.from || "/carrier-search";
   const backLabel = location.state?.label || "Back to carrier search";
+  const aiDraftAllowed = canUseAiEmailDraft(user);
 
   useEffect(() => {
     if (!dot) {
@@ -458,6 +458,24 @@ export default function CarrierProfilePage() {
       renewalDateSource: carrier.renewalDisplay?.label || "",
     };
   }, [carrier]);
+
+  function emailCarrier() {
+    const result = openEmailClientForLeads([outreachLead]);
+    setSaveStatus(result.message);
+  }
+
+  async function copyDraft() {
+    if (!aiDraftAllowed) {
+      setSaveStatus("AI draft assistance is available on Pro and Agency plans.");
+      return;
+    }
+    try {
+      await copyAiEmailDraft(outreachLead);
+      setSaveStatus("AI email draft copied. Paste it into your email app.");
+    } catch {
+      setSaveStatus("Copy failed. Your browser may not allow clipboard access.");
+    }
+  }
 
   async function saveToPipeline() {
     if (!carrier) return;
@@ -524,7 +542,8 @@ export default function CarrierProfilePage() {
         <div className="flex flex-wrap gap-2">
           {carrier.phone && <a href={`tel:${carrier.phone}`} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Call</a>}
           <Button size="sm" onClick={saveToPipeline}>Add to Pipeline</Button>
-          {carrier.email && <button type="button" onClick={() => setComposer("email")} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Email</button>}
+          {carrier.email && <button type="button" onClick={emailCarrier} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Email</button>}
+          {aiDraftAllowed && <button type="button" onClick={copyDraft} className="btn-secondary text-sm px-4 py-2 rounded-xl border border-white/10">Copy AI Draft</button>}
         </div>
       </div>
 
@@ -559,13 +578,6 @@ export default function CarrierProfilePage() {
         </aside>
       </div>
 
-      <OutreachComposer
-        open={Boolean(composer)}
-        channel="email"
-        lead={outreachLead}
-        intent={carrier.renewalDisplay?.date ? "renewal" : "new-dot"}
-        onClose={() => setComposer(null)}
-      />
     </div>
   );
 }

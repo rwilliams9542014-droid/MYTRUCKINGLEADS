@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Badge, Button, Card } from "@/components/ui";
-import OutreachComposer from "@/components/OutreachComposer";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
+import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { canUseAiEmailDraft, copyAiEmailDraft, openEmailClientForLeads } from "@/lib/emailDrafts";
 import {
   UNAVAILABLE,
   buildInspectionBars,
@@ -11,7 +12,7 @@ import {
   normalizeLeadRecord,
 } from "@/lib/leadMapping";
 
-const stateOptions = ["Any","AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+const stateOptions = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 const LEAD_DESK_STATE_KEY = "mytruckingleads.leadDeskState.v1";
 const pageSizeOptions = [20, 30, 40];
 
@@ -75,6 +76,7 @@ function loadSavedLeadDeskState() {
 
 export default function LeadDeskPage() {
   const location = useLocation();
+  const { user } = useAuth();
   const savedState = useMemo(loadSavedLeadDeskState, []);
   const didMountRef = useRef(false);
   const [activeTab, setActiveTab] = useState(savedState.activeTab || "new_dot");
@@ -93,10 +95,29 @@ export default function LeadDeskPage() {
   const [lastUpdated, setLastUpdated] = useState(savedState.lastUpdated || "");
   const [leadSourceMeta, setLeadSourceMeta] = useState(savedState.leadSourceMeta || null);
   const [totalResults, setTotalResults] = useState(Number(savedState.totalResults || 0));
-  const [composer, setComposer] = useState(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
   const [pageSize, setPageSize] = useState(pageSizeOptions.includes(Number(savedState.pageSize)) ? Number(savedState.pageSize) : 20);
   const [currentPage, setCurrentPage] = useState(Number(savedState.currentPage) > 0 ? Number(savedState.currentPage) : 1);
+  const [minPowerUnits, setMinPowerUnits] = useState(savedState.minPowerUnits || "");
+  const [maxPowerUnits, setMaxPowerUnits] = useState(savedState.maxPowerUnits || "");
+  const [cargoType, setCargoType] = useState(savedState.cargoType || "");
+  const [emailRequired, setEmailRequired] = useState(Boolean(savedState.emailRequired));
+  const [sortBy, setSortBy] = useState(savedState.sortBy || "lastUpdated");
+  const [sortOrder, setSortOrder] = useState(savedState.sortOrder || "desc");
+
+  const plan = String(user?.access?.plan || user?.plan || "").toLowerCase();
+  const isAgency = plan === "premium" || plan === "agency";
+  const userLeadStates = useMemo(() => {
+    const raw = user?.leadStates || user?.access?.leadStates || user?.lead_states || [];
+    const values = Array.isArray(raw) ? raw : String(raw || "").split(",");
+    const normalized = values.map((value) => String(value || "").trim().toUpperCase()).filter((value) => stateOptions.includes(value));
+    const primary = String(user?.leadState || user?.lead_state || user?.access?.leadState || "").trim().toUpperCase();
+    return Array.from(new Set([...(normalized.length ? normalized : []), ...(primary && stateOptions.includes(primary) ? [primary] : [])]));
+  }, [user]);
+  const availableStateOptions = isAgency ? (userLeadStates.length ? userLeadStates : stateOptions) : userLeadStates;
+  const lockedState = !isAgency ? (userLeadStates[0] || "") : "";
+  const effectiveState = lockedState || (availableStateOptions.includes(state) ? state : availableStateOptions[0] || "");
+  const aiDraftAllowed = canUseAiEmailDraft(user);
 
   const range = useMemo(() => {
     if (datePreset === "custom") return { from: customFrom, to: customTo };
@@ -173,11 +194,27 @@ export default function LeadDeskPage() {
         totalResults,
         pageSize,
         currentPage: safeCurrentPage,
+        minPowerUnits,
+        maxPowerUnits,
+        cargoType,
+        emailRequired,
+        sortBy,
+        sortOrder,
       }));
     } catch {
       // Session storage can be unavailable in private browsing modes.
     }
-  }, [activeTab, customFrom, customTo, currentPage, datePreset, hasSearched, lastUpdated, leadSourceMeta, leads, pageSize, safeCurrentPage, search, state, totalResults]);
+  }, [activeTab, cargoType, customFrom, customTo, currentPage, datePreset, emailRequired, hasSearched, lastUpdated, leadSourceMeta, leads, maxPowerUnits, minPowerUnits, pageSize, safeCurrentPage, search, sortBy, sortOrder, state, totalResults]);
+
+  useEffect(() => {
+    if (lockedState && state !== lockedState) {
+      setState(lockedState);
+      return;
+    }
+    if (!lockedState && availableStateOptions.length && !availableStateOptions.includes(state)) {
+      setState(availableStateOptions[0]);
+    }
+  }, [availableStateOptions, lockedState, state]);
 
   async function runSearch(event, requestedPage = 1, requestedPageSize = pageSize) {
     event?.preventDefault();
@@ -187,7 +224,13 @@ export default function LeadDeskPage() {
       to: range.to,
       days: windowDays,
       daysBack: windowDays,
-      state: state === "Any" ? "" : state,
+      state: effectiveState,
+      minFleetSize: minPowerUnits,
+      maxFleetSize: maxPowerUnits,
+      cargoType: cargoType.trim(),
+      hasEmail: emailRequired ? "true" : "",
+      sort: sortBy,
+      order: sortOrder,
       page: requestedPage,
       limit: requestedPageSize,
     };
@@ -199,7 +242,7 @@ export default function LeadDeskPage() {
 
     try {
       const data = activeTab === "hot"
-        ? await api.getMarketplaceLeads({ search, state: state === "Any" ? "" : state, page: requestedPage, limit: requestedPageSize })
+        ? await api.getMarketplaceLeads({ search, state: effectiveState, minFleetSize: minPowerUnits, maxFleetSize: maxPowerUnits, cargoType: cargoType.trim(), hasEmail: emailRequired ? "true" : "", sort: sortBy, order: sortOrder, page: requestedPage, limit: requestedPageSize })
         : activeTab === "renewal"
           ? await api.getRenewalLeads(params)
           : await api.getNewDotLeads(params);
@@ -244,10 +287,16 @@ export default function LeadDeskPage() {
 
   function resetFilters() {
     setSearch("");
-    setState("Any");
+    setState(lockedState || availableStateOptions[0] || "");
     setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
     setCustomFrom(dateRange(7).from);
     setCustomTo(dateRange(7).to);
+    setMinPowerUnits("");
+    setMaxPowerUnits("");
+    setCargoType("");
+    setEmailRequired(false);
+    setSortBy("lastUpdated");
+    setSortOrder("desc");
     setCurrentPage(1);
   }
 
@@ -324,14 +373,12 @@ export default function LeadDeskPage() {
     }
   }
 
-  function openComposer(channel, lead) {
-    setComposer({
-      channel: "email",
-      lead: leadForOutreach(lead, activeTab),
-    });
+  function emailLead(lead) {
+    const result = openEmailClientForLeads([leadForOutreach(lead, activeTab)]);
+    setSaveMessage(result.message);
   }
 
-  function openBulkEmailComposer() {
+  function emailSelectedLeads() {
     const selectedLeads = filteredLeads
       .filter((lead) => selectedLeadIds.includes(lead.id))
       .map((lead) => leadForOutreach(lead, activeTab));
@@ -341,7 +388,21 @@ export default function LeadDeskPage() {
       return;
     }
 
-    setComposer({ channel: "email", leads: selectedLeads });
+    const result = openEmailClientForLeads(selectedLeads);
+    setSaveMessage(result.message);
+  }
+
+  async function copyDraftForLead(lead) {
+    if (!aiDraftAllowed) {
+      setSaveMessage("AI draft assistance is available on Pro and Agency plans.");
+      return;
+    }
+    try {
+      await copyAiEmailDraft(leadForOutreach(lead, activeTab));
+      setSaveMessage("AI email draft copied. Paste it into your email app.");
+    } catch {
+      setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
+    }
   }
 
   function toggleSelectedLead(lead) {
@@ -498,7 +559,7 @@ export default function LeadDeskPage() {
 
       <Card>
         <form onSubmit={runSearch} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_220px] gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_220px] gap-3">
             <div className="relative">
               <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -514,12 +575,18 @@ export default function LeadDeskPage() {
                 }}
               />
             </div>
-            <select className="input-field" value={state} onChange={(e) => {
-              setState(e.target.value);
-              setCurrentPage(1);
-            }}>
-              {stateOptions.map((item) => <option key={item} value={item} className="bg-navy-900">{item}</option>)}
-            </select>
+            {isAgency ? (
+              <select className="input-field" value={state} onChange={(e) => {
+                setState(e.target.value);
+                setCurrentPage(1);
+              }}>
+                {availableStateOptions.map((item) => <option key={item} value={item} className="bg-navy-900">{item}</option>)}
+              </select>
+            ) : (
+              <div className="input-field flex items-center text-navy-200">
+                State: <span className="ml-2 font-semibold text-white">{lockedState || "Set in account"}</span>
+              </div>
+            )}
             {activeTab !== "hot" && (
               <select className="input-field" value={datePreset} onChange={(e) => {
                 setDatePreset(e.target.value);
@@ -545,6 +612,77 @@ export default function LeadDeskPage() {
             )}
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <input
+              type="number"
+              min="0"
+              className="input-field"
+              placeholder="Min power units"
+              value={minPowerUnits}
+              onChange={(e) => {
+                setMinPowerUnits(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+            <input
+              type="number"
+              min="0"
+              className="input-field"
+              placeholder="Max power units"
+              value={maxPowerUnits}
+              onChange={(e) => {
+                setMaxPowerUnits(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+            <input
+              type="search"
+              className="input-field"
+              placeholder="Cargo type, e.g. refrigerated"
+              value={cargoType}
+              onChange={(e) => {
+                setCargoType(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+            <label className="input-field flex items-center gap-2 text-sm text-navy-200">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-white/20 bg-navy-900"
+                checked={emailRequired}
+                onChange={(e) => {
+                  setEmailRequired(e.target.checked);
+                  setCurrentPage(1);
+                }}
+              />
+              Has email
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <select className="input-field" value={sortBy} onChange={(e) => {
+              setSortBy(e.target.value);
+              setCurrentPage(1);
+            }}>
+              <option value="lastUpdated" className="bg-navy-900">Sort: Recently updated</option>
+              <option value="legalName" className="bg-navy-900">Sort: Carrier name</option>
+              <option value="insuranceExpirationDate" className="bg-navy-900">Sort: Insurance date</option>
+              <option value="fleetSize" className="bg-navy-900">Sort: Power units</option>
+              <option value="dateCreated" className="bg-navy-900">Sort: Newest record</option>
+            </select>
+            <select className="input-field" value={sortOrder} onChange={(e) => {
+              setSortOrder(e.target.value);
+              setCurrentPage(1);
+            }}>
+              <option value="desc" className="bg-navy-900">High to low / newest first</option>
+              <option value="asc" className="bg-navy-900">Low to high / A-Z</option>
+            </select>
+          </div>
+
+          <p className="text-xs text-navy-500">
+            Extra states can be added to any plan for $49/month per state. Agency includes up to 3 selected lead states.
+          </p>
+
           {activeTab !== "hot" && datePreset === "custom" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input type="date" className="input-field" value={customFrom} onChange={(e) => {
@@ -569,7 +707,7 @@ export default function LeadDeskPage() {
               <button type="button" onClick={() => exportCsv()} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
               <button type="button" onClick={exportSelectedCsv} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Export Selected</button>
               <button type="button" onClick={copyEmails} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
-              <button type="button" onClick={openBulkEmailComposer} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Email Selected Leads</button>
+              <button type="button" onClick={emailSelectedLeads} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Email Selected Leads</button>
               <button type="button" onClick={() => setSelectedLeadIds([])} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Clear Selection</button>
             </div>
           </div>
@@ -686,7 +824,8 @@ export default function LeadDeskPage() {
                       <div className="flex items-center gap-3">
                         {lead.dot && <Link to={`/carrier/${lead.dot}`} state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View Carrier Profile</Link>}
                         {lead.dot && <button onClick={() => toggleDetails(lead)} className="text-xs text-navy-300 hover:text-white font-medium">{expandedDot === lead.dot ? "Hide" : "Details"}</button>}
-                        <button onClick={() => openComposer("email", lead)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email This Carrier</button>
+                        <button onClick={() => emailLead(lead)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email This Carrier</button>
+                        {aiDraftAllowed && <button onClick={() => copyDraftForLead(lead)} className="text-xs text-sky-300 hover:text-sky-200 font-medium">Copy AI Draft</button>}
                         {activeTab === "hot" ? (
                           <Button size="sm" className="text-xs">Buy</Button>
                         ) : (
@@ -717,7 +856,8 @@ export default function LeadDeskPage() {
                             <p className="text-xs text-navy-500 uppercase mb-2">Actions</p>
                             <div className="flex flex-wrap gap-2">
                               {lead.dot && <Link to={`/carrier/${lead.dot}`} state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">View Carrier Profile</Link>}
-                              <button onClick={() => openComposer("email", lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Email This Carrier</button>
+                              <button onClick={() => emailLead(lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Email This Carrier</button>
+                              {aiDraftAllowed && <button onClick={() => copyDraftForLead(lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Copy AI Draft</button>}
                               <button onClick={() => saveLead(lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Add to CRM</button>
                               <button onClick={() => loadSafetyDetails(lead, { force: true })} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Refresh FMCSA Data</button>
                               <span className="text-xs text-navy-500 self-center">Ask AI unavailable unless backend supports it.</span>
@@ -743,14 +883,6 @@ export default function LeadDeskPage() {
           </div>
         )}
       </Card>
-      <OutreachComposer
-        open={Boolean(composer)}
-        channel="email"
-        lead={composer?.lead || {}}
-        leads={composer?.leads || []}
-        intent={activeTab === "renewal" ? "renewal" : "new-dot"}
-        onClose={() => setComposer(null)}
-      />
     </div>
   );
 }

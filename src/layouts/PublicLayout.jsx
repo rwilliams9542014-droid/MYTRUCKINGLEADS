@@ -8,6 +8,7 @@ function NavLink({ to, children }) {
   return (
     <Link
       to={to}
+      onClick={() => window.scrollTo({ top: 0, left: 0, behavior: "auto" })}
       className={`text-sm font-medium transition-colors duration-200 ${
         isActive ? "text-white" : "text-navy-300 hover:text-white"
       }`}
@@ -19,6 +20,7 @@ function NavLink({ to, children }) {
 
 export function PublicLayout() {
   const { user } = useAuth();
+  const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -27,6 +29,10 @@ export function PublicLayout() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen premium-shell public-shell-background">
@@ -38,7 +44,7 @@ export function PublicLayout() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <Link to="/" className="inline-flex items-center">
+          <Link to="/" className="inline-flex items-center" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: "auto" })}>
             <img
               src="/assets/homepage-logo-floating.png"
               alt="MyTruckingLeads"

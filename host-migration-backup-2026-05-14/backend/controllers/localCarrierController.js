@@ -332,6 +332,7 @@ function buildCarrierQuery(query, options = {}) {
   const minFleetSize = parseInteger(query.minFleetSize, null);
   const maxFleetSize = parseInteger(query.maxFleetSize, null);
   const hasEmail = String(query.hasEmail || "").toLowerCase();
+  const cargoType = String(query.cargoType || query.cargo || "").trim();
 
   if (dot) filter.dotNumber = dot;
   if (state) filter["address.state"] = state;
@@ -339,6 +340,7 @@ function buildCarrierQuery(query, options = {}) {
   if (safetyRating) filter.safetyRating = new RegExp(safetyRating, "i");
   if (hasEmail === "true" || hasEmail === "1" || hasEmail === "yes") filter.email = { $nin: ["", null] };
   if (hasEmail === "false" || hasEmail === "0" || hasEmail === "no") filter.$or = [{ email: "" }, { email: null }];
+  if (cargoType) filter.cargoTypes = new RegExp(cargoType, "i");
 
   if (minFleetSize !== null || maxFleetSize !== null) {
     filter.fleetSize = {};
@@ -386,6 +388,7 @@ function buildPostgresCarrierQuery(query, options = {}) {
   const minFleetSize = parseInteger(query.minFleetSize, null);
   const maxFleetSize = parseInteger(query.maxFleetSize, null);
   const hasEmail = String(query.hasEmail || "").toLowerCase();
+  const cargoType = String(query.cargoType || query.cargo || "").trim();
 
   if (dot) addPgCondition(where, values, "c.dot_number = ?", dot);
   if (state) addPgCondition(where, values, "UPPER(c.hq_state) = ?", state);
@@ -399,6 +402,7 @@ function buildPostgresCarrierQuery(query, options = {}) {
   }
   if (minFleetSize !== null) addPgCondition(where, values, "COALESCE(c.vehicle_count, 0) >= ?", minFleetSize);
   if (maxFleetSize !== null) addPgCondition(where, values, "COALESCE(c.vehicle_count, 0) <= ?", maxFleetSize);
+  if (cargoType) addPgCondition(where, values, "COALESCE(c.cargo_types::text, c.cargo_insurance::text, '') ILIKE ?", `%${cargoType}%`);
   if (insuranceFrom) addPgCondition(where, values, "c.insurance_expiration >= ?", insuranceFrom);
   if (insuranceTo) addPgCondition(where, values, "c.insurance_expiration <= ?", insuranceTo);
 
@@ -1202,6 +1206,9 @@ async function enforceLeadPlanState(req, res, leadType) {
   const access = getPlanAccessSummary(req.user);
   const requestedState = normalizeUSStateCode(req.query.state);
   let accountState = normalizeUSStateCode(req.user?.lead_state || req.user?.leadState);
+  const allowedStates = Array.isArray(req.user?.lead_states)
+    ? req.user.lead_states.map((state) => normalizeUSStateCode(state)).filter(Boolean)
+    : [];
 
   if (leadType === "renewal" && !access.canUseRenewalLeads) {
     res.status(403).json({
@@ -1240,6 +1247,20 @@ async function enforceLeadPlanState(req, res, leadType) {
     req.query = {
       ...req.query,
       state: accountState
+    };
+  } else if (access.plan === "premium" && allowedStates.length > 0) {
+    const selectedState = requestedState || allowedStates[0];
+    if (!allowedStates.includes(selectedState)) {
+      res.status(403).json({
+        error: `Agency lead desk is limited to your selected states: ${allowedStates.join(", ")}. Add another state from billing to search it.`,
+        access: { ...access, leadStates: allowedStates }
+      });
+      return false;
+    }
+
+    req.query = {
+      ...req.query,
+      state: selectedState
     };
   }
 

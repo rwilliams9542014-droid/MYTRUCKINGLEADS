@@ -23,6 +23,7 @@ export function applyTeamOwnerAccess(user, owner) {
     ...normalizedUser,
     plan: normalizePlan(owner.plan || normalizedUser.plan),
     lead_state: owner.lead_state ?? normalizedUser.lead_state,
+    lead_states: owner.lead_states ?? normalizedUser.lead_states,
     subscription_status: owner.subscription_status ?? normalizedUser.subscription_status,
     subscription_expires_at: owner.subscription_expires_at ?? normalizedUser.subscription_expires_at,
     trial_ends_at: owner.trial_ends_at ?? normalizedUser.trial_ends_at,
@@ -34,7 +35,7 @@ export function applyTeamOwnerAccess(user, owner) {
 
 async function loadOwnerAccount(ownerUserId) {
   const result = await query(
-    `SELECT id, name, email, plan, lead_state, subscription_status, subscription_expires_at, trial_ends_at
+    `SELECT id, name, email, plan, lead_state, lead_states, subscription_status, subscription_expires_at, trial_ends_at
      FROM users
      WHERE id = $1`,
     [ownerUserId]

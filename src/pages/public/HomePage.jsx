@@ -328,6 +328,155 @@ export default function HomePage() {
           gap: 18px;
         }
 
+        .mtl-product-preview {
+          position: relative;
+          z-index: 2;
+          max-width: 1220px;
+          margin: -64px auto 28px;
+          padding: 0 28px 42px;
+        }
+
+        .mtl-preview-frame {
+          overflow: hidden;
+          border: 1px solid rgba(95, 183, 255, 0.24);
+          border-radius: 24px;
+          background:
+            linear-gradient(180deg, rgba(10, 26, 52, 0.92), rgba(3, 10, 24, 0.94)),
+            url("/assets/alt-background.png");
+          background-size: cover;
+          background-position: center;
+          box-shadow: 0 26px 110px rgba(0, 102, 255, 0.18), inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
+        .mtl-preview-topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          padding: 16px 18px;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+          background: rgba(2, 8, 23, 0.68);
+        }
+
+        .mtl-preview-dots {
+          display: flex;
+          gap: 7px;
+        }
+
+        .mtl-preview-dots span {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(95, 183, 255, 0.72);
+        }
+
+        .mtl-preview-title {
+          color: #dff5ff;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .mtl-preview-shell {
+          display: grid;
+          grid-template-columns: 220px minmax(0, 1fr);
+          min-height: 520px;
+        }
+
+        .mtl-preview-sidebar {
+          padding: 24px 18px;
+          border-right: 1px solid rgba(255,255,255,0.08);
+          background: rgba(2, 8, 23, 0.5);
+        }
+
+        .mtl-preview-nav {
+          height: 36px;
+          margin-bottom: 12px;
+          border-radius: 10px;
+          background: rgba(79, 177, 255, 0.12);
+        }
+
+        .mtl-preview-nav:first-child {
+          background: linear-gradient(90deg, rgba(20, 125, 255, 0.7), rgba(13, 228, 255, 0.28));
+        }
+
+        .mtl-preview-main {
+          padding: 24px;
+        }
+
+        .mtl-preview-cards {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+          margin-bottom: 18px;
+        }
+
+        .mtl-preview-card,
+        .mtl-preview-table,
+        .mtl-preview-map {
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 16px;
+          background: rgba(2, 12, 30, 0.72);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+
+        .mtl-preview-card {
+          padding: 16px;
+          min-height: 112px;
+        }
+
+        .mtl-preview-label {
+          width: 46%;
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(174, 187, 208, 0.28);
+          margin-bottom: 18px;
+        }
+
+        .mtl-preview-number {
+          width: 76%;
+          height: 28px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(87, 184, 255, 0.92), rgba(20, 125, 255, 0.3));
+        }
+
+        .mtl-preview-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+          gap: 18px;
+        }
+
+        .mtl-preview-table {
+          padding: 16px;
+        }
+
+        .mtl-preview-row {
+          display: grid;
+          grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr;
+          gap: 12px;
+          align-items: center;
+          min-height: 42px;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .mtl-preview-row span {
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(174, 187, 208, 0.23);
+        }
+
+        .mtl-preview-row span:first-child {
+          background: rgba(87, 184, 255, 0.5);
+        }
+
+        .mtl-preview-map {
+          min-height: 282px;
+          background:
+            linear-gradient(180deg, rgba(2, 12, 30, 0.42), rgba(2, 12, 30, 0.9)),
+            url("/assets/homepage-us-constellation.png");
+          background-size: cover;
+          background-position: center;
+        }
+
         .mtl-step {
           border: 1px solid rgba(85, 166, 255, 0.16);
           border-radius: 24px;
@@ -392,8 +541,18 @@ export default function HomePage() {
           }
 
           .mtl-feature-grid,
-          .mtl-flow {
+          .mtl-flow,
+          .mtl-preview-cards,
+          .mtl-preview-grid {
             grid-template-columns: 1fr 1fr;
+          }
+
+          .mtl-preview-shell {
+            grid-template-columns: 1fr;
+          }
+
+          .mtl-preview-sidebar {
+            display: none;
           }
         }
 
@@ -412,7 +571,9 @@ export default function HomePage() {
           }
 
           .mtl-feature-grid,
-          .mtl-flow {
+          .mtl-flow,
+          .mtl-preview-cards,
+          .mtl-preview-grid {
             grid-template-columns: 1fr;
           }
 
@@ -427,7 +588,7 @@ export default function HomePage() {
         <img className="mtl-bg-us" src="/assets/homepage-us-constellation.png" alt="" aria-hidden="true" />
 
         <div className="mtl-hero-inner">
-          <Link to="/" className="mtl-floating-logo" aria-label="MyTruckingLeads home">
+          <Link to="/" className="mtl-floating-logo" aria-label="MyTruckingLeads home" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: "auto" })}>
             <img src="/assets/homepage-logo-floating.png" alt="MyTruckingLeads" />
           </Link>
 
@@ -460,6 +621,44 @@ export default function HomePage() {
             <span>Real-Time Data</span>
             <span>Compliant & Updated</span>
             <span>Built for Results</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="mtl-product-preview" aria-label="Dashboard preview">
+        <div className="mtl-section-header">
+          <p className="mtl-section-eyebrow">Inside the workspace</p>
+          <h2>Scroll into the dashboard producers use every day.</h2>
+        </div>
+        <div className="mtl-preview-frame">
+          <div className="mtl-preview-topbar">
+            <div className="mtl-preview-dots" aria-hidden="true"><span /><span /><span /></div>
+            <div className="mtl-preview-title">MyTruckingLeads Dashboard</div>
+          </div>
+          <div className="mtl-preview-shell">
+            <div className="mtl-preview-sidebar" aria-hidden="true">
+              {Array.from({ length: 7 }).map((_, index) => <div className="mtl-preview-nav" key={index} />)}
+            </div>
+            <div className="mtl-preview-main">
+              <div className="mtl-preview-cards">
+                {["New DOT Leads", "Renewals", "Saved Pipeline"].map((label) => (
+                  <div className="mtl-preview-card" key={label}>
+                    <div className="mtl-preview-label" />
+                    <div className="mtl-preview-number" />
+                  </div>
+                ))}
+              </div>
+              <div className="mtl-preview-grid">
+                <div className="mtl-preview-table" aria-hidden="true">
+                  {Array.from({ length: 7 }).map((_, index) => (
+                    <div className="mtl-preview-row" key={index}>
+                      <span /><span /><span /><span />
+                    </div>
+                  ))}
+                </div>
+                <div className="mtl-preview-map" aria-hidden="true" />
+              </div>
+            </div>
           </div>
         </div>
       </section>

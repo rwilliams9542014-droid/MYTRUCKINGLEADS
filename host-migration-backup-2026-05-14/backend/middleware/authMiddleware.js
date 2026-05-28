@@ -24,10 +24,10 @@ function extractToken(req) {
 
 async function loadUserForRequest(userId) {
   const userResult = await query(
-    `SELECT id, plan, lead_state, role, subscription_status, subscription_expires_at,
+    `SELECT id, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
             trial_ends_at, daily_profile_views, daily_contact_views,
             daily_saved_prospects, last_usage_reset_at,
-            monthly_export_rows, monthly_export_reset_at,
+            monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
             team_owner_user_id, team_member_role
      FROM users
      WHERE id = $1`,
@@ -47,10 +47,10 @@ async function loadUserForRequest(userId) {
     } else {
       await syncUserSubscriptionFromStripe(syncUserId).catch(() => null);
       const refreshedUser = await query(
-        `SELECT id, plan, lead_state, role, subscription_status, subscription_expires_at,
+        `SELECT id, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
                 trial_ends_at, daily_profile_views, daily_contact_views,
                 daily_saved_prospects, last_usage_reset_at,
-                monthly_export_rows, monthly_export_reset_at,
+                monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
                 team_owner_user_id, team_member_role
          FROM users
          WHERE id = $1`,
@@ -83,6 +83,7 @@ function assignRequestUser(req, res, user) {
     id: user.id,
     plan: user.plan,
     lead_state: user.lead_state,
+    lead_states: user.lead_states,
     role: user.role,
     subscription_status: user.subscription_status,
     subscription_expires_at: user.subscription_expires_at,
@@ -93,6 +94,8 @@ function assignRequestUser(req, res, user) {
     last_usage_reset_at: user.last_usage_reset_at,
     monthly_export_rows: user.monthly_export_rows,
     monthly_export_reset_at: user.monthly_export_reset_at,
+    daily_export_rows: user.daily_export_rows,
+    daily_export_reset_at: user.daily_export_reset_at,
     team_owner_user_id: user.team_owner_user_id,
     team_member_role: user.team_member_role,
     is_team_member: user.is_team_member,

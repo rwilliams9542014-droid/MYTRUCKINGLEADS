@@ -310,6 +310,155 @@ import{t as e}from"./jsx-runtime-CUBmso4R.js";import{n as t}from"./chunk-OE4NN4T
           gap: 18px;
         }
 
+        .mtl-product-preview {
+          position: relative;
+          z-index: 2;
+          max-width: 1220px;
+          margin: -64px auto 28px;
+          padding: 0 28px 42px;
+        }
+
+        .mtl-preview-frame {
+          overflow: hidden;
+          border: 1px solid rgba(95, 183, 255, 0.24);
+          border-radius: 24px;
+          background:
+            linear-gradient(180deg, rgba(10, 26, 52, 0.92), rgba(3, 10, 24, 0.94)),
+            url("/assets/alt-background.png");
+          background-size: cover;
+          background-position: center;
+          box-shadow: 0 26px 110px rgba(0, 102, 255, 0.18), inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
+        .mtl-preview-topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          padding: 16px 18px;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+          background: rgba(2, 8, 23, 0.68);
+        }
+
+        .mtl-preview-dots {
+          display: flex;
+          gap: 7px;
+        }
+
+        .mtl-preview-dots span {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(95, 183, 255, 0.72);
+        }
+
+        .mtl-preview-title {
+          color: #dff5ff;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .mtl-preview-shell {
+          display: grid;
+          grid-template-columns: 220px minmax(0, 1fr);
+          min-height: 520px;
+        }
+
+        .mtl-preview-sidebar {
+          padding: 24px 18px;
+          border-right: 1px solid rgba(255,255,255,0.08);
+          background: rgba(2, 8, 23, 0.5);
+        }
+
+        .mtl-preview-nav {
+          height: 36px;
+          margin-bottom: 12px;
+          border-radius: 10px;
+          background: rgba(79, 177, 255, 0.12);
+        }
+
+        .mtl-preview-nav:first-child {
+          background: linear-gradient(90deg, rgba(20, 125, 255, 0.7), rgba(13, 228, 255, 0.28));
+        }
+
+        .mtl-preview-main {
+          padding: 24px;
+        }
+
+        .mtl-preview-cards {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+          margin-bottom: 18px;
+        }
+
+        .mtl-preview-card,
+        .mtl-preview-table,
+        .mtl-preview-map {
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 16px;
+          background: rgba(2, 12, 30, 0.72);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+
+        .mtl-preview-card {
+          padding: 16px;
+          min-height: 112px;
+        }
+
+        .mtl-preview-label {
+          width: 46%;
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(174, 187, 208, 0.28);
+          margin-bottom: 18px;
+        }
+
+        .mtl-preview-number {
+          width: 76%;
+          height: 28px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(87, 184, 255, 0.92), rgba(20, 125, 255, 0.3));
+        }
+
+        .mtl-preview-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+          gap: 18px;
+        }
+
+        .mtl-preview-table {
+          padding: 16px;
+        }
+
+        .mtl-preview-row {
+          display: grid;
+          grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr;
+          gap: 12px;
+          align-items: center;
+          min-height: 42px;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .mtl-preview-row span {
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(174, 187, 208, 0.23);
+        }
+
+        .mtl-preview-row span:first-child {
+          background: rgba(87, 184, 255, 0.5);
+        }
+
+        .mtl-preview-map {
+          min-height: 282px;
+          background:
+            linear-gradient(180deg, rgba(2, 12, 30, 0.42), rgba(2, 12, 30, 0.9)),
+            url("/assets/homepage-us-constellation.png");
+          background-size: cover;
+          background-position: center;
+        }
+
         .mtl-step {
           border: 1px solid rgba(85, 166, 255, 0.16);
           border-radius: 24px;
@@ -374,8 +523,18 @@ import{t as e}from"./jsx-runtime-CUBmso4R.js";import{n as t}from"./chunk-OE4NN4T
           }
 
           .mtl-feature-grid,
-          .mtl-flow {
+          .mtl-flow,
+          .mtl-preview-cards,
+          .mtl-preview-grid {
             grid-template-columns: 1fr 1fr;
+          }
+
+          .mtl-preview-shell {
+            grid-template-columns: 1fr;
+          }
+
+          .mtl-preview-sidebar {
+            display: none;
           }
         }
 
@@ -394,7 +553,9 @@ import{t as e}from"./jsx-runtime-CUBmso4R.js";import{n as t}from"./chunk-OE4NN4T
           }
 
           .mtl-feature-grid,
-          .mtl-flow {
+          .mtl-flow,
+          .mtl-preview-cards,
+          .mtl-preview-grid {
             grid-template-columns: 1fr;
           }
 
@@ -402,4 +563,4 @@ import{t as e}from"./jsx-runtime-CUBmso4R.js";import{n as t}from"./chunk-OE4NN4T
             width: 100%;
           }
         }
-      `}),(0,n.jsxs)(`section`,{className:`mtl-hero`,children:[(0,n.jsx)(`img`,{className:`mtl-bg-truck`,src:`/assets/homepage-truck-constellation.png`,alt:``,"aria-hidden":`true`}),(0,n.jsx)(`img`,{className:`mtl-bg-us`,src:`/assets/homepage-us-constellation.png`,alt:``,"aria-hidden":`true`}),(0,n.jsxs)(`div`,{className:`mtl-hero-inner`,children:[(0,n.jsx)(t,{to:`/`,className:`mtl-floating-logo`,"aria-label":`MyTruckingLeads home`,children:(0,n.jsx)(`img`,{src:`/assets/homepage-logo-floating.png`,alt:`MyTruckingLeads`})}),(0,n.jsx)(`p`,{className:`mtl-kicker`,children:`Smarter Data. Stronger Pipeline. More Wins.`}),(0,n.jsxs)(`div`,{className:`mtl-title-wrap`,children:[(0,n.jsxs)(`h1`,{className:`mtl-title`,children:[`Carrier Intelligence`,(0,n.jsx)(`br`,{}),`Built For `,(0,n.jsx)(`span`,{children:`Producers`})]}),(0,n.jsx)(`div`,{className:`mtl-starline`,"aria-hidden":`true`})]}),(0,n.jsxs)(`div`,{className:`mtl-subline`,children:[(0,n.jsx)(`span`,{children:`New DOT Leads`}),(0,n.jsx)(`i`,{}),(0,n.jsx)(`span`,{children:`Renewal Opportunities`}),(0,n.jsx)(`i`,{}),(0,n.jsx)(`span`,{children:`Carrier Intelligence`}),(0,n.jsx)(`i`,{}),(0,n.jsx)(`span`,{children:`Built-In CRM`})]}),(0,n.jsx)(`p`,{className:`mtl-desc`,children:`The all-in-one platform that helps insurance professionals find, track, and close more trucking accounts.`}),(0,n.jsxs)(`div`,{className:`mtl-actions`,children:[(0,n.jsx)(t,{to:`/signup`,className:`mtl-btn-primary`,children:`Start Free Trial`}),(0,n.jsx)(t,{to:`/pricing`,className:`mtl-btn-secondary`,children:`View Pricing`})]}),(0,n.jsxs)(`div`,{className:`mtl-proof`,children:[(0,n.jsx)(`span`,{children:`Real-Time Data`}),(0,n.jsx)(`span`,{children:`Compliant & Updated`}),(0,n.jsx)(`span`,{children:`Built for Results`})]})]})]}),(0,n.jsxs)(`section`,{className:`mtl-section`,id:`solutions`,children:[(0,n.jsxs)(`div`,{className:`mtl-section-header`,children:[(0,n.jsx)(`p`,{className:`mtl-section-eyebrow`,children:`Trucking lead intelligence`}),(0,n.jsx)(`h2`,{children:`Everything producers need to find, qualify, and work trucking accounts.`})]}),(0,n.jsx)(`div`,{className:`mtl-feature-grid`,children:r.map(([e,t])=>(0,n.jsxs)(`article`,{className:`mtl-card`,children:[(0,n.jsx)(`h3`,{children:e}),(0,n.jsx)(`p`,{children:t})]},e))})]}),(0,n.jsxs)(`section`,{className:`mtl-section`,children:[(0,n.jsxs)(`div`,{className:`mtl-section-header`,children:[(0,n.jsx)(`p`,{className:`mtl-section-eyebrow`,children:`Workflow`}),(0,n.jsx)(`h2`,{children:`A cleaner way to turn carrier intelligence into a working pipeline.`})]}),(0,n.jsx)(`div`,{className:`mtl-flow`,children:i.map(([e,t,r])=>(0,n.jsxs)(`article`,{className:`mtl-step`,children:[(0,n.jsx)(`div`,{className:`mtl-step-number`,children:e}),(0,n.jsx)(`h3`,{children:t}),(0,n.jsx)(`p`,{children:r})]},t))})]}),(0,n.jsxs)(`section`,{className:`mtl-cta`,children:[(0,n.jsx)(`h2`,{children:`Ready to work trucking leads with better timing?`}),(0,n.jsx)(`p`,{children:`Agents can start with carrier discovery. Trucking companies looking for insurance can request a quote directly.`}),(0,n.jsxs)(`div`,{className:`mtl-actions`,children:[(0,n.jsx)(t,{to:`/signup`,className:`mtl-btn-primary`,children:`Start Free Trial`}),(0,n.jsx)(t,{to:`/quote-request`,className:`mtl-btn-secondary`,children:`Truckers: Get a Quote`})]})]})]})}export{a as default};
+      `}),(0,n.jsxs)(`section`,{className:`mtl-hero`,children:[(0,n.jsx)(`img`,{className:`mtl-bg-truck`,src:`/assets/homepage-truck-constellation.png`,alt:``,"aria-hidden":`true`}),(0,n.jsx)(`img`,{className:`mtl-bg-us`,src:`/assets/homepage-us-constellation.png`,alt:``,"aria-hidden":`true`}),(0,n.jsxs)(`div`,{className:`mtl-hero-inner`,children:[(0,n.jsx)(t,{to:`/`,className:`mtl-floating-logo`,"aria-label":`MyTruckingLeads home`,onClick:()=>window.scrollTo({top:0,left:0,behavior:`auto`}),children:(0,n.jsx)(`img`,{src:`/assets/homepage-logo-floating.png`,alt:`MyTruckingLeads`})}),(0,n.jsx)(`p`,{className:`mtl-kicker`,children:`Smarter Data. Stronger Pipeline. More Wins.`}),(0,n.jsxs)(`div`,{className:`mtl-title-wrap`,children:[(0,n.jsxs)(`h1`,{className:`mtl-title`,children:[`Carrier Intelligence`,(0,n.jsx)(`br`,{}),`Built For `,(0,n.jsx)(`span`,{children:`Producers`})]}),(0,n.jsx)(`div`,{className:`mtl-starline`,"aria-hidden":`true`})]}),(0,n.jsxs)(`div`,{className:`mtl-subline`,children:[(0,n.jsx)(`span`,{children:`New DOT Leads`}),(0,n.jsx)(`i`,{}),(0,n.jsx)(`span`,{children:`Renewal Opportunities`}),(0,n.jsx)(`i`,{}),(0,n.jsx)(`span`,{children:`Carrier Intelligence`}),(0,n.jsx)(`i`,{}),(0,n.jsx)(`span`,{children:`Built-In CRM`})]}),(0,n.jsx)(`p`,{className:`mtl-desc`,children:`The all-in-one platform that helps insurance professionals find, track, and close more trucking accounts.`}),(0,n.jsxs)(`div`,{className:`mtl-actions`,children:[(0,n.jsx)(t,{to:`/signup`,className:`mtl-btn-primary`,children:`Start Free Trial`}),(0,n.jsx)(t,{to:`/pricing`,className:`mtl-btn-secondary`,children:`View Pricing`})]}),(0,n.jsxs)(`div`,{className:`mtl-proof`,children:[(0,n.jsx)(`span`,{children:`Real-Time Data`}),(0,n.jsx)(`span`,{children:`Compliant & Updated`}),(0,n.jsx)(`span`,{children:`Built for Results`})]})]})]}),(0,n.jsxs)(`section`,{className:`mtl-product-preview`,"aria-label":`Dashboard preview`,children:[(0,n.jsxs)(`div`,{className:`mtl-section-header`,children:[(0,n.jsx)(`p`,{className:`mtl-section-eyebrow`,children:`Inside the workspace`}),(0,n.jsx)(`h2`,{children:`Scroll into the dashboard producers use every day.`})]}),(0,n.jsxs)(`div`,{className:`mtl-preview-frame`,children:[(0,n.jsxs)(`div`,{className:`mtl-preview-topbar`,children:[(0,n.jsxs)(`div`,{className:`mtl-preview-dots`,"aria-hidden":`true`,children:[(0,n.jsx)(`span`,{}),(0,n.jsx)(`span`,{}),(0,n.jsx)(`span`,{})]}),(0,n.jsx)(`div`,{className:`mtl-preview-title`,children:`MyTruckingLeads Dashboard`})]}),(0,n.jsxs)(`div`,{className:`mtl-preview-shell`,children:[(0,n.jsx)(`div`,{className:`mtl-preview-sidebar`,"aria-hidden":`true`,children:Array.from({length:7}).map((e,t)=>(0,n.jsx)(`div`,{className:`mtl-preview-nav`},t))}),(0,n.jsxs)(`div`,{className:`mtl-preview-main`,children:[(0,n.jsx)(`div`,{className:`mtl-preview-cards`,children:[`New DOT Leads`,`Renewals`,`Saved Pipeline`].map(e=>(0,n.jsxs)(`div`,{className:`mtl-preview-card`,children:[(0,n.jsx)(`div`,{className:`mtl-preview-label`}),(0,n.jsx)(`div`,{className:`mtl-preview-number`})]},e))}),(0,n.jsxs)(`div`,{className:`mtl-preview-grid`,children:[(0,n.jsx)(`div`,{className:`mtl-preview-table`,"aria-hidden":`true`,children:Array.from({length:7}).map((e,t)=>(0,n.jsxs)(`div`,{className:`mtl-preview-row`,children:[(0,n.jsx)(`span`,{}),(0,n.jsx)(`span`,{}),(0,n.jsx)(`span`,{}),(0,n.jsx)(`span`,{})]},t))}),(0,n.jsx)(`div`,{className:`mtl-preview-map`,"aria-hidden":`true`})]})]})]})]})]}),(0,n.jsxs)(`section`,{className:`mtl-section`,id:`solutions`,children:[(0,n.jsxs)(`div`,{className:`mtl-section-header`,children:[(0,n.jsx)(`p`,{className:`mtl-section-eyebrow`,children:`Trucking lead intelligence`}),(0,n.jsx)(`h2`,{children:`Everything producers need to find, qualify, and work trucking accounts.`})]}),(0,n.jsx)(`div`,{className:`mtl-feature-grid`,children:r.map(([e,t])=>(0,n.jsxs)(`article`,{className:`mtl-card`,children:[(0,n.jsx)(`h3`,{children:e}),(0,n.jsx)(`p`,{children:t})]},e))})]}),(0,n.jsxs)(`section`,{className:`mtl-section`,children:[(0,n.jsxs)(`div`,{className:`mtl-section-header`,children:[(0,n.jsx)(`p`,{className:`mtl-section-eyebrow`,children:`Workflow`}),(0,n.jsx)(`h2`,{children:`A cleaner way to turn carrier intelligence into a working pipeline.`})]}),(0,n.jsx)(`div`,{className:`mtl-flow`,children:i.map(([e,t,r])=>(0,n.jsxs)(`article`,{className:`mtl-step`,children:[(0,n.jsx)(`div`,{className:`mtl-step-number`,children:e}),(0,n.jsx)(`h3`,{children:t}),(0,n.jsx)(`p`,{children:r})]},t))})]}),(0,n.jsxs)(`section`,{className:`mtl-cta`,children:[(0,n.jsx)(`h2`,{children:`Ready to work trucking leads with better timing?`}),(0,n.jsx)(`p`,{children:`Agents can start with carrier discovery. Trucking companies looking for insurance can request a quote directly.`}),(0,n.jsxs)(`div`,{className:`mtl-actions`,children:[(0,n.jsx)(t,{to:`/signup`,className:`mtl-btn-primary`,children:`Start Free Trial`}),(0,n.jsx)(t,{to:`/quote-request`,className:`mtl-btn-secondary`,children:`Truckers: Get a Quote`})]})]})]})}export{a as default};

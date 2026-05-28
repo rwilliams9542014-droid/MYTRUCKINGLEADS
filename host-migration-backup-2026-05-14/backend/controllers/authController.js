@@ -67,6 +67,7 @@ function publicUser(user) {
     phone: user.phone,
     businessName: user.business_name,
     leadState: user.lead_state,
+    leadStates: Array.isArray(user.lead_states) ? user.lead_states : [],
     role: user.role,
     isOwner: isOwnerUser(user),
     plan: publicPlan(user.plan, subscriptionStatus),
@@ -87,6 +88,10 @@ function publicUser(user) {
     monthlyExportResetAt: user.monthly_export_reset_at || null,
     monthlyExportLimit: access.monthlyExportLimit,
     monthlyExportsRemaining: access.monthlyExportRemaining,
+    dailyExportRows: access.dailyExportsUsed,
+    dailyExportResetAt: user.daily_export_reset_at || null,
+    dailyExportLimit: access.dailyExportLimit,
+    dailyExportsRemaining: access.dailyExportRemaining,
     canUseTextMessaging: access.canUseTextMessaging,
     lastUsageResetAt: user.last_usage_reset_at || null,
     trialAccess,
@@ -126,6 +131,7 @@ export async function signup(req, res, next) {
       billingPostalCode,
       billingCountry,
       leadState,
+      leadStates,
       password,
       plan
     } = req.body;
@@ -146,9 +152,16 @@ export async function signup(req, res, next) {
     const validatedBillingCountry = validateString(billingCountry || "US", "Billing country", 2, 80);
     const validatedPassword = validatePassword(password);
     const validatedPlan = validatePlan(plan || "basic");
-    const validatedLeadState = ["basic", "starter", "pro"].includes(validatedPlan)
-      ? validateLeadState(leadState)
-      : (leadState ? validateLeadState(leadState) : null);
+    const submittedLeadStates = Array.isArray(leadStates) ? leadStates : (leadState ? [leadState] : []);
+    const validatedLeadStates = Array.from(new Set(submittedLeadStates.map((state) => validateLeadState(state))));
+    const maxStates = validatedPlan === "premium" ? 3 : 1;
+    if (!validatedLeadStates.length) {
+      return next(new ValidationError("Select at least one lead state."));
+    }
+    if (validatedLeadStates.length > maxStates) {
+      return next(new ValidationError(`${validatedPlan === "premium" ? "Agency" : "This"} plan includes ${maxStates} lead state${maxStates === 1 ? "" : "s"}.`));
+    }
+    const validatedLeadState = validatedLeadStates[0];
 
     // Check if email or username exists
     const existing = await query(
@@ -172,15 +185,15 @@ export async function signup(req, res, next) {
          name, first_name, last_name, username, email, phone, business_name,
          billing_address_line1, billing_address_line2, billing_city, billing_state,
          billing_postal_code, billing_country, password_hash, plan,
-         lead_state, subscription_status, subscription_expires_at,
+         lead_state, lead_states, subscription_status, subscription_expires_at,
          trial_ends_at, daily_profile_views, daily_contact_views,
          daily_saved_prospects, last_usage_reset_at,
-         monthly_export_rows, monthly_export_reset_at
+         monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'incomplete', NULL, NULL, 0, 0, 0, NOW(), 0, NOW())
-       RETURNING id, name, first_name, last_name, username, email, phone, business_name, lead_state, role, plan, subscription_status, subscription_expires_at,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'incomplete', NULL, NULL, 0, 0, 0, NOW(), 0, NOW(), 0, NOW())
+       RETURNING id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, plan, subscription_status, subscription_expires_at,
                  trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
-                 monthly_export_rows, monthly_export_reset_at, created_at`,
+                 monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at, created_at`,
       [
         validatedName,
         validatedFirstName,
@@ -197,7 +210,8 @@ export async function signup(req, res, next) {
         validatedBillingCountry,
         hash,
         validatedPlan,
-        validatedLeadState
+        validatedLeadState,
+        validatedLeadStates
       ]
     );
 
@@ -243,10 +257,10 @@ export async function login(req, res, next) {
     const isEmailLogin = loginValue.includes("@");
     const loginLookup = isEmailLogin ? validateEmail(loginValue) : validateUsername(loginValue);
     const result = await query(
-      `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, role, password_hash,
+      `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, password_hash,
               plan, stripe_subscription_id, subscription_status, subscription_expires_at,
               trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
-              monthly_export_rows, monthly_export_reset_at,
+              monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
               team_owner_user_id, team_member_role
        FROM users
        WHERE ${isEmailLogin ? "email = $1" : "lower(username) = $1"}`,
@@ -301,9 +315,9 @@ export async function getCurrentUser(req, res, next) {
     }
 
     const userResult = await query(
-      `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, role, plan, stripe_subscription_id, subscription_status, subscription_expires_at,
+      `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, plan, stripe_subscription_id, subscription_status, subscription_expires_at,
               trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
-              monthly_export_rows, monthly_export_reset_at,
+              monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
               team_owner_user_id, team_member_role
        FROM users
        WHERE id = $1`,
@@ -320,6 +334,7 @@ export async function getCurrentUser(req, res, next) {
           ...effectiveUser,
           plan: req.user.plan,
           lead_state: req.user.lead_state,
+          lead_states: req.user.lead_states,
           subscription_status: req.user.subscription_status,
           subscription_expires_at: req.user.subscription_expires_at,
           trial_ends_at: req.user.trial_ends_at,

@@ -3,6 +3,10 @@ import { Card, Button, Input, Badge } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"
+];
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
@@ -87,7 +91,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-navy-200 mb-2">Primary State</label>
                 <select className="input-field" defaultValue={user?.leadState || ""}>
                   <option value="" className="bg-navy-900">Select your state</option>
-                  {["TX","CA","FL","IL","OH","PA","NY","GA","NC","WA"].map((s) => (
+                  {US_STATES.map((s) => (
                     <option key={s} value={s} className="bg-navy-900">{s}</option>
                   ))}
                 </select>
@@ -163,6 +167,7 @@ export default function SettingsPage() {
                 { label: "Carrier Profiles Viewed", used: user?.dailyProfileViews ?? 0, limit: "Plan based" },
                 { label: "Contact Views", used: user?.dailyContactViews ?? 0, limit: "Plan based" },
                 { label: "Saved Prospects", used: user?.dailySavedProspects ?? 0, limit: "Plan based" },
+                { label: "CSV Exports Today", used: user?.dailyExportRows ?? 0, limit: user?.dailyExportLimit ?? "Plan based" },
                 { label: "CSV Exports", used: user?.monthlyExportRows ?? 0, limit: user?.monthlyExportLimit ?? "Plan based" },
               ].map((item) => (
                 <div key={item.label}>

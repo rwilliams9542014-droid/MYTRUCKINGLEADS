@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Badge, Card } from "@/components/ui";
-import OutreachComposer from "@/components/OutreachComposer";
+import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { canUseAiEmailDraft, copyAiEmailDraft, openEmailClientForLeads } from "@/lib/emailDrafts";
 
 const stages = [
   { id: "New", title: "New", color: "bg-brand-500" },
@@ -62,14 +63,16 @@ function csvValue(value) {
 
 export default function CrmPage() {
   const location = useLocation();
+  const { user } = useAuth();
   const [leads, setLeads] = useState([]);
   const [draggedLead, setDraggedLead] = useState(null);
   const [dragOverStage, setDragOverStage] = useState(null);
   const [viewMode, setViewMode] = useState("kanban");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [composer, setComposer] = useState(null);
+  const [statusMessage, setStatusMessage] = useState("");
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
+  const aiDraftAllowed = canUseAiEmailDraft(user);
 
   useEffect(() => {
     let active = true;
@@ -116,14 +119,13 @@ export default function CrmPage() {
     setDragOverStage(null);
   }
 
-  function openComposer(channel, lead) {
-    setComposer({
-      channel: "email",
-      lead: leadForOutreach(lead),
-    });
+  function emailLead(lead) {
+    const result = openEmailClientForLeads([leadForOutreach(lead)]);
+    setError(result.ok ? "" : result.message);
+    if (result.ok) setStatusMessage(result.message);
   }
 
-  function openBulkEmailComposer() {
+  function emailSelectedLeads() {
     const selectedLeads = allCards
       .filter((lead) => selectedLeadIds.includes(lead.id))
       .map(leadForOutreach);
@@ -131,7 +133,23 @@ export default function CrmPage() {
       setError("Select at least one CRM carrier before emailing.");
       return;
     }
-    setComposer({ channel: "email", leads: selectedLeads });
+    const result = openEmailClientForLeads(selectedLeads);
+    setError(result.ok ? "" : result.message);
+    if (result.ok) setStatusMessage(result.message);
+  }
+
+  async function copyDraftForLead(lead) {
+    if (!aiDraftAllowed) {
+      setError("AI draft assistance is available on Pro and Agency plans.");
+      return;
+    }
+    try {
+      await copyAiEmailDraft(leadForOutreach(lead));
+      setError("");
+      setStatusMessage("AI email draft copied. Paste it into your email app.");
+    } catch {
+      setError("Copy failed. Your browser may not allow clipboard access.");
+    }
   }
 
   function toggleSelectedLead(lead) {
@@ -188,7 +206,7 @@ export default function CrmPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={exportSelectedCsv} disabled={!selectedLeadIds.length} className="btn-secondary px-3 py-2 text-sm">Export Selected</button>
-          <button type="button" onClick={openBulkEmailComposer} disabled={!selectedLeadIds.length} className="btn-secondary px-3 py-2 text-sm">Email Selected Leads</button>
+          <button type="button" onClick={emailSelectedLeads} disabled={!selectedLeadIds.length} className="btn-secondary px-3 py-2 text-sm">Email Selected Leads</button>
           <button type="button" onClick={() => setSelectedLeadIds([])} disabled={!selectedLeadIds.length} className="btn-secondary px-3 py-2 text-sm">Clear Selection</button>
           <div className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
             {["kanban", "table"].map((mode) => (
@@ -209,6 +227,11 @@ export default function CrmPage() {
       {error && (
         <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-3 text-sm text-danger-300">
           {error}
+        </div>
+      )}
+      {statusMessage && (
+        <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl p-3 text-sm text-brand-200">
+          {statusMessage}
         </div>
       )}
 
@@ -269,7 +292,8 @@ export default function CrmPage() {
                     {card.nextFollowUp && <p className="text-[11px] text-navy-400 mt-2">Next follow-up: {card.nextFollowUp}</p>}
                     <p className="text-[11px] text-navy-500 mt-2 line-clamp-2">{card.lastActivity}</p>
                     <div className="flex flex-wrap gap-2 mt-3">
-                      <button type="button" onClick={() => openComposer("email", card)} className="text-[11px] text-brand-400 hover:text-brand-300">Email This Carrier</button>
+                      <button type="button" onClick={() => emailLead(card)} className="text-[11px] text-brand-400 hover:text-brand-300">Email This Carrier</button>
+                      {aiDraftAllowed && <button type="button" onClick={() => copyDraftForLead(card)} className="text-[11px] text-sky-300 hover:text-sky-200">Copy AI Draft</button>}
                     </div>
                   </div>
                 ))}
@@ -333,7 +357,8 @@ export default function CrmPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Link to={card.dot ? `/carrier/${card.dot}` : "/crm"} state={{ from: `${location.pathname}${location.search}`, label: "Back to CRM" }} className="text-xs text-brand-400 hover:text-brand-300 font-medium">View</Link>
-                        <button type="button" onClick={() => openComposer("email", card)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email This Carrier</button>
+                        <button type="button" onClick={() => emailLead(card)} className="text-xs text-brand-400 hover:text-brand-300 font-medium">Email This Carrier</button>
+                        {aiDraftAllowed && <button type="button" onClick={() => copyDraftForLead(card)} className="text-xs text-sky-300 hover:text-sky-200 font-medium">Copy AI Draft</button>}
                       </div>
                     </td>
                   </tr>
@@ -350,14 +375,6 @@ export default function CrmPage() {
           <Link to="/lead-desk" className="text-brand-400 hover:text-brand-300 text-sm mt-2 inline-block">Find leads</Link>
         </div>
       )}
-      <OutreachComposer
-        open={Boolean(composer)}
-        channel="email"
-        lead={composer?.lead || {}}
-        leads={composer?.leads || []}
-        intent="renewal"
-        onClose={() => setComposer(null)}
-      />
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { Button, Input } from "@/components/ui";
 const plans = [
   { value: "basic", label: "Starter - $79/mo", stateLimit: 1 },
   { value: "pro", label: "Pro - $199/mo (Most Popular)", stateLimit: 1 },
-  { value: "premium", label: "Agency - $499/mo", stateLimit: 5 },
+  { value: "premium", label: "Agency - $499/mo", stateLimit: 3 },
 ];
 
 const US_STATES = [
@@ -106,6 +106,7 @@ export default function SignupPage() {
         businessName: form.agencyName,
         plan: form.plan,
         leadState: form.states[0],
+        leadStates: form.states,
         billingAddressLine1: form.billingAddressLine1,
         billingCity: form.billingCity,
         billingState: form.billingState,
@@ -267,7 +268,7 @@ export default function SignupPage() {
             <p className="text-xs text-navy-500 mb-3">
               {stateLimit === 1
                 ? "Your plan includes leads from one state. Upgrade to Agency for multi-state coverage."
-                : "Agency plan: choose up to 5 states for your lead territories."
+                : "Agency plan: choose up to 3 states for your included lead territories. Extra states can be added for $49/month per state."
               }
             </p>
             <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 max-h-40 overflow-y-auto p-3 bg-navy-900/50 rounded-xl border border-white/5">

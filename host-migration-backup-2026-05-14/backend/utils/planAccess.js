@@ -15,6 +15,12 @@ const MONTHLY_EXPORT_LIMITS = {
   premium: null
 };
 
+const DAILY_EXPORT_LIMITS = {
+  basic: 100,
+  pro: 250,
+  premium: null
+};
+
 export const PLAN_DETAILS = {
   basic: {
     name: "Starter",
@@ -28,14 +34,14 @@ export const PLAN_DETAILS = {
     price: 199,
     annualPrice: 1990,
     trialDays: 3,
-    description: "Full one-state SaaS workspace with unlimited lead searches, renewal intelligence, FMCSA/SMS, licensing and insurance, CRM pipeline, 1,000 exported records per month, text contact actions, advanced filters, cargo filters, follow-up tracking, lead freshness, and 90-day lead history."
+    description: "Full one-state SaaS workspace with unlimited lead searches, renewal intelligence, FMCSA/SMS, licensing and insurance, CRM pipeline, 1,000 exported records per month, advanced filters, cargo filters, follow-up tracking, lead freshness, and 90-day lead history."
   },
   premium: {
     name: "Agency Unlimited",
     price: 499,
     annualPrice: 4990,
     trialDays: 3,
-    description: "Agency plan with every Pro feature plus multiple users, team CRM, shared pipeline, unlimited exports, text contact actions, future API access, alerts, integrations, and premium support."
+    description: "Agency plan with every Pro feature plus multiple users, team CRM, shared pipeline, unlimited exports, future API access, alerts, integrations, and premium support."
   }
 };
 
@@ -96,6 +102,12 @@ function monthKey(dateLike) {
   return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+function dayKey(dateLike) {
+  const parsed = new Date(dateLike || Date.now());
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
 export function hasActiveSubscription(user) {
   const status = String(user?.subscription_status || "").toLowerCase();
   if (process.env.LOCAL_DEV_FREE_ACCESS === "true" && process.env.NODE_ENV !== "production") {
@@ -114,7 +126,7 @@ export function isPremiumPlan(user) {
 }
 
 export function canUseTextMessaging(user) {
-  return ["pro", "premium"].includes(getUserPlan(user)) && hasActiveSubscription(user);
+  return false;
 }
 
 export function canSendEmail(user) {
@@ -122,11 +134,11 @@ export function canSendEmail(user) {
 }
 
 export function canSendSms(user) {
-  return ["pro", "premium"].includes(getUserPlan(user)) && hasActiveSubscription(user);
+  return false;
 }
 
 export function canUseBulkMessaging(user) {
-  return getUserPlan(user) === "premium" && hasActiveSubscription(user);
+  return false;
 }
 
 export function getMonthlyEmailLimit(user) {
@@ -146,6 +158,13 @@ export function getMonthlyExportLimit(user) {
     : 0;
 }
 
+export function getDailyExportLimit(user) {
+  const plan = getUserPlan(user);
+  return Object.prototype.hasOwnProperty.call(DAILY_EXPORT_LIMITS, plan)
+    ? DAILY_EXPORT_LIMITS[plan]
+    : 0;
+}
+
 export function getMonthlyExportUsage(user, now = new Date()) {
   const limit = getMonthlyExportLimit(user);
   const rawUsed = Number.parseInt(user?.monthly_export_rows ?? user?.monthlyExportRows ?? 0, 10);
@@ -158,6 +177,23 @@ export function getMonthlyExportUsage(user, now = new Date()) {
     used: usedThisMonth,
     limit,
     remaining: limit === null ? null : Math.max(0, limit - usedThisMonth),
+    resetAt: rawResetAt,
+    unlimited: limit === null
+  };
+}
+
+export function getDailyExportUsage(user, now = new Date()) {
+  const limit = getDailyExportLimit(user);
+  const rawUsed = Number.parseInt(user?.daily_export_rows ?? user?.dailyExportRows ?? 0, 10);
+  const rawResetAt = user?.daily_export_reset_at ?? user?.dailyExportResetAt ?? null;
+  const usedToday = dayKey(rawResetAt) === dayKey(now)
+    ? Math.max(0, Number.isFinite(rawUsed) ? rawUsed : 0)
+    : 0;
+
+  return {
+    used: usedToday,
+    limit,
+    remaining: limit === null ? null : Math.max(0, limit - usedToday),
     resetAt: rawResetAt,
     unlimited: limit === null
   };
@@ -181,12 +217,18 @@ export function getPlanAccessSummary(user) {
   const plan = getUserPlan(user);
   const renewalWindowDays = getRenewalWindowDays(user);
   const leadState = String(user?.lead_state || user?.leadState || "").toUpperCase() || null;
+  const rawLeadStates = user?.lead_states || user?.leadStates || [];
+  const leadStates = Array.isArray(rawLeadStates)
+    ? rawLeadStates.map((state) => String(state || "").toUpperCase()).filter(Boolean)
+    : String(rawLeadStates || "").split(",").map((state) => state.trim().toUpperCase()).filter(Boolean);
   const exportUsage = getMonthlyExportUsage(user);
+  const dailyExportUsage = getDailyExportUsage(user);
   const subscriptionActive = hasActiveSubscription(user);
 
   return {
     plan,
     leadState,
+    leadStates,
     renewalWindowDays,
     planName: PLAN_DETAILS[plan]?.name || "New DOT Leads",
     monthlyPrice: PLAN_DETAILS[plan]?.price || 0,
@@ -209,6 +251,9 @@ export function getPlanAccessSummary(user) {
     monthlyExportLimit: exportUsage.limit,
     monthlyExportsUsed: exportUsage.used,
     monthlyExportRemaining: exportUsage.remaining,
+    dailyExportLimit: dailyExportUsage.limit,
+    dailyExportsUsed: dailyExportUsage.used,
+    dailyExportRemaining: dailyExportUsage.remaining,
     canUseMarketInsights: isPremiumPlan(user),
     canUseCarrierIntelligenceAssistant: isPremiumPlan(user),
     requiresSingleState: ["basic", "pro"].includes(plan),

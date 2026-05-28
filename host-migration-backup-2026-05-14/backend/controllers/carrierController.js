@@ -56,6 +56,12 @@ function applyExportUsageToUser(user, exportUsage) {
   if (exportUsage.resetAt) {
     user.monthly_export_reset_at = exportUsage.resetAt;
   }
+  if (exportUsage.daily) {
+    user.daily_export_rows = exportUsage.daily.used;
+    if (exportUsage.daily.resetAt) {
+      user.daily_export_reset_at = exportUsage.daily.resetAt;
+    }
+  }
 }
 
 function enforceRenewalFiltersForPlan(filters = {}, user) {
