@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import ScoutMascot from "@/components/ScoutMascot";
 
 const features = [
   ["New DOT Leads", "Find recently registered trucking companies before competitors start calling."],
@@ -348,6 +349,36 @@ export default function HomePage() {
           box-shadow: 0 26px 110px rgba(0, 102, 255, 0.18), inset 0 1px 0 rgba(255,255,255,0.08);
         }
 
+        .mtl-scout-accent {
+          position: relative;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 22px;
+          margin: 18px 0 0 auto;
+          max-width: 760px;
+          border: 1px solid rgba(103, 232, 249, 0.2);
+          border-radius: 22px;
+          background: rgba(2, 8, 23, 0.52);
+          padding: 18px 20px;
+          box-shadow: 0 24px 80px rgba(0, 102, 255, 0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+          backdrop-filter: blur(18px);
+        }
+
+        .mtl-scout-accent h3 {
+          margin: 0;
+          color: #ffffff;
+          font-size: 20px;
+          font-weight: 900;
+        }
+
+        .mtl-scout-accent p {
+          margin: 8px 0 0;
+          color: #aebbd0;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
         .mtl-preview-topbar {
           display: flex;
           align-items: center;
@@ -399,13 +430,66 @@ export default function HomePage() {
           background: linear-gradient(90deg, rgba(20, 125, 255, 0.7), rgba(13, 228, 255, 0.28));
         }
 
+        .mtl-preview-nav {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 12px;
+          color: rgba(225, 244, 255, 0.68);
+          font-size: 12px;
+          font-weight: 750;
+        }
+
+        .mtl-preview-nav::before {
+          content: "";
+          width: 10px;
+          height: 10px;
+          border-radius: 4px;
+          background: rgba(103, 232, 249, 0.48);
+          box-shadow: 0 0 14px rgba(103, 232, 249, 0.24);
+        }
+
         .mtl-preview-main {
           padding: 24px;
         }
 
+        .mtl-preview-heading {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 18px;
+          margin-bottom: 18px;
+        }
+
+        .mtl-preview-heading h3 {
+          margin: 0;
+          color: #ffffff;
+          font-size: 21px;
+          font-weight: 900;
+        }
+
+        .mtl-preview-heading p {
+          margin: 5px 0 0;
+          color: rgba(174, 187, 208, 0.88);
+          font-size: 13px;
+        }
+
+        .mtl-preview-pill {
+          display: inline-flex;
+          align-items: center;
+          white-space: nowrap;
+          border: 1px solid rgba(103, 232, 249, 0.18);
+          border-radius: 999px;
+          background: rgba(103, 232, 249, 0.08);
+          padding: 7px 11px;
+          color: #bff7ff;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
         .mtl-preview-cards {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 14px;
           margin-bottom: 18px;
         }
@@ -424,19 +508,27 @@ export default function HomePage() {
           min-height: 112px;
         }
 
-        .mtl-preview-label {
-          width: 46%;
-          height: 10px;
-          border-radius: 999px;
-          background: rgba(174, 187, 208, 0.28);
-          margin-bottom: 18px;
+        .mtl-preview-card small {
+          display: block;
+          color: rgba(174, 187, 208, 0.82);
+          font-size: 12px;
+          font-weight: 760;
         }
 
-        .mtl-preview-number {
-          width: 76%;
-          height: 28px;
-          border-radius: 999px;
-          background: linear-gradient(90deg, rgba(87, 184, 255, 0.92), rgba(20, 125, 255, 0.3));
+        .mtl-preview-card strong {
+          display: block;
+          margin-top: 9px;
+          color: #ffffff;
+          font-size: 25px;
+          font-weight: 950;
+        }
+
+        .mtl-preview-card span {
+          display: inline-flex;
+          margin-top: 9px;
+          color: #5eead4;
+          font-size: 11px;
+          font-weight: 850;
         }
 
         .mtl-preview-grid {
@@ -449,32 +541,114 @@ export default function HomePage() {
           padding: 16px;
         }
 
+        .mtl-preview-panel-title {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+
+        .mtl-preview-panel-title h4 {
+          margin: 0;
+          color: #ffffff;
+          font-size: 15px;
+          font-weight: 860;
+        }
+
+        .mtl-preview-panel-title span {
+          color: #57b8ff;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
         .mtl-preview-row {
           display: grid;
-          grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr;
+          grid-template-columns: minmax(160px, 1.35fr) 0.75fr 0.6fr 0.75fr;
           gap: 12px;
           align-items: center;
-          min-height: 42px;
+          min-height: 48px;
           border-bottom: 1px solid rgba(255,255,255,0.05);
+          color: rgba(226, 237, 248, 0.9);
+          font-size: 12px;
         }
 
-        .mtl-preview-row span {
-          height: 10px;
+        .mtl-preview-row strong {
+          display: block;
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 820;
+        }
+
+        .mtl-preview-row em {
+          display: block;
+          margin-top: 2px;
+          color: rgba(174, 187, 208, 0.72);
+          font-style: normal;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          font-size: 11px;
+        }
+
+        .mtl-preview-badge {
+          display: inline-flex;
+          width: fit-content;
+          border: 1px solid rgba(87, 184, 255, 0.22);
           border-radius: 999px;
-          background: rgba(174, 187, 208, 0.23);
-        }
-
-        .mtl-preview-row span:first-child {
-          background: rgba(87, 184, 255, 0.5);
+          background: rgba(87, 184, 255, 0.08);
+          padding: 4px 8px;
+          color: #bae6fd;
+          font-size: 11px;
+          font-weight: 800;
         }
 
         .mtl-preview-map {
           min-height: 282px;
+          padding: 16px;
+        }
+
+        .mtl-pipeline-list {
+          display: grid;
+          gap: 14px;
+          margin-top: 16px;
+        }
+
+        .mtl-pipeline-item {
+          display: grid;
+          gap: 7px;
+        }
+
+        .mtl-pipeline-meta {
+          display: flex;
+          justify-content: space-between;
+          color: rgba(226, 237, 248, 0.9);
+          font-size: 12px;
+          font-weight: 780;
+        }
+
+        .mtl-pipeline-track {
+          overflow: hidden;
+          height: 8px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.94);
+        }
+
+        .mtl-pipeline-fill {
+          display: block;
+          height: 100%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #147dff, #22d3ee);
+          box-shadow: 0 0 18px rgba(34, 211, 238, 0.3);
+        }
+
+        .mtl-preview-mini-map {
+          min-height: 112px;
+          border-radius: 14px;
           background:
-            linear-gradient(180deg, rgba(2, 12, 30, 0.42), rgba(2, 12, 30, 0.9)),
+            linear-gradient(180deg, rgba(2, 12, 30, 0.16), rgba(2, 12, 30, 0.68)),
             url("/assets/homepage-us-constellation.png");
           background-size: cover;
           background-position: center;
+          border: 1px solid rgba(255,255,255,0.07);
         }
 
         .mtl-step {
@@ -551,6 +725,10 @@ export default function HomePage() {
             grid-template-columns: 1fr;
           }
 
+          .mtl-scout-accent {
+            max-width: none;
+          }
+
           .mtl-preview-sidebar {
             display: none;
           }
@@ -579,6 +757,11 @@ export default function HomePage() {
 
           .mtl-floating-logo {
             width: 100%;
+          }
+
+          .mtl-scout-accent {
+            grid-template-columns: 1fr;
+            text-align: center;
           }
         }
       `}</style>
@@ -623,6 +806,13 @@ export default function HomePage() {
             <span>Built for Results</span>
           </div>
         </div>
+        <div className="mtl-scout-accent">
+          <div>
+            <h3>Meet Scout — your carrier intelligence sidekick.</h3>
+            <p>Scout helps you find new DOT leads, renewal opportunities, FMCSA data, and manage prospects in one clean dashboard.</p>
+          </div>
+          <ScoutMascot size="lg" className="mx-auto -my-3" />
+        </div>
       </section>
 
       <section className="mtl-product-preview" aria-label="Dashboard preview">
@@ -637,26 +827,72 @@ export default function HomePage() {
           </div>
           <div className="mtl-preview-shell">
             <div className="mtl-preview-sidebar" aria-hidden="true">
-              {Array.from({ length: 7 }).map((_, index) => <div className="mtl-preview-nav" key={index} />)}
+              {["Dashboard", "Lead Desk", "CRM Pipeline", "Carrier Search", "Marketplace", "Settings"].map((item) => <div className="mtl-preview-nav" key={item}>{item}</div>)}
             </div>
             <div className="mtl-preview-main">
+              <div className="mtl-preview-heading">
+                <div>
+                  <h3>Good afternoon, Producer</h3>
+                  <p>Live lead activity, renewal timing, and pipeline movement in one workspace.</p>
+                </div>
+                <span className="mtl-preview-pill">View All Leads</span>
+              </div>
               <div className="mtl-preview-cards">
-                {["New DOT Leads", "Renewals", "Saved Pipeline"].map((label) => (
+                {[
+                  ["New DOT Leads", "128", "+18% this week"],
+                  ["Renewal Opportunities", "42", "Next 30 days"],
+                  ["Active Leads", "319", "+24 saved"],
+                  ["Converted This Month", "17", "Booked accounts"],
+                ].map(([label, value, meta]) => (
                   <div className="mtl-preview-card" key={label}>
-                    <div className="mtl-preview-label" />
-                    <div className="mtl-preview-number" />
+                    <small>{label}</small>
+                    <strong>{value}</strong>
+                    <span>{meta}</span>
                   </div>
                 ))}
               </div>
               <div className="mtl-preview-grid">
-                <div className="mtl-preview-table" aria-hidden="true">
-                  {Array.from({ length: 7 }).map((_, index) => (
-                    <div className="mtl-preview-row" key={index}>
-                      <span /><span /><span /><span />
+                <div className="mtl-preview-table">
+                  <div className="mtl-preview-panel-title">
+                    <h4>Recent Leads</h4>
+                    <span>View all</span>
+                  </div>
+                  {[
+                    ["Lone Star Freight LLC", "DOT 4129088", "TX", "New DOT", "Today"],
+                    ["Blue Ridge Carrier Group", "DOT 3984412", "NC", "Renewal", "Jun 12"],
+                    ["Summit Reefer Lines", "DOT 3760921", "CO", "Carrier", "Active"],
+                    ["Gulf Coast Hauling", "DOT 2957710", "FL", "Renewal", "Jun 28"],
+                    ["Metro Intermodal LLC", "DOT 3390148", "IL", "New DOT", "Yesterday"],
+                  ].map(([name, dot, state, type, date]) => (
+                    <div className="mtl-preview-row" key={dot}>
+                      <span><strong>{name}</strong><em>{dot}</em></span>
+                      <span>{state}</span>
+                      <span className="mtl-preview-badge">{type}</span>
+                      <span>{date}</span>
                     </div>
                   ))}
                 </div>
-                <div className="mtl-preview-map" aria-hidden="true" />
+                <div className="mtl-preview-map">
+                  <div className="mtl-preview-panel-title">
+                    <h4>Pipeline</h4>
+                    <span>CRM</span>
+                  </div>
+                  <div className="mtl-preview-mini-map" aria-hidden="true" />
+                  <div className="mtl-pipeline-list">
+                    {[
+                      ["New", "84", "86%"],
+                      ["Contacted", "51", "58%"],
+                      ["Quoted", "29", "36%"],
+                      ["Follow Up", "18", "24%"],
+                      ["Won", "17", "20%"],
+                    ].map(([label, count, width]) => (
+                      <div className="mtl-pipeline-item" key={label}>
+                        <div className="mtl-pipeline-meta"><span>{label}</span><span>{count}</span></div>
+                        <div className="mtl-pipeline-track"><span className="mtl-pipeline-fill" style={{ width }} /></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

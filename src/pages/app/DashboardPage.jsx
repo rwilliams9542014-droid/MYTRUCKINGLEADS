@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Card, Badge } from "@/components/ui";
+import ScoutEmptyState from "@/components/ScoutEmptyState";
+import ScoutMascot from "@/components/ScoutMascot";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 
@@ -198,9 +200,20 @@ export default function DashboardPage() {
                   <span className="text-xs text-navy-500 hidden sm:block">{lead.date}</span>
                 </div>
               )) : (
-                <p className="text-sm text-navy-400 py-6 text-center">
-                  {loading ? "Loading recent leads..." : "No saved leads yet."}
-                </p>
+                loading ? (
+                  <div className="flex flex-col items-center gap-3 py-8 text-center">
+                    <ScoutMascot size="md" />
+                    <p className="text-sm text-navy-400">Scout is reviewing recent lead activity...</p>
+                  </div>
+                ) : (
+                  <ScoutEmptyState
+                    title="No saved leads yet."
+                    message="Scout will surface recent activity here once you start saving carriers."
+                    actionLabel="Open Lead Desk"
+                    onAction={() => window.location.assign("/lead-desk")}
+                    className="py-6"
+                  />
+                )
               )}
             </div>
           </Card>

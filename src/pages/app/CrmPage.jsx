@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Badge, Card } from "@/components/ui";
+import ScoutEmptyState from "@/components/ScoutEmptyState";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { canUseAiEmailDraft, copyAiEmailDraft, openEmailClientForLeads } from "@/lib/emailDrafts";
@@ -63,6 +64,7 @@ function csvValue(value) {
 
 export default function CrmPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [leads, setLeads] = useState([]);
   const [draggedLead, setDraggedLead] = useState(null);
@@ -201,7 +203,7 @@ export default function CrmPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">CRM Pipeline</h1>
           <p className="text-navy-400 text-sm mt-1">
-            {loading ? "Loading saved clients..." : `${allCards.length} saved client${allCards.length === 1 ? "" : "s"}`}
+            {loading ? "Scout is reviewing your saved pipeline..." : `${allCards.length} saved client${allCards.length === 1 ? "" : "s"}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -299,7 +301,7 @@ export default function CrmPage() {
                 ))}
                 {!column.cards.length && (
                   <div className="rounded-xl border border-dashed border-white/[0.08] p-4 text-center text-xs text-navy-500">
-                    No CRM records found.
+                    No CRM records in this stage.
                   </div>
                 )}
               </div>
@@ -371,8 +373,12 @@ export default function CrmPage() {
 
       {!loading && allCards.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-navy-400 text-sm">No CRM records found.</p>
-          <Link to="/lead-desk" className="text-brand-400 hover:text-brand-300 text-sm mt-2 inline-block">Find leads</Link>
+          <ScoutEmptyState
+            title="Your pipeline is empty."
+            message="Save leads from Lead Desk to start building your trucking book."
+            actionLabel="Find Leads"
+            onAction={() => navigate("/lead-desk")}
+          />
         </div>
       )}
     </div>

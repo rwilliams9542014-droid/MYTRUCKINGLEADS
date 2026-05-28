@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Badge, Button, Card } from "@/components/ui";
+import ScoutEmptyState from "@/components/ScoutEmptyState";
+import ScoutMascot from "@/components/ScoutMascot";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -529,7 +531,7 @@ export default function LeadDeskPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Lead Desk</h1>
           <p className="text-navy-400 text-sm mt-1">
-            {loading ? "Searching..." : hasSearched ? `${totalResults || filteredLeads.length} result${(totalResults || filteredLeads.length) === 1 ? "" : "s"} found` : "Choose filters, then search leads."}
+            {loading ? "Scout is scanning carrier data..." : hasSearched ? `${totalResults || filteredLeads.length} result${(totalResults || filteredLeads.length) === 1 ? "" : "s"} found` : "Choose filters, then search leads."}
           </p>
         </div>
         {lastUpdated && <p className="text-xs text-navy-500">Last updated {lastUpdated}</p>}
@@ -699,7 +701,7 @@ export default function LeadDeskPage() {
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
             <div className="flex flex-wrap gap-2">
               <Button type="submit" loading={loading}>
-                {loading ? "Searching..." : activeTab === "renewal" ? "Search Renewal Opportunities" : activeTab === "new_dot" ? "Search New DOT Leads" : "Search Leads"}
+                {loading ? "Checking DOT records..." : activeTab === "renewal" ? "Search Renewal Opportunities" : activeTab === "new_dot" ? "Search New DOT Leads" : "Search Leads"}
               </Button>
               <button type="button" onClick={resetFilters} className="btn-secondary px-4 py-2 text-sm">Reset Filters</button>
             </div>
@@ -872,9 +874,25 @@ export default function LeadDeskPage() {
             </tbody>
           </table>
         </div>
+        {loading && filteredLeads.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <ScoutMascot size="md" />
+            <div>
+              <p className="text-sm font-semibold text-white">
+                {activeTab === "renewal" ? "Finding renewal opportunities..." : "Scout is scanning carrier data..."}
+              </p>
+              <p className="mt-1 text-sm text-navy-400">Checking DOT records and matching your filters.</p>
+            </div>
+          </div>
+        )}
         {!loading && hasSearched && filteredLeads.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-navy-400 text-sm">No leads found. Try widening your date range or removing filters.</p>
+            <ScoutEmptyState
+              title="Scout couldn’t find matching leads yet."
+              message="Try expanding your date range, changing filters, or searching by DOT/MC."
+              actionLabel="Reset Filters"
+              onAction={resetFilters}
+            />
           </div>
         )}
         {!loading && !hasSearched && (

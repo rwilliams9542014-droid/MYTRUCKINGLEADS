@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, Button } from "@/components/ui";
+import ScoutEmptyState from "@/components/ScoutEmptyState";
+import ScoutMascot from "@/components/ScoutMascot";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -502,19 +504,44 @@ export default function CarrierProfilePage() {
   }
 
   if (loading) {
-    return <div className="text-center py-20 text-navy-400">Loading carrier profile...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+        <ScoutMascot size="md" />
+        <div>
+          <p className="text-sm font-semibold text-white">Reviewing FMCSA details...</p>
+          <p className="mt-1 text-sm text-navy-400">Scout is checking DOT records and carrier profile data.</p>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
     return (
       <div className="space-y-4">
         <button type="button" onClick={() => navigate(backTo)} className="text-brand-400 hover:text-brand-300 text-sm">{backLabel}</button>
-        <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-4 text-sm text-danger-300">{error}</div>
+        <div className="rounded-xl border border-danger-500/20 bg-danger-500/10 p-6">
+          <ScoutEmptyState
+            title="Some public carrier data was not returned."
+            message={error || "Try refreshing or checking another DOT number."}
+            actionLabel="Go Back"
+            onAction={() => navigate(backTo)}
+          />
+        </div>
       </div>
     );
   }
 
-  if (!carrier) return null;
+  if (!carrier) {
+    return (
+      <ScoutEmptyState
+        title="Some public carrier data was not returned."
+        message="Try refreshing or checking another DOT number."
+        actionLabel="Go Back"
+        onAction={() => navigate(backTo)}
+        className="py-20"
+      />
+    );
+  }
   const isOwner = user?.isOwner || user?.role === "owner" || user?.role === "admin" || user?.email === "owner@mytruckingleads.com";
   const showFmcsaDebug = isOwner && carrier.liveFmcsaStatus?.attempted && carrier.liveFmcsaStatus?.success === false;
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import ScoutHelpButton from "@/components/ScoutHelpButton";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
@@ -218,6 +219,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <ScoutHelpButton />
     </div>
   );
 }
