@@ -92,6 +92,7 @@ export default function LeadDeskPage() {
   const [hasSearched, setHasSearched] = useState(Boolean(savedState.hasSearched));
   const [lastUpdated, setLastUpdated] = useState(savedState.lastUpdated || "");
   const [leadSourceMeta, setLeadSourceMeta] = useState(savedState.leadSourceMeta || null);
+  const [totalResults, setTotalResults] = useState(Number(savedState.totalResults || 0));
   const [composer, setComposer] = useState(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
   const [pageSize, setPageSize] = useState(pageSizeOptions.includes(Number(savedState.pageSize)) ? Number(savedState.pageSize) : 20);
@@ -124,26 +125,10 @@ export default function LeadDeskPage() {
     return 7;
   }, [datePreset]);
 
-  const filteredLeads = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return leads;
-    return leads.filter((lead) => [
-      lead.name,
-      lead.dot,
-      lead.mc,
-      lead.city,
-      lead.state,
-      lead.phone,
-      lead.email,
-    ].some((value) => String(value || "").toLowerCase().includes(term)));
-  }, [leads, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const filteredLeads = leads;
+  const totalPages = Math.max(1, Math.ceil((totalResults || filteredLeads.length) / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
-  const paginatedLeads = useMemo(() => {
-    const start = (safeCurrentPage - 1) * pageSize;
-    return filteredLeads.slice(start, start + pageSize);
-  }, [filteredLeads, pageSize, safeCurrentPage]);
+  const paginatedLeads = filteredLeads;
 
   useEffect(() => {
     if (!didMountRef.current) {
@@ -158,6 +143,7 @@ export default function LeadDeskPage() {
     setHasSearched(false);
     setLastUpdated("");
     setLeadSourceMeta(null);
+    setTotalResults(0);
     setSelectedLeadIds([]);
     setCurrentPage(1);
   }, [activeTab]);
@@ -184,15 +170,16 @@ export default function LeadDeskPage() {
         hasSearched,
         lastUpdated,
         leadSourceMeta,
+        totalResults,
         pageSize,
         currentPage: safeCurrentPage,
       }));
     } catch {
       // Session storage can be unavailable in private browsing modes.
     }
-  }, [activeTab, customFrom, customTo, currentPage, datePreset, hasSearched, lastUpdated, leadSourceMeta, leads, pageSize, safeCurrentPage, search, state]);
+  }, [activeTab, customFrom, customTo, currentPage, datePreset, hasSearched, lastUpdated, leadSourceMeta, leads, pageSize, safeCurrentPage, search, state, totalResults]);
 
-  async function runSearch(event) {
+  async function runSearch(event, requestedPage = 1, requestedPageSize = pageSize) {
     event?.preventDefault();
     const params = {
       q: search.trim(),
@@ -201,7 +188,8 @@ export default function LeadDeskPage() {
       days: windowDays,
       daysBack: windowDays,
       state: state === "Any" ? "" : state,
-      limit: 100,
+      page: requestedPage,
+      limit: requestedPageSize,
     };
 
     setLoading(true);
@@ -211,7 +199,7 @@ export default function LeadDeskPage() {
 
     try {
       const data = activeTab === "hot"
-        ? await api.getMarketplaceLeads({ search, state: state === "Any" ? "" : state })
+        ? await api.getMarketplaceLeads({ search, state: state === "Any" ? "" : state, page: requestedPage, limit: requestedPageSize })
         : activeTab === "renewal"
           ? await api.getRenewalLeads(params)
           : await api.getNewDotLeads(params);
@@ -233,7 +221,8 @@ export default function LeadDeskPage() {
 
       setLeads(rows.map((lead) => normalizeLead(lead, activeTab)));
       setHasSearched(true);
-      setCurrentPage(1);
+      setTotalResults(Number(data?.total ?? rows.length));
+      setCurrentPage(Number(data?.page || requestedPage));
       setLastUpdated(new Date().toLocaleString());
       setLeadSourceMeta({
         source: data?.dataSource || data?.source || "",
@@ -244,7 +233,8 @@ export default function LeadDeskPage() {
     } catch (err) {
       setHasSearched(true);
       setLeads([]);
-      setCurrentPage(1);
+      setTotalResults(0);
+      setCurrentPage(requestedPage);
       setLeadSourceMeta(null);
       setError(err.message || "Leads could not be loaded.");
     } finally {
@@ -259,6 +249,19 @@ export default function LeadDeskPage() {
     setCustomFrom(dateRange(7).from);
     setCustomTo(dateRange(7).to);
     setCurrentPage(1);
+  }
+
+  function changePageSize(nextPageSize) {
+    setPageSize(nextPageSize);
+    setCurrentPage(1);
+    if (hasSearched) {
+      runSearch(null, 1, nextPageSize);
+    }
+  }
+
+  function goToPage(page) {
+    if (page < 1 || page > totalPages || loading) return;
+    runSearch(null, page, pageSize);
   }
 
   async function loadSafetyDetails(lead, { force = false } = {}) {
@@ -465,7 +468,7 @@ export default function LeadDeskPage() {
         <div>
           <h1 className="text-2xl font-bold text-white">Lead Desk</h1>
           <p className="text-navy-400 text-sm mt-1">
-            {loading ? "Searching..." : hasSearched ? `${filteredLeads.length} result${filteredLeads.length === 1 ? "" : "s"} found` : "Choose filters, then search leads."}
+            {loading ? "Searching..." : hasSearched ? `${totalResults || filteredLeads.length} result${(totalResults || filteredLeads.length) === 1 ? "" : "s"} found` : "Choose filters, then search leads."}
           </p>
         </div>
         {lastUpdated && <p className="text-xs text-navy-500">Last updated {lastUpdated}</p>}
@@ -580,7 +583,7 @@ export default function LeadDeskPage() {
         {hasSearched && filteredLeads.length > 0 && (
           <div className="flex flex-col gap-3 border-b border-white/[0.06] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-navy-300">
-              Showing {(safeCurrentPage - 1) * pageSize + 1}-{Math.min(safeCurrentPage * pageSize, filteredLeads.length)} of {filteredLeads.length}
+              Showing {(safeCurrentPage - 1) * pageSize + 1}-{Math.min((safeCurrentPage - 1) * pageSize + filteredLeads.length, totalResults || filteredLeads.length)} of {totalResults || filteredLeads.length}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs text-navy-400">
@@ -588,10 +591,7 @@ export default function LeadDeskPage() {
                 <select
                   className="input-field ml-2 h-9 w-24 py-1 text-sm"
                   value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
+                  onChange={(e) => changePageSize(Number(e.target.value))}
                 >
                   {pageSizeOptions.map((size) => (
                     <option key={size} value={size} className="bg-navy-900">{size}</option>
@@ -601,8 +601,8 @@ export default function LeadDeskPage() {
               <button
                 type="button"
                 className="btn-secondary px-3 py-2 text-sm"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={safeCurrentPage <= 1}
+                onClick={() => goToPage(safeCurrentPage - 1)}
+                disabled={safeCurrentPage <= 1 || loading}
               >
                 Previous
               </button>
@@ -610,8 +610,8 @@ export default function LeadDeskPage() {
               <button
                 type="button"
                 className="btn-secondary px-3 py-2 text-sm"
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                disabled={safeCurrentPage >= totalPages}
+                onClick={() => goToPage(safeCurrentPage + 1)}
+                disabled={safeCurrentPage >= totalPages || loading}
               >
                 Next
               </button>

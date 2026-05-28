@@ -590,7 +590,10 @@ async function fetchFmcsaCensusNewLeads(filters = {}) {
     "hm_ind"
   ].join(","));
   params.set("$order", "add_date DESC");
-  params.set("$limit", String(Math.min(Math.max(parseInteger(filters.limit, 100), 1), 5000)));
+  const limit = Math.min(Math.max(parseInteger(filters.limit, 100), 1), 5000);
+  const page = Math.max(parseInteger(filters.page, 1), 1);
+  params.set("$limit", String(limit));
+  params.set("$offset", String((page - 1) * limit));
 
   const where = [];
   const from = compactDateNumber(filters.from);
@@ -999,13 +1002,22 @@ async function getPostgresRenewalLeads(req, res) {
     insuranceTo: to
   });
   const rowValues = [...values, limit + 1, (page - 1) * limit];
-  const rowsResult = await dbQuery(
-    `${postgresCarrierSelect()}
-     ${whereSql}
-     ORDER BY c.insurance_expiration ${direction} NULLS LAST, c.vehicle_count DESC NULLS LAST, c.carrier_name ASC
-     LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-    rowValues
-  );
+  const [rowsResult, countResult] = await Promise.all([
+    dbQuery(
+      `${postgresCarrierSelect()}
+       ${whereSql}
+       ORDER BY c.insurance_expiration ${direction} NULLS LAST, c.vehicle_count DESC NULLS LAST, c.carrier_name ASC
+       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      rowValues
+    ),
+    dbQuery(
+      `SELECT COUNT(*)::int AS total
+       FROM carriers c
+       LEFT JOIN enriched_carrier_data e ON e.carrier_id = c.id
+       ${whereSql}`,
+      values
+    ).catch(() => ({ rows: [] }))
+  ]);
   let source = "postgres-fallback";
   let message = rowsResult.rows.length === 0
     ? "No matching renewal dates are loaded yet."
@@ -1040,7 +1052,8 @@ async function getPostgresRenewalLeads(req, res) {
     }
   }
 
-  const hasMore = resultRows.length > limit;
+  const total = Number(countResult.rows[0]?.total ?? resultRows.length);
+  const hasMore = resultRows.length > limit || page * limit < total;
   const rows = hasMore ? resultRows.slice(0, limit) : resultRows;
   const trialAccess = trialAccessForRequest(req, res);
   const rawLeads = await enrichLeadRowsForResponse(rows.map(postgresCarrierToProspectLead), {
@@ -1051,10 +1064,11 @@ async function getPostgresRenewalLeads(req, res) {
   const carriers = maskTrialResults(rows.map(postgresCarrierToApi), trialAccess);
 
   res.json({
-    total: rows.length,
+    total,
     page,
     limit,
     hasMore,
+    pages: Math.ceil(total / limit),
     days,
     from: from.toISOString().slice(0, 10),
     to: to.toISOString().slice(0, 10),
@@ -1115,12 +1129,13 @@ async function getPostgresNewCarrierLeads(req, res) {
   where.push(`c.created_at >= $${values.length}`);
   values.push(to);
   where.push(`c.created_at <= $${values.length}`);
+  const countValues = [...values];
   values.push(limit + 1);
   const limitParam = `$${values.length}`;
   values.push((page - 1) * limit);
   const offsetParam = `$${values.length}`;
 
-  const [rowsResult, importSummary] = await Promise.all([
+  const [rowsResult, countResult, importSummary] = await Promise.all([
     dbQuery(
       `${postgresCarrierSelect()}
        WHERE ${where.join(" AND ")}
@@ -1129,13 +1144,21 @@ async function getPostgresNewCarrierLeads(req, res) {
       values
     ),
     dbQuery(
+      `SELECT COUNT(*)::int AS total
+       FROM carriers c
+       LEFT JOIN enriched_carrier_data e ON e.carrier_id = c.id
+       WHERE ${where.join(" AND ")}`,
+      countValues
+    ).catch(() => ({ rows: [] })),
+    dbQuery(
       `SELECT COUNT(*)::int AS total_imported, MAX(created_at) AS last_import_time
        FROM carriers`
     ).catch(() => ({ rows: [] }))
   ]);
 
   const rowsPlusOne = rowsResult.rows;
-  const hasMore = rowsPlusOne.length > limit;
+  const total = Number(countResult.rows[0]?.total ?? rowsPlusOne.length);
+  const hasMore = rowsPlusOne.length > limit || page * limit < total;
   const rows = hasMore ? rowsPlusOne.slice(0, limit) : rowsPlusOne;
   const trialAccess = trialAccessForRequest(req, res);
   const rawLeads = await enrichLeadRowsForResponse(rows.map(postgresCarrierToProspectLead), {
@@ -1153,10 +1176,11 @@ async function getPostgresNewCarrierLeads(req, res) {
       : "No new DOT carriers were imported in the selected date window.";
 
   res.json({
-    total: rows.length,
+    total,
     page,
     limit,
     hasMore,
+    pages: Math.ceil(total / limit),
     days,
     from: from.toISOString().slice(0, 10),
     to: to.toISOString().slice(0, 10),
@@ -1354,12 +1378,15 @@ export async function getRenewalLeads(req, res) {
       }
     };
 
-    const carriersPlusOne = await Carrier.find(filter)
-      .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(limit + 1)
-      .maxTimeMS(10000)
-      .lean();
+    const [total, carriersPlusOne] = await Promise.all([
+      Carrier.countDocuments(filter).maxTimeMS(10000),
+      Carrier.find(filter)
+        .sort(sort)
+        .skip((page - 1) * limit)
+        .limit(limit + 1)
+        .maxTimeMS(10000)
+        .lean()
+    ]);
     const hasMore = carriersPlusOne.length > limit;
     const carriers = hasMore ? carriersPlusOne.slice(0, limit) : carriersPlusOne;
 
@@ -1376,10 +1403,11 @@ export async function getRenewalLeads(req, res) {
     const maskedCarriers = maskTrialResults(carriers.map(carrier => carrierToApi(carrier)), trialAccess);
 
     res.json({
-      total: carriers.length,
+      total,
       page,
       limit,
       hasMore,
+      pages: Math.ceil(total / limit),
       days,
       from: from.toISOString().slice(0, 10),
       to: to.toISOString().slice(0, 10),
@@ -1437,14 +1465,15 @@ export async function getNewCarrierLeads(req, res) {
       Object.assign(filter, importDateFilter);
     }
 
-    const query = Carrier.find(filter)
-      .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(limit + 1)
-      .maxTimeMS(10000)
-      .lean();
-
-    const carriersPlusOne = await query;
+    const [total, carriersPlusOne] = await Promise.all([
+      Carrier.countDocuments(filter).maxTimeMS(10000),
+      Carrier.find(filter)
+        .sort(sort)
+        .skip((page - 1) * limit)
+        .limit(limit + 1)
+        .maxTimeMS(10000)
+        .lean()
+    ]);
     const hasMore = carriersPlusOne.length > limit;
     const carriers = hasMore ? carriersPlusOne.slice(0, limit) : carriersPlusOne;
 
@@ -1474,10 +1503,11 @@ export async function getNewCarrierLeads(req, res) {
         : "No new DOT carriers were imported in the selected date window.";
 
     res.json({
-      total: carriers.length,
+      total,
       page,
       limit,
       hasMore,
+      pages: Math.ceil(total / limit),
       days,
       from: from.toISOString().slice(0, 10),
       to: to.toISOString().slice(0, 10),
