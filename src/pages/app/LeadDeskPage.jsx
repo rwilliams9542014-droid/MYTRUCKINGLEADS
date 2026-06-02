@@ -133,6 +133,7 @@ export default function LeadDeskPage() {
       const today = formatDate(new Date());
       return { from: today, to: today };
     }
+    if (datePreset === "last_7") return dateRange(7);
     if (datePreset === "last_14") return dateRange(14);
     if (datePreset === "last_30") return dateRange(30);
     return dateRange(30);

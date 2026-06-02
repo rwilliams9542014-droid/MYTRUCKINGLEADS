@@ -70,8 +70,8 @@ function applyLeadDateWindowForPlan(req, leadType) {
     query.startDate = query.from;
     query.to = dateString(to);
     query.endDate = query.to;
-    query.days = String(access.leadHistoryDays);
-    query.daysBack = String(access.leadHistoryDays);
+    query.days = String(Math.max(Math.ceil((to.getTime() - from.getTime()) / 86400000), 1));
+    query.daysBack = query.days;
   }
 
   req.query = query;
@@ -1177,7 +1177,7 @@ async function getPostgresNewCarrierLeads(req, res) {
     ? "Showing New DOT leads from imported FMCSA Open Data in the database."
     : totalImported === 0
       ? "No new DOT import has run yet."
-      : "No new DOT carriers were imported in the selected date window.";
+      : "No approved New DOT carriers matched the selected date window and filters.";
 
   res.json({
     total,
@@ -1532,7 +1532,7 @@ export async function getNewCarrierLeads(req, res) {
       ? "Showing New DOT leads from imported FMCSA Open Data and approved Motus registrations."
       : totalImported === 0
         ? "No new DOT import has run yet."
-        : "No new DOT carriers were imported in the selected date window.";
+        : "No approved New DOT carriers matched the selected date window and filters.";
 
     res.json({
       total,
