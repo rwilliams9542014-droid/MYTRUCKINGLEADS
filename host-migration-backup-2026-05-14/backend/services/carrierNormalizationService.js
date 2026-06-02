@@ -42,7 +42,7 @@ function dateText(value) {
 
 function splitCargo(value) {
   if (Array.isArray(value)) return value.map(item => clean(item)).filter(Boolean);
-  return String(value || "").split(/[,;|]/).map(clean).filter(Boolean);
+  return String(value || "").split(/[,;|]/).map(item => clean(item)).filter(Boolean);
 }
 
 function parseAddressText(value = "") {

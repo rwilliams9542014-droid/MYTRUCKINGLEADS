@@ -17,6 +17,26 @@ import {
 const stateOptions = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 const LEAD_DESK_STATE_KEY = "mytruckingleads.leadDeskState.v1";
 const pageSizeOptions = [20, 30, 40];
+const newDotDateOptions = [
+  { value: "last_7", label: "Last 7 days" },
+  { value: "last_14", label: "Last 14 days" },
+  { value: "last_30", label: "Last 30 days" },
+  { value: "custom", label: "Custom range" },
+];
+const renewalDateOptions = [
+  { value: "next_7", label: "Next 7 days" },
+  { value: "next_30", label: "Next 30 days" },
+  { value: "next_60", label: "Next 60 days" },
+  { value: "next_90", label: "Next 90 days" },
+  { value: "custom", label: "Custom range" },
+];
+
+function normalizeDatePresetForTab(tab, preset) {
+  if (preset === "custom") return "custom";
+  if (tab === "renewal") return String(preset || "").startsWith("next_") ? preset : "next_30";
+  if (tab === "new_dot") return String(preset || "").startsWith("last_") ? preset : "last_7";
+  return preset || "last_7";
+}
 
 function formatDate(date) {
   return date.toISOString().split("T")[0];
@@ -84,11 +104,12 @@ export default function LeadDeskPage() {
   const location = useLocation();
   const { user } = useAuth();
   const savedState = useMemo(loadSavedLeadDeskState, []);
+  const initialDatePreset = normalizeDatePresetForTab(savedState.activeTab || "new_dot", savedState.datePreset);
   const didMountRef = useRef(false);
   const [activeTab, setActiveTab] = useState(savedState.activeTab || "new_dot");
   const [search, setSearch] = useState(savedState.search || "");
   const [state, setState] = useState(savedState.state || "Any");
-  const [datePreset, setDatePreset] = useState(savedState.datePreset || "last_30");
+  const [datePreset, setDatePreset] = useState(initialDatePreset || (savedState.activeTab === "renewal" ? "next_30" : "last_7"));
   const [customFrom, setCustomFrom] = useState(savedState.customFrom || dateRange(30).from);
   const [customTo, setCustomTo] = useState(savedState.customTo || dateRange(7).to);
   const [leads, setLeads] = useState(Array.isArray(savedState.leads) ? savedState.leads : []);
@@ -124,6 +145,13 @@ export default function LeadDeskPage() {
   const lockedState = !isAgency ? (userLeadStates[0] || "") : "";
   const effectiveState = lockedState || (availableStateOptions.includes(state) ? state : availableStateOptions[0] || "");
   const aiDraftAllowed = canUseAiEmailDraft(user);
+  const dateOptions = activeTab === "renewal" ? renewalDateOptions : newDotDateOptions;
+  const searchTitle = activeTab === "renewal" ? "Find Renewal Opportunities" : activeTab === "new_dot" ? "Find New DOT Leads" : "Find Marketplace Leads";
+  const searchDescription = activeTab === "renewal"
+    ? "Search insurance filing windows without mixing MCS-150 updates into renewal dates."
+    : activeTab === "new_dot"
+      ? "Search approved New DOT registrations by date window, state, fleet size, cargo, and contact availability."
+      : "Search available marketplace leads and shortlist the carriers you want to work.";
 
   const range = useMemo(() => {
     if (datePreset === "custom") return { from: customFrom, to: customTo };
@@ -133,14 +161,10 @@ export default function LeadDeskPage() {
       if (datePreset === "next_90") return renewalRange(90);
       return renewalRange(30);
     }
-    if (datePreset === "today") {
-      const today = formatDate(new Date());
-      return { from: today, to: today };
-    }
     if (datePreset === "last_7") return dateRange(7);
     if (datePreset === "last_14") return dateRange(14);
     if (datePreset === "last_30") return dateRange(30);
-    return dateRange(30);
+    return dateRange(7);
   }, [activeTab, customFrom, customTo, datePreset]);
 
   const windowDays = useMemo(() => {
@@ -149,7 +173,6 @@ export default function LeadDeskPage() {
     if (datePreset === "next_90") return 90;
     if (datePreset === "last_14") return 14;
     if (datePreset === "last_30" || datePreset === "next_30") return 30;
-    if (datePreset === "today") return 1;
     return 7;
   }, [datePreset]);
 
@@ -163,7 +186,7 @@ export default function LeadDeskPage() {
       didMountRef.current = true;
       return;
     }
-    setDatePreset(activeTab === "renewal" ? "next_30" : "last_30");
+    setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
     setLeads([]);
     setError("");
     setSaveMessage("");
@@ -295,8 +318,8 @@ export default function LeadDeskPage() {
   function resetFilters() {
     setSearch("");
     setState(lockedState || availableStateOptions[0] || "");
-    setDatePreset(activeTab === "renewal" ? "next_30" : "last_30");
-    setCustomFrom(dateRange(30).from);
+    setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
+    setCustomFrom(dateRange(7).from);
     setCustomTo(dateRange(7).to);
     setMinPowerUnits("");
     setMaxPowerUnits("");
@@ -589,9 +612,9 @@ export default function LeadDeskPage() {
       {activeTab === "new_dot" && leadSourceMeta && (
         <div className="rounded-xl border border-white/[0.06] bg-navy-900/35 p-3 text-xs text-navy-300">
           <span className="font-semibold text-white">Data source:</span> {leadSourceMeta.source || "FMCSA Open Data / Database"}
-          {leadSourceMeta.lastImportTime && <span> · Last import {new Date(leadSourceMeta.lastImportTime).toLocaleString()}</span>}
-          {leadSourceMeta.importedCarrierCount !== undefined && <span> · Imported carriers {leadSourceMeta.importedCarrierCount}</span>}
-          {leadSourceMeta.message && <span> · {leadSourceMeta.message}</span>}
+          {leadSourceMeta.lastImportTime && <span> / Last import {new Date(leadSourceMeta.lastImportTime).toLocaleString()}</span>}
+          {leadSourceMeta.importedCarrierCount !== undefined && <span> / Imported carriers {leadSourceMeta.importedCarrierCount}</span>}
+          {leadSourceMeta.message && <span> / {leadSourceMeta.message}</span>}
         </div>
       )}
 
@@ -610,125 +633,147 @@ export default function LeadDeskPage() {
       </div>
 
       <Card>
-        <form onSubmit={runSearch} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_220px] gap-3">
-            <div className="relative">
-              <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="search"
-                className="input-field pl-10"
-                placeholder="Search company, DOT, city, phone, or email"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setCurrentPage(1);
-                }}
-              />
+        <form onSubmit={runSearch} className="space-y-5">
+          <div className="flex flex-col gap-3 border-b border-white/[0.06] pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">Lead search</p>
+              <h2 className="mt-1 text-lg font-bold text-white">{searchTitle}</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-navy-400">{searchDescription}</p>
             </div>
-            {isAgency ? (
-              <select className="input-field" value={state} onChange={(e) => {
-                setState(e.target.value);
-                setCurrentPage(1);
-              }}>
-                {availableStateOptions.map((item) => <option key={item} value={item} className="bg-navy-900">{item}</option>)}
-              </select>
-            ) : (
-              <div className="input-field flex items-center text-navy-200">
-                State: <span className="ml-2 font-semibold text-white">{lockedState || "Set in account"}</span>
+            <Badge variant="outline" className="w-fit shrink-0">{activeTab === "new_dot" ? "Approved DOTs" : activeTab === "renewal" ? "Filing dates" : "Marketplace"}</Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_220px] gap-3">
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">Carrier search</label>
+              <div className="relative">
+                <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="search"
+                  className="input-field pl-10"
+                  placeholder="Company, DOT, city, phone, or email"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
               </div>
-            )}
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">State</label>
+              {isAgency ? (
+                <select className="input-field" value={state} onChange={(e) => {
+                  setState(e.target.value);
+                  setCurrentPage(1);
+                }}>
+                  {availableStateOptions.map((item) => <option key={item} value={item} className="bg-navy-900">{item}</option>)}
+                </select>
+              ) : (
+                <div className="input-field flex items-center text-navy-200">
+                  <span className="font-semibold text-white">{lockedState || "Set in account"}</span>
+                </div>
+              )}
+            </div>
             {activeTab !== "hot" && (
-              <select className="input-field" value={datePreset} onChange={(e) => {
-                setDatePreset(e.target.value);
-                setCurrentPage(1);
-              }}>
-                {activeTab === "renewal" ? (
-                  <>
-                    <option value="next_7" className="bg-navy-900">Next 7 Days</option>
-                    <option value="next_30" className="bg-navy-900">Next 30 Days</option>
-                    <option value="next_60" className="bg-navy-900">Next 60 Days</option>
-                    <option value="next_90" className="bg-navy-900">Next 90 Days</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="today" className="bg-navy-900">Today</option>
-                    <option value="last_7" className="bg-navy-900">Last 7 Days</option>
-                    <option value="last_14" className="bg-navy-900">Last 14 Days</option>
-                    <option value="last_30" className="bg-navy-900">Last 30 Days</option>
-                  </>
-                )}
-                <option value="custom" className="bg-navy-900">Custom Range</option>
-              </select>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">Date window</label>
+                <select className="input-field" value={datePreset} onChange={(e) => {
+                  setDatePreset(e.target.value);
+                  setCurrentPage(1);
+                }}>
+                  {dateOptions.map((option) => (
+                    <option key={option.value} value={option.value} className="bg-navy-900">{option.label}</option>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <input
-              type="number"
-              min="0"
-              className="input-field"
-              placeholder="Min power units"
-              value={minPowerUnits}
-              onChange={(e) => {
-                setMinPowerUnits(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-            <input
-              type="number"
-              min="0"
-              className="input-field"
-              placeholder="Max power units"
-              value={maxPowerUnits}
-              onChange={(e) => {
-                setMaxPowerUnits(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-            <input
-              type="search"
-              className="input-field"
-              placeholder="Cargo type, e.g. refrigerated"
-              value={cargoType}
-              onChange={(e) => {
-                setCargoType(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-            <label className="input-field flex items-center gap-2 text-sm text-navy-200">
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">Min fleet</label>
               <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-white/20 bg-navy-900"
-                checked={emailRequired}
+                type="number"
+                min="0"
+                className="input-field"
+                placeholder="Any"
+                value={minPowerUnits}
                 onChange={(e) => {
-                  setEmailRequired(e.target.checked);
+                  setMinPowerUnits(e.target.value);
                   setCurrentPage(1);
                 }}
               />
-              Has email
-            </label>
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">Max fleet</label>
+              <input
+                type="number"
+                min="0"
+                className="input-field"
+                placeholder="Any"
+                value={maxPowerUnits}
+                onChange={(e) => {
+                  setMaxPowerUnits(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">Cargo</label>
+              <input
+                type="search"
+                className="input-field"
+                placeholder="Refrigerated, flatbed..."
+                value={cargoType}
+                onChange={(e) => {
+                  setCargoType(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">Contact</label>
+              <label className="input-field flex items-center gap-2 text-sm text-navy-200">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-white/20 bg-navy-900"
+                  checked={emailRequired}
+                  onChange={(e) => {
+                    setEmailRequired(e.target.checked);
+                    setCurrentPage(1);
+                  }}
+                />
+                Require email address
+              </label>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <select className="input-field" value={sortBy} onChange={(e) => {
-              setSortBy(e.target.value);
-              setCurrentPage(1);
-            }}>
-              <option value="lastUpdated" className="bg-navy-900">Sort: Recently updated</option>
-              <option value="legalName" className="bg-navy-900">Sort: Carrier name</option>
-              <option value="insuranceExpirationDate" className="bg-navy-900">Sort: Insurance date</option>
-              <option value="fleetSize" className="bg-navy-900">Sort: Power units</option>
-              <option value="dateCreated" className="bg-navy-900">Sort: Newest record</option>
-            </select>
-            <select className="input-field" value={sortOrder} onChange={(e) => {
-              setSortOrder(e.target.value);
-              setCurrentPage(1);
-            }}>
-              <option value="desc" className="bg-navy-900">High to low / newest first</option>
-              <option value="asc" className="bg-navy-900">Low to high / A-Z</option>
-            </select>
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">Sort by</label>
+              <select className="input-field" value={sortBy} onChange={(e) => {
+                setSortBy(e.target.value);
+                setCurrentPage(1);
+              }}>
+                <option value="lastUpdated" className="bg-navy-900">Recently updated</option>
+                <option value="legalName" className="bg-navy-900">Carrier name</option>
+                <option value="insuranceExpirationDate" className="bg-navy-900">Insurance date</option>
+                <option value="fleetSize" className="bg-navy-900">Power units</option>
+                <option value="dateCreated" className="bg-navy-900">Newest record</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">Direction</label>
+              <select className="input-field" value={sortOrder} onChange={(e) => {
+                setSortOrder(e.target.value);
+                setCurrentPage(1);
+              }}>
+                <option value="desc" className="bg-navy-900">Newest / highest first</option>
+                <option value="asc" className="bg-navy-900">Oldest / lowest first</option>
+              </select>
+            </div>
           </div>
 
           <p className="text-xs text-navy-500">
@@ -737,14 +782,20 @@ export default function LeadDeskPage() {
 
           {activeTab !== "hot" && datePreset === "custom" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="date" className="input-field" value={customFrom} onChange={(e) => {
-                setCustomFrom(e.target.value);
-                setCurrentPage(1);
-              }} />
-              <input type="date" className="input-field" value={customTo} onChange={(e) => {
-                setCustomTo(e.target.value);
-                setCurrentPage(1);
-              }} />
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">From</label>
+                <input type="date" className="input-field" value={customFrom} onChange={(e) => {
+                  setCustomFrom(e.target.value);
+                  setCurrentPage(1);
+                }} />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">To</label>
+                <input type="date" className="input-field" value={customTo} onChange={(e) => {
+                  setCustomTo(e.target.value);
+                  setCurrentPage(1);
+                }} />
+              </div>
             </div>
           )}
 
@@ -941,7 +992,7 @@ export default function LeadDeskPage() {
         {!loading && hasSearched && filteredLeads.length === 0 && (
           <div className="text-center py-12">
             <ScoutEmptyState
-              title="Scout couldn’t find matching leads yet."
+              title="Scout could not find matching leads yet."
               message="Try expanding your date range, changing filters, or searching by DOT/MC."
               actionLabel="Reset Filters"
               onAction={resetFilters}
