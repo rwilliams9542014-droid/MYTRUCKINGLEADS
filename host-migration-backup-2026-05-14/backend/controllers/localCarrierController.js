@@ -272,7 +272,7 @@ function carrierToNewVentureLead(carrier) {
     dotNumber: apiCarrier.dotNumber,
     mcNumber: apiCarrier.docketNumber || "",
     carrierName: apiCarrier.carrierName,
-    addDate: formatCensusDate(plain.firstSeenAt || plain.firstImportedAt || plain.newLeadSince || plain.dateCreated),
+    addDate: formatCensusDate(plain.dateCreated || plain.firstSeenAt || plain.firstImportedAt || plain.newLeadSince),
     firstSeenAt: formatCensusDate(plain.firstSeenAt || plain.firstImportedAt || plain.newLeadSince),
     firstImportedAt: formatCensusDate(plain.firstImportedAt || plain.firstSeenAt || plain.newLeadSince),
     mcs150Date: apiCarrier.mcs150Date || formatCensusDate(census.mcs150_date),
@@ -1465,15 +1465,16 @@ export async function getNewCarrierLeads(req, res) {
       ...buildCarrierQuery(req.query, { includeInsuranceDates: false })
     };
     const operation = String(req.query.operation || "").trim();
-    const requestedSort = String(req.query.sort || "firstSeenAt").trim();
+    const requestedSort = String(req.query.sort || "dateCreated").trim();
     const direction = sortDirection(req.query.order, -1);
     const sort = requestedSort === "fleetSize"
-      ? { fleetSize: -1, firstSeenAt: -1, firstImportedAt: -1, newLeadSince: -1, legalName: 1 }
-      : { firstSeenAt: direction, firstImportedAt: direction, newLeadSince: direction, fleetSize: -1 };
+      ? { fleetSize: -1, dateCreated: -1, firstSeenAt: -1, legalName: 1 }
+      : { dateCreated: direction, firstSeenAt: direction, fleetSize: -1 };
 
     if (operation) filter["raw.census.carrier_operation"] = operation;
     const importDateFilter = {
       $or: [
+      { dateCreated: { $gte: from, $lte: to } },
       { firstSeenAt: { $gte: from, $lte: to } },
       { firstImportedAt: { $gte: from, $lte: to } },
       { newLeadSince: { $gte: from, $lte: to } }

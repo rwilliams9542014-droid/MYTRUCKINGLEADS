@@ -84,8 +84,8 @@ export default function LeadDeskPage() {
   const [activeTab, setActiveTab] = useState(savedState.activeTab || "new_dot");
   const [search, setSearch] = useState(savedState.search || "");
   const [state, setState] = useState(savedState.state || "Any");
-  const [datePreset, setDatePreset] = useState(savedState.datePreset || "last_7");
-  const [customFrom, setCustomFrom] = useState(savedState.customFrom || dateRange(7).from);
+  const [datePreset, setDatePreset] = useState(savedState.datePreset || "last_30");
+  const [customFrom, setCustomFrom] = useState(savedState.customFrom || dateRange(30).from);
   const [customTo, setCustomTo] = useState(savedState.customTo || dateRange(7).to);
   const [leads, setLeads] = useState(Array.isArray(savedState.leads) ? savedState.leads : []);
   const [loading, setLoading] = useState(false);
@@ -135,7 +135,7 @@ export default function LeadDeskPage() {
     }
     if (datePreset === "last_14") return dateRange(14);
     if (datePreset === "last_30") return dateRange(30);
-    return dateRange(7);
+    return dateRange(30);
   }, [activeTab, customFrom, customTo, datePreset]);
 
   const windowDays = useMemo(() => {
@@ -158,7 +158,7 @@ export default function LeadDeskPage() {
       didMountRef.current = true;
       return;
     }
-    setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
+    setDatePreset(activeTab === "renewal" ? "next_30" : "last_30");
     setLeads([]);
     setError("");
     setSaveMessage("");
@@ -290,8 +290,8 @@ export default function LeadDeskPage() {
   function resetFilters() {
     setSearch("");
     setState(lockedState || availableStateOptions[0] || "");
-    setDatePreset(activeTab === "renewal" ? "next_30" : "last_7");
-    setCustomFrom(dateRange(7).from);
+    setDatePreset(activeTab === "renewal" ? "next_30" : "last_30");
+    setCustomFrom(dateRange(30).from);
     setCustomTo(dateRange(7).to);
     setMinPowerUnits("");
     setMaxPowerUnits("");
