@@ -1478,12 +1478,27 @@ export async function getNewCarrierLeads(req, res) {
       : { dateCreated: direction, firstSeenAt: direction, fleetSize: -1 };
 
     if (operation) filter["raw.census.carrier_operation"] = operation;
+    const dateRange = { $gte: from, $lte: to };
     const importDateFilter = {
       $or: [
-      { dateCreated: { $gte: from, $lte: to } },
-      { firstSeenAt: { $gte: from, $lte: to } },
-      { firstImportedAt: { $gte: from, $lte: to } },
-      { newLeadSince: { $gte: from, $lte: to } }
+        { dateCreated: dateRange },
+        {
+          $and: [
+            {
+              $or: [
+                { dateCreated: { $exists: false } },
+                { dateCreated: null }
+              ]
+            },
+            {
+              $or: [
+                { firstSeenAt: dateRange },
+                { firstImportedAt: dateRange },
+                { newLeadSince: dateRange }
+              ]
+            }
+          ]
+        }
       ]
     };
     if (filter.$or) {
