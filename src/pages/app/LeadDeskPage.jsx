@@ -36,6 +36,10 @@ function renewalRange(daysAhead = 30) {
   return { from: formatDate(from), to: formatDate(to) };
 }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
 function normalizeLead(lead, type) {
   const normalized = normalizeLeadRecord(lead, type);
   return {
@@ -356,43 +360,65 @@ export default function LeadDeskPage() {
   async function saveLead(lead) {
     setSaveMessage("Saving lead...");
     try {
+      const hydrated = await hydrateRows([lead]);
+      const savedLead = hydrated[0] || lead;
       await api.addLead({
-        carrier_name: lead.name,
-        dot_number: lead.dot || null,
-        mc_number: lead.mc || null,
-        state: lead.state || null,
+        carrier_name: savedLead.name,
+        dot_number: savedLead.dot || null,
+        mc_number: savedLead.mc || null,
+        state: savedLead.state || null,
         status: "New",
-        insurance_expiration: activeTab === "renewal" ? lead.renewalDisplay.date || null : null,
+        insurance_expiration: activeTab === "renewal" ? savedLead.renewalDisplay.date || null : null,
         notes: [
-          lead.state ? `State: ${lead.state}` : "",
-          lead.phone ? `Phone: ${lead.phone}` : "",
-          lead.email ? `Email: ${lead.email}` : "",
-          lead.cargo.length ? `Cargo: ${lead.cargo.join(", ")}` : "",
+          savedLead.state ? `State: ${savedLead.state}` : "",
+          savedLead.phone ? `Phone: ${savedLead.phone}` : "",
+          savedLead.email ? `Email: ${savedLead.email}` : "",
+          savedLead.cargo.length ? `Cargo: ${savedLead.cargo.join(", ")}` : "",
         ].filter(Boolean).join(" "),
       });
-      setSaveMessage(`${lead.name} saved to CRM.`);
+      setSaveMessage(`${savedLead.name} saved to CRM.`);
     } catch (err) {
       setSaveMessage(err.message || "Lead could not be saved.");
     }
   }
 
-  function emailLead(lead) {
-    const result = openEmailClientForLeads([leadForOutreach(lead, activeTab)]);
-    setSaveMessage(result.message);
+  async function emailLead(lead) {
+    try {
+      const [hydrated] = await hydrateRows([lead]);
+      const result = openEmailClientForLeads([leadForOutreach(hydrated || lead, activeTab)]);
+      setSaveMessage(result.message);
+    } catch (err) {
+      setSaveMessage(err.message || "Carrier details could not be refreshed.");
+    }
   }
 
-  function emailSelectedLeads() {
-    const selectedLeads = filteredLeads
-      .filter((lead) => selectedLeadIds.includes(lead.id))
-      .map((lead) => leadForOutreach(lead, activeTab));
+  async function hydrateRows(rows) {
+    const dots = rows.map((lead) => lead.dot).filter(Boolean);
+    if (!dots.length) return rows;
+    const data = await api.enrichSelectedCarriers(dots, activeTab);
+    const byDot = new Map((data?.carriers || []).map((carrier) => {
+      const normalized = normalizeLead(carrier, activeTab);
+      return [normalized.dot, normalized];
+    }));
+    const hydrated = rows.map((lead) => ({ ...lead, ...(byDot.get(lead.dot) || {}) }));
+    setLeads((current) => current.map((lead) => ({ ...lead, ...(byDot.get(lead.dot) || {}) })));
+    return hydrated;
+  }
 
-    if (!selectedLeads.length) {
+  async function emailSelectedLeads() {
+    const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
+
+    if (!selectedRows.length) {
       setSaveMessage("Select at least one lead before emailing.");
       return;
     }
-
-    const result = openEmailClientForLeads(selectedLeads);
-    setSaveMessage(result.message);
+    try {
+      const selectedLeads = (await hydrateRows(selectedRows)).map((lead) => leadForOutreach(lead, activeTab));
+      const result = openEmailClientForLeads(selectedLeads);
+      setSaveMessage(result.message);
+    } catch (err) {
+      setSaveMessage(err.message || "Selected carrier details could not be refreshed.");
+    }
   }
 
   async function copyDraftForLead(lead) {
@@ -446,6 +472,7 @@ export default function LeadDeskPage() {
       "MC Number",
       "Carrier Name",
       "State",
+      "Physical Address",
       "Phone",
       "Email",
       "Power Units",
@@ -458,6 +485,7 @@ export default function LeadDeskPage() {
       "Insurance Filing Status",
       "Insurance Filing Effective Date",
       "Insurance Filing Cancellation Date",
+      "Insurance Expiration / Renewal Date",
       "Renewal / Filing Date",
       "Renewal / Filing Date Source",
       "Safety Indicator",
@@ -469,6 +497,7 @@ export default function LeadDeskPage() {
       lead.mc,
       lead.name,
       lead.state,
+      lead.address,
       lead.phone,
       lead.email,
       lead.trucks,
@@ -481,6 +510,7 @@ export default function LeadDeskPage() {
       lead.insuranceFilingStatus,
       lead.insuranceEffectiveDate,
       lead.insuranceCancelDate,
+      lead.insuranceExpirationDate,
       lead.renewalDisplay?.date || "",
       lead.renewalDisplay?.label || "",
       safetyIndicator(safetyDetails[lead.dot] || lead),
@@ -499,22 +529,41 @@ export default function LeadDeskPage() {
     URL.revokeObjectURL(url);
   }
 
-  function exportSelectedCsv() {
+  async function exportSelectedCsv() {
     const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
-    exportCsv(selectedRows, "selected-leads");
+    if (!selectedRows.length) return;
+    try {
+      exportCsv(await hydrateRows(selectedRows), "selected-leads");
+      setSaveMessage(`Exported ${selectedRows.length} enriched selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
+    } catch (err) {
+      setSaveMessage(err.message || "Selected carrier details could not be refreshed for export.");
+    }
   }
 
   async function copyEmails() {
-    const values = filteredLeads
-      .map((lead) => lead.email)
-      .filter(Boolean);
+    const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
+    if (!selectedRows.length) {
+      setSaveMessage("Select at least one lead before copying emails.");
+      return;
+    }
+    let hydrated;
+    try {
+      hydrated = await hydrateRows(selectedRows);
+    } catch (err) {
+      setSaveMessage(err.message || "Selected carrier details could not be refreshed.");
+      return;
+    }
+    const emails = hydrated.map((lead) => String(lead.email || "").trim().toLowerCase()).filter(isValidEmail);
+    const values = [...new Set(emails)];
+    const missing = selectedRows.length - emails.length;
+    const duplicates = emails.length - values.length;
     if (!values.length) {
-      setSaveMessage("No emails available in current results.");
+      setSaveMessage(`No emails found for ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
       return;
     }
     try {
       await navigator.clipboard.writeText(values.join("\n"));
-      setSaveMessage(`${values.length} email${values.length === 1 ? "" : "s"} copied.`);
+      setSaveMessage(`Selected ${selectedRows.length} carrier${selectedRows.length === 1 ? "" : "s"}. Copied ${values.length} email${values.length === 1 ? "" : "s"}. ${missing} missing email${missing === 1 ? "" : "s"}. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed.`);
     } catch {
       setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
     }
@@ -709,7 +758,7 @@ export default function LeadDeskPage() {
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => exportCsv()} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
               <button type="button" onClick={exportSelectedCsv} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Export Selected</button>
-              <button type="button" onClick={copyEmails} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
+              <button type="button" onClick={copyEmails} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
               <button type="button" onClick={emailSelectedLeads} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Email Selected Leads</button>
               <button type="button" onClick={() => setSelectedLeadIds([])} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Clear Selection</button>
             </div>
@@ -796,13 +845,16 @@ export default function LeadDeskPage() {
                       ) : (
                         <p className="text-sm font-medium text-white">{lead.name}</p>
                       )}
-                      <p className="text-xs text-navy-500">{lead.phone || lead.email || "Contact details unavailable"}</p>
+                      <p className="text-xs text-navy-500">{[lead.phone, lead.email].filter(Boolean).join(" · ") || "Contact details unavailable"}</p>
                     </td>
                     <td className="px-6 py-3">
                       <p className="text-sm text-navy-300 font-mono">{lead.dot ? `DOT ${lead.dot}` : "-"}</p>
                       {lead.mc && <p className="text-xs text-navy-500 font-mono">{lead.mc}</p>}
                     </td>
-                    <td className="px-6 py-3 text-sm text-navy-300">{[lead.city, lead.state].filter(Boolean).join(", ") || "-"}</td>
+                    <td className="px-6 py-3 text-sm text-navy-300">
+                      <p>{[lead.city, lead.state].filter(Boolean).join(", ") || "-"}</p>
+                      {lead.address && <p className="mt-1 text-xs text-navy-500">{lead.address}</p>}
+                    </td>
                     <td className="px-6 py-3 text-sm text-navy-300">
                       {[lead.trucks && `${lead.trucks} power units`, lead.drivers && `${lead.drivers} drivers`].filter(Boolean).join(", ") || "-"}
                     </td>

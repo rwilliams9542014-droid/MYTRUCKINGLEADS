@@ -3,7 +3,8 @@ import CarrierChange from "../models/CarrierChange.js";
 import { isMongoConnected } from "../config/mongo.js";
 import { query as dbQuery } from "../config/db.js";
 import { fetchCarrierByDotOrMc } from "../services/fmcsaService.js";
-import { enrichLeadRowsForResponse } from "../services/carrierFullEnrichmentService.js";
+import { enrichLeadRowsForResponse, enrichSelectedCarriers } from "../services/carrierFullEnrichmentService.js";
+import { normalizeCanonicalCarrier } from "../services/carrierNormalizationService.js";
 import { getPlanAccessSummary, requirePaidPlan } from "../utils/planAccess.js";
 import { getTrialUsage, maskTrialCarrierContacts, maskTrialLeadContacts } from "../utils/trialAccess.js";
 import { normalizeUSStateCode } from "../utils/usStates.js";
@@ -141,21 +142,22 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
   const cellPhone = plain.cellPhone || census.cell_phone || "";
   const smsSafety = plain.smsSafety || plain.raw?.smsSafety || {};
   const saferData = plain.raw?.saferData || {};
+  const canonical = normalizeCanonicalCarrier(plain);
 
   return {
     id: String(plain._id),
     dotNumber: plain.dotNumber,
     dot: plain.dotNumber,
-    legalName: plain.legalName,
-    dbaName: plain.dbaName,
-    carrierName: plain.legalName || plain.dbaName || "Unknown Carrier",
-    address: addressText,
+    legalName: canonical.legalName || plain.legalName,
+    dbaName: canonical.dbaName || plain.dbaName,
+    carrierName: canonical.carrierName || plain.legalName || plain.dbaName || "Unknown Carrier",
+    address: canonical.physicalAddress || addressText,
     addressParts: address,
-    state: address.state || "",
-    phoneNumber: plain.phoneNumber,
-    phone: plain.phoneNumber,
+    state: canonical.physicalState || address.state || "",
+    phoneNumber: canonical.phone || plain.phoneNumber,
+    phone: canonical.phone || plain.phoneNumber,
     cellPhone,
-    email: plain.email,
+    email: canonical.email || plain.email,
     companyOfficer1,
     companyOfficer2,
     companyOfficerTitle: plain.companyOfficerTitle || "",
@@ -171,8 +173,8 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
     insuranceEffectiveDate: plain.insuranceEffectiveDate
       ? new Date(plain.insuranceEffectiveDate).toISOString().slice(0, 10)
       : "",
-    insuranceCancelDate: plain.insuranceExpirationDate
-      ? new Date(plain.insuranceExpirationDate).toISOString().slice(0, 10)
+    insuranceCancelDate: plain.insuranceCancellationDate || plain.insuranceExpirationDate
+      ? new Date(plain.insuranceCancellationDate || plain.insuranceExpirationDate).toISOString().slice(0, 10)
       : "",
     fmcsaInsuranceCancellationDate: plain.insuranceExpirationDate
       ? new Date(plain.insuranceExpirationDate).toISOString().slice(0, 10)
@@ -239,6 +241,7 @@ function carrierToProspectLead(carrier) {
     hq_city: address.city || "",
     hq_state: address.state || "",
     hq_zip: address.zip || "",
+    physicalAddress: apiCarrier.address,
     company_rep: apiCarrier.companyOfficer1 || "",
     company_rep2: apiCarrier.companyOfficer2 || "",
     safety_rating: apiCarrier.safetyRating,
@@ -1327,6 +1330,26 @@ export async function listLocalCarriers(req, res) {
   } catch (err) {
     console.error("Local carrier search error:", err);
     res.status(500).json({ error: "Failed to search local carrier database" });
+  }
+}
+
+export async function enrichSelectedCarrierDetails(req, res) {
+  try {
+    const dotNumbers = Array.isArray(req.body?.dotNumbers) ? req.body.dotNumbers : [];
+    if (!dotNumbers.length) {
+      return res.status(400).json({ error: "dotNumbers must contain at least one DOT number." });
+    }
+    if (dotNumbers.length > 100) {
+      return res.status(400).json({ error: "Select up to 100 carriers at a time." });
+    }
+
+    const result = await enrichSelectedCarriers(dotNumbers, {
+      mode: String(req.body?.mode || "new")
+    });
+    return res.json(result);
+  } catch (err) {
+    console.error("Selected carrier enrichment error:", err);
+    return res.status(500).json({ error: "Selected carrier details could not be refreshed." });
   }
 }
 

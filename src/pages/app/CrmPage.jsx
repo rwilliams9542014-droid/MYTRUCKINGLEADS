@@ -24,7 +24,8 @@ function normalizeLead(lead) {
     name: lead.carrier_name || lead.carrierName || "Unknown carrier",
     dot: lead.dot_number || lead.dot || "",
     mc: lead.mc_number || lead.mc || "",
-    state: lead.state || "",
+    state: lead.state || lead.physicalState || "",
+    address: lead.address || lead.physicalAddress || "",
     phone: lead.phone || "",
     email: lead.email || lead.email_address || "",
     leadType: lead.lead_type || lead.leadType || "",
@@ -121,23 +122,40 @@ export default function CrmPage() {
     setDragOverStage(null);
   }
 
-  function emailLead(lead) {
-    const result = openEmailClientForLeads([leadForOutreach(lead)]);
-    setError(result.ok ? "" : result.message);
-    if (result.ok) setStatusMessage(result.message);
+  async function hydrateRows(rows) {
+    const dots = rows.map((lead) => lead.dot).filter(Boolean);
+    if (!dots.length) return rows;
+    const data = await api.enrichSelectedCarriers(dots, "crm");
+    const byDot = new Map((data?.carriers || []).map((carrier) => [carrier.dotNumber, normalizeLead(carrier)]));
+    const hydrated = rows.map((lead) => ({ ...lead, ...(byDot.get(lead.dot) || {}) }));
+    setLeads((current) => current.map((lead) => ({ ...lead, ...(byDot.get(lead.dot) || {}) })));
+    return hydrated;
   }
 
-  function emailSelectedLeads() {
-    const selectedLeads = allCards
-      .filter((lead) => selectedLeadIds.includes(lead.id))
-      .map(leadForOutreach);
-    if (!selectedLeads.length) {
+  async function emailLead(lead) {
+    try {
+      const [hydrated] = await hydrateRows([lead]);
+      const result = openEmailClientForLeads([leadForOutreach(hydrated || lead)]);
+      setError(result.ok ? "" : result.message);
+      if (result.ok) setStatusMessage(result.message);
+    } catch (err) {
+      setError(err.message || "Carrier details could not be refreshed.");
+    }
+  }
+
+  async function emailSelectedLeads() {
+    const selectedRows = allCards.filter((lead) => selectedLeadIds.includes(lead.id));
+    if (!selectedRows.length) {
       setError("Select at least one CRM carrier before emailing.");
       return;
     }
-    const result = openEmailClientForLeads(selectedLeads);
-    setError(result.ok ? "" : result.message);
-    if (result.ok) setStatusMessage(result.message);
+    try {
+      const result = openEmailClientForLeads((await hydrateRows(selectedRows)).map(leadForOutreach));
+      setError(result.ok ? "" : result.message);
+      if (result.ok) setStatusMessage(result.message);
+    } catch (err) {
+      setError(err.message || "Selected carrier details could not be refreshed.");
+    }
   }
 
   async function copyDraftForLead(lead) {
@@ -169,17 +187,25 @@ export default function CrmPage() {
     setSelectedLeadIds(allSelected ? [] : visibleIds);
   }
 
-  function exportSelectedCsv() {
+  async function exportSelectedCsv() {
     const selectedRows = allCards.filter((lead) => selectedLeadIds.includes(lead.id));
     if (!selectedRows.length) return;
-    const headers = ["Carrier Name", "DOT Number", "MC Number", "Phone", "Email", "State", "Lead Type", "Status", "Power Units", "Drivers", "Cargo Hauled", "Renewal Date"];
-    const rows = selectedRows.map((lead) => [
+    let enrichedRows;
+    try {
+      enrichedRows = await hydrateRows(selectedRows);
+    } catch (err) {
+      setError(err.message || "Selected carrier details could not be refreshed for export.");
+      return;
+    }
+    const headers = ["Carrier Name", "DOT Number", "MC Number", "Phone", "Email", "State", "Physical Address", "Lead Type", "Status", "Power Units", "Drivers", "Cargo Hauled", "Renewal Date"];
+    const rows = enrichedRows.map((lead) => [
       lead.name,
       lead.dot,
       lead.mc,
       lead.phone,
       lead.email,
       lead.state,
+      lead.address,
       lead.leadType,
       lead.status,
       lead.powerUnits || lead.trucks,

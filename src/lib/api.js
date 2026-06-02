@@ -120,6 +120,10 @@ export const api = {
   getCarrierProfile: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}`),
   getCarrierInsurance: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}/insurance`),
   getCarrierSafety: (dot) => apiRequest(`/api/carriers/${encodeURIComponent(dot)}/safety`),
+  enrichSelectedCarriers: (dotNumbers, mode = "new") => apiRequest("/api/carriers/enrich-selected", {
+    method: "POST",
+    body: JSON.stringify({ dotNumbers, mode }),
+  }),
 
   getNewDotLeads: (params) => {
     const search = queryString(params);

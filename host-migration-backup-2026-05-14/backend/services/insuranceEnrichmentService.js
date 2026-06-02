@@ -53,6 +53,7 @@ function mapInsuranceRecord(row) {
   return {
     dotNumber,
     insuranceExpirationDate: expirationDate,
+    insuranceCancellationDate: expirationDate,
     insuranceEffectiveDate: dateOrNull(row.effective_date),
     insuranceCompany: String(row.name_company || "").trim(),
     insurancePolicyNumber: String(row.policy_no || "").trim(),
@@ -143,6 +144,7 @@ export async function upsertInsuranceRecords(rows, { importRunId = "" } = {}) {
     const current = existingByDot.get(record.dotNumber);
     const set = {
       insuranceExpirationDate: record.insuranceExpirationDate,
+      insuranceCancellationDate: record.insuranceCancellationDate,
       insuranceEffectiveDate: record.insuranceEffectiveDate,
       insuranceCompany: record.insuranceCompany,
       insurancePolicyNumber: record.insurancePolicyNumber,
@@ -184,6 +186,7 @@ export async function upsertInsuranceRecords(rows, { importRunId = "" } = {}) {
 
     const changedFields = [];
     if (!isSameDay(current.insuranceExpirationDate, record.insuranceExpirationDate)) changedFields.push("insuranceExpirationDate");
+    if (!isSameDay(current.insuranceCancellationDate, record.insuranceCancellationDate)) changedFields.push("insuranceCancellationDate");
     if (!isSameDay(current.insuranceEffectiveDate, record.insuranceEffectiveDate)) changedFields.push("insuranceEffectiveDate");
     for (const field of ["insuranceCompany", "insurancePolicyNumber", "insuranceFormCode", "insuranceType"]) {
       if (String(current[field] || "") !== String(record[field] || "")) changedFields.push(field);

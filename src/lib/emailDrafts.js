@@ -43,7 +43,8 @@ export function emailDraftForLead(lead = {}) {
 
 export function openEmailClientForLeads(leads = []) {
   const normalized = leads.map(normalizeEmailLead);
-  const recipients = normalized.map((lead) => lead.email).filter(Boolean);
+  const allRecipients = normalized.map((lead) => lead.email).filter(Boolean);
+  const recipients = [...new Set(allRecipients)];
   if (!recipients.length) {
     return { ok: false, message: "No email address is available for the selected carrier." };
   }
@@ -51,12 +52,11 @@ export function openEmailClientForLeads(leads = []) {
   const draft = emailDraftForLead(normalized[0]);
   const url = `mailto:${recipients.map((email) => encodeURIComponent(email)).join(",")}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
   window.location.href = url;
-  const skipped = normalized.length - recipients.length;
+  const skipped = normalized.length - allRecipients.length;
+  const duplicates = allRecipients.length - recipients.length;
   return {
     ok: true,
-    message: skipped > 0
-      ? `Opening your email app for ${recipients.length} carrier${recipients.length === 1 ? "" : "s"}. ${skipped} selected carrier${skipped === 1 ? " has" : "s have"} no email.`
-      : `Opening your email app for ${recipients.length} carrier${recipients.length === 1 ? "" : "s"}.`
+    message: `Opening your email app for ${recipients.length} carrier${recipients.length === 1 ? "" : "s"}. ${skipped} missing email${skipped === 1 ? "" : "s"}. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed.`
   };
 }
 

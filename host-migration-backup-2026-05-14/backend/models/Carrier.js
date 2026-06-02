@@ -35,6 +35,7 @@ const carrierSchema = new mongoose.Schema(
     operatingStatus: { type: String, trim: true, default: "" },
     insuranceExpirationDate: { type: Date, index: true, default: null },
     insuranceEffectiveDate: { type: Date, default: null },
+    insuranceCancellationDate: { type: Date, default: null },
     insuranceCompany: { type: String, trim: true, default: "" },
     insurancePolicyNumber: { type: String, trim: true, default: "" },
     insuranceFormCode: { type: String, trim: true, default: "" },

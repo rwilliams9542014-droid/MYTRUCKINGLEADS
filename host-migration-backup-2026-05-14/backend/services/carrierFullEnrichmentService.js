@@ -3,6 +3,7 @@ import { isMongoConnected } from "../config/mongo.js";
 import { query as dbQuery } from "../config/db.js";
 import { fetchCarrierByDotOrMc } from "./fmcsaService.js";
 import { fetchMotusCarrierProfile } from "./motusRegisterImportService.js";
+import { canonicalCarrierToLead, normalizeCanonicalCarrier } from "./carrierNormalizationService.js";
 import { sleep } from "./safeScrapingService.js";
 
 function clean(value, fallback = "") {
@@ -67,7 +68,7 @@ function mergeSavedCarrierIntoLive(liveCarrier = {}, savedCarrier = {}) {
     carrierName: meaningful(liveCarrier.carrierName || liveCarrier.legalName) || meaningful(savedCarrier.legalName || savedCarrier.dbaName),
     legalName: meaningful(liveCarrier.legalName || liveCarrier.carrierName) || meaningful(savedCarrier.legalName || savedCarrier.dbaName),
     dbaName: clean(liveCarrier.dbaName) || clean(savedCarrier.dbaName),
-    address: clean(liveCarrier.address) || clean(savedCarrier.address?.raw),
+    address: clean(liveCarrier.address?.raw || liveCarrier.address) || clean(savedCarrier.address?.raw),
     phone: clean(liveCarrier.phone) || clean(savedCarrier.phoneNumber),
     cellPhone: clean(liveCarrier.cellPhone) || clean(savedCarrier.cellPhone),
     email: clean(liveCarrier.email) || clean(savedCarrier.email),
@@ -139,6 +140,8 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
     authorityStatus: clean(liveCarrier.authorityStatus),
     operatingStatus: clean(liveCarrier.operatingStatus),
     insuranceExpirationDate: dateOrNull(liveCarrier.insuranceExpiration),
+    insuranceEffectiveDate: dateOrNull(liveCarrier.insuranceEffectiveDate),
+    insuranceCancellationDate: dateOrNull(liveCarrier.insuranceCancellationDate || liveCarrier.insuranceCancelDate),
     insuranceCompany: clean(liveCarrier.insuranceCompany),
     insurancePolicyNumber: clean(liveCarrier.insurancePolicyNumber),
     insuranceType: clean(liveCarrier.insuranceType || liveCarrier.cargoInsurance),
@@ -254,7 +257,16 @@ export async function enrichCarrierByDot(dotNumber, options = {}) {
 
 function shouldOverlayLead(row = {}) {
   const cargo = clean(row.cargoHauled || row.cargo_hauled);
-  return !cargo || /^not listed$/i.test(cargo);
+  const address = clean(row.physicalAddress || row.address || row.hq_address);
+  return !clean(row.email)
+    || !clean(row.phone)
+    || !address
+    || row.powerUnits === null
+    || row.powerUnits === undefined
+    || row.drivers === null
+    || row.drivers === undefined
+    || !cargo
+    || /^not listed$/i.test(cargo);
 }
 
 function overlayLeadWithLive(row = {}, liveCarrier = {}, mode = "new") {
@@ -270,6 +282,7 @@ function overlayLeadWithLive(row = {}, liveCarrier = {}, mode = "new") {
       carrier_name: row.carrier_name || liveCarrier.carrierName || liveCarrier.legalName,
       phone: row.phone || liveCarrier.phone || "",
       email: row.email || liveCarrier.email || "",
+      physicalAddress: row.physicalAddress || liveCarrier.address?.raw || liveCarrier.address || "",
       vehicle_count: row.vehicle_count ?? powerUnits,
       driver_count: row.driver_count ?? drivers,
       mcs150_date: row.mcs150_date || mcs150Date,
@@ -288,6 +301,8 @@ function overlayLeadWithLive(row = {}, liveCarrier = {}, mode = "new") {
     carrierName: row.carrierName || liveCarrier.carrierName || liveCarrier.legalName,
     phone: row.phone || liveCarrier.phone || "",
     email: row.email || liveCarrier.email || "",
+    physicalAddress: row.physicalAddress || liveCarrier.address?.raw || liveCarrier.address || "",
+    address: row.address || liveCarrier.address?.raw || liveCarrier.address || "",
     powerUnits: row.powerUnits ?? powerUnits,
     drivers: row.drivers ?? drivers,
     mcs150Date: row.mcs150Date || mcs150Date,
@@ -442,6 +457,44 @@ export async function enrichLeadRowsForResponse(rows = [], options = {}) {
   }
 
   return output;
+}
+
+export async function enrichSelectedCarriers(dotNumbers = [], options = {}) {
+  const uniqueDots = [...new Set(dotNumbers.map(normalizeDot).filter(Boolean))];
+  const carriers = [];
+  let enriched = 0;
+
+  for (const dot of uniqueDots) {
+    let carrier = null;
+    try {
+      carrier = await enrichCarrierByDot(dot, {
+        delayMs: options.delayMs ?? process.env.SELECTED_ENRICHMENT_REQUEST_DELAY_MS ?? 100
+      });
+      if (carrier) enriched += 1;
+    } catch (err) {
+      console.warn(`[FullEnrichment] Selected DOT ${dot} live refresh skipped:`, err.message);
+    }
+
+    if (!carrier && isMongoConnected()) {
+      carrier = await Carrier.findOne({ dotNumber: dot }).lean();
+    }
+    if (carrier) carriers.push(canonicalCarrierToLead(normalizeCanonicalCarrier(carrier), options.mode));
+  }
+
+  const emails = carriers
+    .map(carrier => clean(carrier.email).toLowerCase())
+    .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+  const distinctEmails = [...new Set(emails)];
+  return {
+    carriers,
+    summary: {
+      requested: uniqueDots.length,
+      enriched,
+      emailsFound: distinctEmails.length,
+      missingEmails: Math.max(uniqueDots.length - emails.length, 0),
+      duplicatesRemoved: emails.length - distinctEmails.length
+    }
+  };
 }
 
 function staleDate(days = 7) {

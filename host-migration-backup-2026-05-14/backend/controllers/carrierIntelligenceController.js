@@ -7,6 +7,7 @@ import {
   fetchCarrierByDotOrMc,
   searchCarrierCandidatesByName
 } from "../services/fmcsaService.js";
+import { normalizeCanonicalCarrier } from "../services/carrierNormalizationService.js";
 import {
   enrichCarrierByDot,
   hasCargoData as hasEnrichedCargoData,
@@ -686,6 +687,7 @@ function rawCensus(carrier = {}) {
 }
 
 function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = false, message = "" } = {}) {
+  const canonical = normalizeCanonicalCarrier(carrier);
   const census = rawCensus(carrier);
   const smsSafety = carrier.smsSafety || carrier.raw?.smsSafety || carrier.raw?.liveCarrier?.smsSafety || null;
   const saferData = carrier.saferData || carrier.raw?.saferData || carrier.raw?.liveCarrier?.saferData || null;
@@ -697,7 +699,7 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
   const qcmobileBasicCategories = qcmobileDetails?.basics?.categories || smsSafety?.basicCategories || [];
   const dataSourceStatus = sourceStatusFromCarrier(carrier, qcmobileDetails);
   const liveFmcsaStatus = liveFmcsaStatusFromCarrier(carrier, dataSourceStatus, { reason: message });
-  const physicalAddress = addressText(carrier.address) || clean(carrier.address);
+  const physicalAddress = canonical.physicalAddress || addressText(carrier.address) || clean(carrier.address);
   const mailingAddress =
     clean(carrier.mailingAddress) ||
     [
@@ -707,11 +709,11 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
       census.carrier_mailing_zip
     ].filter(Boolean).join(", ");
 
-  const dotNumber = clean(carrier.dotNumber || carrier.dot || census.dot_number);
-  const legalName = clean(carrier.legalName || carrier.carrierName || census.legal_name, "Unknown Carrier");
-  const dbaName = clean(carrier.dbaName || census.dba_name);
-  const fleetSize = numberOrNull(carrier.fleetSize ?? carrier.vehicleCount ?? carrier.vehicles ?? census.power_units);
-  const drivers = numberOrNull(carrier.driverCount ?? carrier.drivers ?? census.total_drivers);
+  const dotNumber = clean(canonical.dotNumber || carrier.dotNumber || carrier.dot || census.dot_number);
+  const legalName = clean(canonical.legalName || carrier.legalName || carrier.carrierName || census.legal_name, "Unknown Carrier");
+  const dbaName = clean(canonical.dbaName || carrier.dbaName || census.dba_name);
+  const fleetSize = numberOrNull(canonical.powerUnits ?? carrier.fleetSize ?? carrier.vehicleCount ?? carrier.vehicles ?? census.power_units);
+  const drivers = numberOrNull(canonical.drivers ?? carrier.driverCount ?? carrier.drivers ?? census.total_drivers);
   const authoritySinceRaw = carrier.authoritySince || carrier.dateCreated || carrier.newLeadSince || census.add_date;
   const authoritySince = formatCompactDate(authoritySinceRaw);
   const authorityAgeText = authorityAge(authoritySinceRaw);
@@ -753,9 +755,9 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     }),
     physicalAddress,
     mailingAddress,
-    phoneNumber: clean(carrier.phoneNumber || carrier.phone || census.phone || census.cell_phone),
+    phoneNumber: clean(canonical.phone || carrier.phoneNumber || carrier.phone || census.phone || census.cell_phone),
     cellPhone: clean(carrier.cellPhone || census.cell_phone),
-    email: clean(carrier.email || census.email_address),
+    email: clean(canonical.email || carrier.email || census.email_address),
     companyOfficer1: clean(carrier.companyOfficer1 || carrier.companyOfficer || census.company_officer_1),
     companyOfficer2: clean(carrier.companyOfficer2 || census.company_officer_2),
     companyOfficerTitle: clean(carrier.companyOfficerTitle),

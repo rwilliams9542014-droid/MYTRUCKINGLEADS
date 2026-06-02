@@ -14,7 +14,7 @@ import {
   browseOTruckingByState,
   batchSearchOTruckingCarriers
 } from "../controllers/carrierController.js";
-import { listLocalCarriers } from "../controllers/localCarrierController.js";
+import { enrichSelectedCarrierDetails, listLocalCarriers } from "../controllers/localCarrierController.js";
 import {
   getCarrierIntelligenceLicensingInsurance,
   getCarrierIntelligenceProfile,
@@ -48,6 +48,7 @@ router.get("/search", authOptional, enforceTrialSearchLimit, searchCarrierIntell
 // Search local MongoDB carrier data by DOT/name/state/status/insurance window.
 // Use /api/carrier?dot=123 or /api/carriers?live=true&dot=123 for live FMCSA enrichment.
 router.get("/", authRequired, getCarrierIndex);
+router.post("/enrich-selected", authRequired, enrichSelectedCarrierDetails);
 
 // Verify a carrier email address independently (requires auth)
 router.post("/verify-email", authRequired, verifyCarrierEmail);
