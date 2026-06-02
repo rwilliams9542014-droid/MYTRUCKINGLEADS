@@ -15,8 +15,11 @@ const TABLE_ROW_HEIGHT = 21;
 
 export function isoDate(value) {
   const text = String(value || "").trim();
-  const usDate = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  const normalized = usDate ? `${usDate[3]}-${usDate[1]}-${usDate[2]}` : text.slice(0, 10);
+  const usDate = text.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
+  const standardDate = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  const normalized = usDate
+    ? `${usDate[3]}-${usDate[1]}-${usDate[2]}`
+    : standardDate?.[0] || text.slice(0, 10);
   const date = normalized ? new Date(`${normalized}T00:00:00.000Z`) : new Date();
   if (Number.isNaN(date.getTime())) throw new Error(`Invalid Motus register date: ${value}`);
   return date.toISOString().slice(0, 10);
@@ -52,12 +55,14 @@ function textItemsFromPdf(pdfBuffer) {
 
     while ((blockMatch = blockPattern.exec(stream)) !== null) {
       const position = blockMatch[1].match(/1 0 0 1 ([\d.]+) ([\d.]+) Tm/);
+      const font = blockMatch[1].match(/\/(F\d+) [\d.]+ Tf/);
       const chunks = [...blockMatch[1].matchAll(/<([0-9A-Fa-f]+)>/g)];
-      if (!position || chunks.length === 0) continue;
+      if (!position || !font || chunks.length === 0) continue;
 
       items.push({
         x: Number(position[1]),
         y: Number(position[2]),
+        font: font[1],
         text: chunks.map(chunk => decodeHexText(chunk[1])).join("")
       });
     }
@@ -70,9 +75,9 @@ function textItemsFromPdf(pdfBuffer) {
   return itemsByPage;
 }
 
-function joinCell(items, rowY, [fromX, toX]) {
+function joinCell(items, rowY, minimumY, [fromX, toX]) {
   return items
-    .filter(item => item.x >= fromX && item.x < toX && item.y >= rowY - TABLE_ROW_HEIGHT && item.y <= rowY + 0.1)
+    .filter(item => item.font === "F2" && item.x >= fromX && item.x < toX && item.y >= minimumY && item.y <= rowY + 0.1)
     .filter(item => item.text.trim())
     .sort((left, right) => right.y - left.y || left.x - right.x)
     .map(item => item.text.trim())
@@ -85,11 +90,13 @@ export function parseMotusRegisterPdf(pdfBuffer) {
 
   for (const items of textItemsFromPdf(pdfBuffer)) {
     const rowStarts = items
-      .filter(item => item.x >= 49 && item.x <= 51 && /^\d+[A-Z]?$/.test(item.text.trim()))
+      .filter(item => item.font === "F2" && item.x >= 49 && item.x <= 51 && /^\d+[A-Z]?$/.test(item.text.trim()))
       .sort((left, right) => right.y - left.y);
 
-    for (const rowStart of rowStarts) {
-      const cells = TABLE_COLUMN_RANGES.map(range => joinCell(items, rowStart.y, range));
+    for (const [index, rowStart] of rowStarts.entries()) {
+      const nextRowY = rowStarts[index + 1]?.y;
+      const minimumY = nextRowY === undefined ? rowStart.y - TABLE_ROW_HEIGHT : nextRowY + 0.1;
+      const cells = TABLE_COLUMN_RANGES.map(range => joinCell(items, rowStart.y, minimumY, range));
       rows.push({
         dotNumber: cells[0],
         legalName: cells[1],
