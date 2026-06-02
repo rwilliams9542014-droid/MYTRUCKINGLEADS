@@ -5,6 +5,7 @@ import { upsertCarrierBatch } from "./carrierImportService.js";
 
 const MOTUS_REPORT_URL = "https://motus.dot.gov/api/report/getSignedUrlByTypeAndDateRange";
 const MOTUS_CARRIER_SEARCH_URL = "https://motus.dot.gov/api/carriers/search";
+const ACTIVE_DOT_NUMBER_STATUS_ID = "5ec2f394-2899-4a97-876c-abaa4e2219ff";
 const ACTIVE_AUTHORITY_STATUS_ID = "39c8ddf9-e8be-4d82-8d33-ff504ec42793";
 const PENDING_AUTHORITY_STATUS_ID = "42970913-aa47-4778-a7a6-2b3d45cdd67f";
 const TABLE_COLUMN_RANGES = [
@@ -202,18 +203,30 @@ function uniqueCarriers(rows, publicationDate) {
   return [...carriersByDot.values()];
 }
 
-function authorityStatusFromDetails(details) {
-  const authorities = (Array.isArray(details) ? details : [])
+export function registrationApprovalFromDetails(details) {
+  const entities = Array.isArray(details) ? details : details ? [details] : [];
+  const activeRegistrations = entities
+    .filter(entity => !entity.disableDate)
     .flatMap(entity => entity.entityRegistrations || [])
+    .filter(registration => !registration.disableDate);
+  const authorities = activeRegistrations
     .flatMap(registration => registration.entityRegistrationOperatingAuthorities || [])
     .map(registrationAuthority => registrationAuthority.entityOperatingAuthority)
     .filter(authority => authority && !authority.disableDate);
-  const approved = authorities.some(authority => authority.operatingAuthorityStatusId === ACTIVE_AUTHORITY_STATUS_ID);
-  const pending = authorities.some(authority => authority.operatingAuthorityStatusId === PENDING_AUTHORITY_STATUS_ID);
+  const approved = activeRegistrations.length > 0 && entities.some(entity => (
+    !entity.disableDate
+    && entity.entityDotNumber
+    && !entity.entityDotNumber.disableDate
+    && entity.entityDotNumber.dotNumber
+    && entity.entityDotNumber.dotNumberStatusId === ACTIVE_DOT_NUMBER_STATUS_ID
+  ));
+  const activeAuthority = authorities.some(authority => authority.operatingAuthorityStatusId === ACTIVE_AUTHORITY_STATUS_ID);
+  const pendingAuthority = authorities.some(authority => authority.operatingAuthorityStatusId === PENDING_AUTHORITY_STATUS_ID);
 
   return {
     approved,
-    status: approved ? "Active" : pending ? "Pending" : "Not active",
+    registrationStatus: approved ? "Active" : "Not active",
+    status: activeAuthority ? "Active" : pendingAuthority ? "Pending" : "Not active",
     authorities: authorities.map(authority => ({
       docketNumber: authority.docketNumber || "",
       operatingAuthorityStatusId: authority.operatingAuthorityStatusId || "",
@@ -236,7 +249,7 @@ async function fetchMotusCarrierApproval(dotNumber) {
     }
   );
 
-  return authorityStatusFromDetails(response.data);
+  return registrationApprovalFromDetails(response.data);
 }
 
 export async function refreshMotusCandidateApprovals(options = {}) {
@@ -257,6 +270,7 @@ export async function refreshMotusCandidateApprovals(options = {}) {
       const now = new Date();
       const update = {
         "raw.motusRegister.approved": approval.approved,
+        "raw.motusRegister.registrationStatus": approval.registrationStatus,
         "raw.motusRegister.authorityStatus": approval.status,
         "raw.motusRegister.authorities": approval.authorities,
         "raw.motusRegister.approvalCheckedAt": now,
