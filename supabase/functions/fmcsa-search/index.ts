@@ -118,30 +118,70 @@ async function searchByName(name: string, state?: string, limit = 25) {
 
 async function searchByMC(mc: string) {
   const cleanMC = mc.replace(/[^0-9]/g, "");
-  const url = `${CENSUS_BASE}?$where=mc_mx_ff_number='${cleanMC}'&$limit=10`;
+  const urls = [
+    `${QCMOBILE_BASE}/mc/${cleanMC}?webKey=${FMCSA_WEBKEY}`,
+    `${CENSUS_BASE}?$where=mc_mx_ff_number='${cleanMC}'`,
+  ];
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  if (!res.ok) return [];
+  const results = await Promise.allSettled(
+    urls.map((url) => fetch(url, { signal: AbortSignal.timeout(15000) }))
+  );
 
-  const data = await res.json();
-  return data.map((c: any) => ({
-    dot_number: c.dot_number?.toString() || "",
-    legal_name: c.legal_name || "",
-    dba_name: c.dba_name || "",
-    carrier_operation: c.carrier_operation || "",
-    phone: c.telephone || "",
-    city: c.phy_city || "",
-    state: c.phy_state || "",
-    zip: c.phy_zip || "",
-    address: c.phy_street || "",
-    mc_number: c.mc_mx_ff_number || "",
-    vehicle_count: parseInt(c.total_power_units) || 0,
-    driver_count: parseInt(c.total_drivers) || 0,
-    operating_status: c.entity_status_desc || "UNKNOWN",
-    safety_rating: "None",
-    cargo_carried: [],
-    source: "census",
-  }));
+  let carrier = null;
+
+  // Try QCMobile first (Real-time data using Web Key)
+  if (results[0].status === "fulfilled" && results[0].value.ok) {
+    const data = await results[0].value.json();
+    if (data?.content?.carrier) {
+      const c = data.content.carrier;
+      carrier = {
+        dot_number: c.dotNumber?.toString() || "",
+        legal_name: c.legalName || "",
+        dba_name: c.dbaName || "",
+        carrier_operation: c.carrierOperation?.carrierOperationDesc || "",
+        phone: c.phyPhone || "",
+        city: c.phyCity || "",
+        state: c.phyState || "",
+        zip: c.phyZipcode || "",
+        address: c.phyStreet || "",
+        mc_number: c.mcNumber || cleanMC,
+        vehicle_count: c.totalPowerUnits || 0,
+        driver_count: c.totalDrivers || 0,
+        operating_status: c.allowedToOperate === "Y" ? "AUTHORIZED" : "NOT AUTHORIZED",
+        safety_rating: c.safetyRating || "None",
+        cargo_carried: c.cargoCarried?.map((cc: any) => cc.cargoClassDesc) || [],
+        source: "qcmobile",
+      };
+    }
+  }
+
+  // Fallback to Census (Snapshot data)
+  if (!carrier && results[1].status === "fulfilled" && results[1].value.ok) {
+    const data = await results[1].value.json();
+    if (data?.length > 0) {
+      const c = data[0];
+      carrier = {
+        dot_number: c.dot_number?.toString() || "",
+        legal_name: c.legal_name || "",
+        dba_name: c.dba_name || "",
+        carrier_operation: c.carrier_operation || "",
+        phone: c.telephone || "",
+        city: c.phy_city || "",
+        state: c.phy_state || "",
+        zip: c.phy_zip || "",
+        address: c.phy_street || "",
+        mc_number: c.mc_mx_ff_number || cleanMC,
+        vehicle_count: parseInt(c.total_power_units) || 0,
+        driver_count: parseInt(c.total_drivers) || 0,
+        operating_status: c.entity_status_desc || "UNKNOWN",
+        safety_rating: "None",
+        cargo_carried: [],
+        source: "census",
+      };
+    }
+  }
+
+  return carrier ? [carrier] : [];
 }
 
 Deno.serve(async (req: Request) => {
