@@ -47,7 +47,7 @@ export async function runMonthlyRenewalUpdate(options = {}) {
 export function startRenewalUpdateCron() {
   if (scheduledTask) return scheduledTask;
 
-  const schedule = process.env.RENEWAL_CRON_SCHEDULE || "0 3 * * *";
+  const schedule = process.env.RENEWAL_CRON_SCHEDULE || "0 3 1 * *";
   const timezone = process.env.RENEWAL_CRON_TIMEZONE || process.env.CARRIER_CRON_TIMEZONE || "America/New_York";
 
   scheduledTask = cron.schedule(

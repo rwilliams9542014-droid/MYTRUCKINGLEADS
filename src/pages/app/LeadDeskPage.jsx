@@ -16,7 +16,7 @@ import {
 
 const stateOptions = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 const LEAD_DESK_STATE_KEY = "mytruckingleads.leadDeskState.v1";
-const pageSizeOptions = [20, 30, 40];
+const pageSizeOptions = [10, 50, 100, 250];
 const newDotDateOptions = [
   { value: "last_7", label: "Last 7 days" },
   { value: "last_14", label: "Last 14 days" },
@@ -106,6 +106,8 @@ export default function LeadDeskPage() {
   const savedState = useMemo(loadSavedLeadDeskState, []);
   const initialDatePreset = normalizeDatePresetForTab(savedState.activeTab || "new_dot", savedState.datePreset);
   const didMountRef = useRef(false);
+  const customFromRef = useRef(null);
+  const customToRef = useRef(null);
   const [activeTab, setActiveTab] = useState(savedState.activeTab || "new_dot");
   const [search, setSearch] = useState(savedState.search || "");
   const [state, setState] = useState(savedState.state || "Any");
@@ -123,7 +125,7 @@ export default function LeadDeskPage() {
   const [leadSourceMeta, setLeadSourceMeta] = useState(savedState.leadSourceMeta || null);
   const [totalResults, setTotalResults] = useState(Number(savedState.totalResults || 0));
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
-  const [pageSize, setPageSize] = useState(pageSizeOptions.includes(Number(savedState.pageSize)) ? Number(savedState.pageSize) : 20);
+  const [pageSize, setPageSize] = useState(pageSizeOptions.includes(Number(savedState.pageSize)) ? Number(savedState.pageSize) : 50);
   const [currentPage, setCurrentPage] = useState(Number(savedState.currentPage) > 0 ? Number(savedState.currentPage) : 1);
   const [minPowerUnits, setMinPowerUnits] = useState(savedState.minPowerUnits || "");
   const [maxPowerUnits, setMaxPowerUnits] = useState(savedState.maxPowerUnits || "");
@@ -328,6 +330,16 @@ export default function LeadDeskPage() {
     setSortBy("lastUpdated");
     setSortOrder("desc");
     setCurrentPage(1);
+  }
+
+  function openDatePicker(ref) {
+    const input = ref.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+    input.focus();
   }
 
   function changePageSize(nextPageSize) {
@@ -784,17 +796,27 @@ export default function LeadDeskPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">From</label>
-                <input type="date" className="input-field" value={customFrom} onChange={(e) => {
-                  setCustomFrom(e.target.value);
-                  setCurrentPage(1);
-                }} />
+                <div className="flex gap-2">
+                  <input ref={customFromRef} type="date" className="input-field" value={customFrom} onChange={(e) => {
+                    setCustomFrom(e.target.value);
+                    setCurrentPage(1);
+                  }} />
+                  <button type="button" className="btn-secondary px-3 py-2 text-sm" onClick={() => openDatePicker(customFromRef)}>
+                    Calendar
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">To</label>
-                <input type="date" className="input-field" value={customTo} onChange={(e) => {
-                  setCustomTo(e.target.value);
-                  setCurrentPage(1);
-                }} />
+                <div className="flex gap-2">
+                  <input ref={customToRef} type="date" className="input-field" value={customTo} onChange={(e) => {
+                    setCustomTo(e.target.value);
+                    setCurrentPage(1);
+                  }} />
+                  <button type="button" className="btn-secondary px-3 py-2 text-sm" onClick={() => openDatePicker(customToRef)}>
+                    Calendar
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -830,7 +852,7 @@ export default function LeadDeskPage() {
               <label className="text-xs text-navy-400">
                 Leads per page
                 <select
-                  className="input-field ml-2 h-9 w-24 py-1 text-sm"
+                  className="input-field ml-2 h-9 w-28 py-1 text-sm"
                   value={pageSize}
                   onChange={(e) => changePageSize(Number(e.target.value))}
                 >

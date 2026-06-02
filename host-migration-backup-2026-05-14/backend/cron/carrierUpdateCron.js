@@ -52,7 +52,7 @@ export async function runDailyCarrierUpdate(options = {}) {
     });
 
     let insuranceStats = null;
-    if (process.env.CARRIER_CRON_INSURANCE_ENABLED !== "false") {
+    if (process.env.CARRIER_CRON_INSURANCE_ENABLED === "true") {
       insuranceStats = await importInsuranceExpirations({
         batchSize: Number(process.env.FMCSA_INSURANCE_IMPORT_BATCH_SIZE || 1000),
         limit: Number(process.env.FMCSA_INSURANCE_IMPORT_LIMIT || 0),

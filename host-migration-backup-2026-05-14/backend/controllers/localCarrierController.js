@@ -278,13 +278,19 @@ function carrierToNewVentureLead(carrier) {
   const apiCarrier = carrierToApi(plain);
   const census = plain.raw?.census || {};
   const address = plain.address || {};
+  const isApprovedMotus = plain.raw?.motusRegister?.approved === true;
+  const newLeadDate = isApprovedMotus
+    ? (plain.newLeadSince || plain.dateCreated || plain.firstSeenAt || plain.firstImportedAt)
+    : (plain.dateCreated || plain.firstSeenAt || plain.firstImportedAt || plain.newLeadSince);
 
   return {
     id: apiCarrier.id,
     dotNumber: apiCarrier.dotNumber,
     mcNumber: apiCarrier.docketNumber || "",
     carrierName: apiCarrier.carrierName,
-    addDate: formatCensusDate(plain.dateCreated || plain.firstSeenAt || plain.firstImportedAt || plain.newLeadSince),
+    addDate: formatCensusDate(newLeadDate),
+    newDotDate: formatCensusDate(newLeadDate),
+    registrationDate: formatCensusDate(plain.dateCreated),
     firstSeenAt: formatCensusDate(plain.firstSeenAt || plain.firstImportedAt || plain.newLeadSince),
     firstImportedAt: formatCensusDate(plain.firstImportedAt || plain.firstSeenAt || plain.newLeadSince),
     mcs150Date: apiCarrier.mcs150Date || formatCensusDate(census.mcs150_date),
@@ -1509,49 +1515,51 @@ export async function getNewCarrierLeads(req, res) {
     const requestedSort = String(req.query.sort || "dateCreated").trim();
     const direction = sortDirection(req.query.order, -1);
     const sort = requestedSort === "fleetSize"
-      ? { fleetSize: -1, dateCreated: -1, firstSeenAt: -1, legalName: 1 }
-      : { dateCreated: direction, firstSeenAt: direction, fleetSize: -1 };
+      ? { fleetSize: -1, leadDeskNewDate: -1, legalName: 1 }
+      : { leadDeskNewDate: direction, fleetSize: -1, legalName: 1 };
 
     if (operation) filter["raw.census.carrier_operation"] = operation;
     const dateRange = { $gte: from, $lte: to };
-    const importDateFilter = {
-      $or: [
-        { dateCreated: dateRange },
+    const leadDateExpression = {
+      $cond: [
+        { $eq: ["$raw.motusRegister.approved", true] },
         {
-          $and: [
-            {
-              $or: [
-                { dateCreated: { $exists: false } },
-                { dateCreated: null }
-              ]
-            },
-            {
-              $or: [
-                { firstSeenAt: dateRange },
-                { firstImportedAt: dateRange },
-                { newLeadSince: dateRange }
-              ]
-            }
+          $ifNull: [
+            "$newLeadSince",
+            { $ifNull: ["$dateCreated", { $ifNull: ["$firstSeenAt", { $ifNull: ["$firstImportedAt", "$createdAt"] }] }] }
+          ]
+        },
+        {
+          $ifNull: [
+            "$dateCreated",
+            { $ifNull: ["$firstSeenAt", { $ifNull: ["$firstImportedAt", { $ifNull: ["$newLeadSince", "$createdAt"] }] }] }
           ]
         }
       ]
     };
+    const andFilters = [motusApprovalFilter];
     if (filter.$or) {
-      filter.$and = [{ $or: filter.$or }, importDateFilter, motusApprovalFilter];
+      andFilters.unshift({ $or: filter.$or });
       delete filter.$or;
-    } else {
-      filter.$and = [importDateFilter, motusApprovalFilter];
     }
+    filter.$and = [...(filter.$and || []), ...andFilters];
 
-    const [total, carriersPlusOne] = await Promise.all([
-      Carrier.countDocuments(filter).maxTimeMS(10000),
-      Carrier.find(filter)
-        .sort(sort)
-        .skip((page - 1) * limit)
-        .limit(limit + 1)
-        .maxTimeMS(10000)
-        .lean()
+    const pipeline = [
+      { $match: filter },
+      { $addFields: { leadDeskNewDate: leadDateExpression } },
+      { $match: { leadDeskNewDate: dateRange } }
+    ];
+    const [countResult, carriersPlusOne] = await Promise.all([
+      Carrier.aggregate([...pipeline, { $count: "total" }]).option({ maxTimeMS: 10000 }),
+      Carrier.aggregate([
+        ...pipeline,
+        { $sort: sort },
+        { $skip: (page - 1) * limit },
+        { $limit: limit + 1 },
+        { $project: { leadDeskNewDate: 0 } }
+      ]).option({ maxTimeMS: 10000 })
     ]);
+    const total = Number(countResult[0]?.total || 0);
     const hasMore = carriersPlusOne.length > limit;
     const carriers = hasMore ? carriersPlusOne.slice(0, limit) : carriersPlusOne;
 
