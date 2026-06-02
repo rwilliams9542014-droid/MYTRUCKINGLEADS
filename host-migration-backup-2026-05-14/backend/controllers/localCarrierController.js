@@ -133,7 +133,9 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
   const address = plain.address || {};
   const census = plain.raw?.census || {};
   const addressText = address.raw || [address.street, address.city, address.state, address.zip].filter(Boolean).join(", ");
-  const docketNumber = plain.docketNumber || [census.docket1prefix, census.docket1].filter(Boolean).join("");
+  const docketNumber = plain.docketNumber
+    || plain.raw?.motusRegister?.authorities?.[0]?.docketNumber
+    || [census.docket1prefix, census.docket1].filter(Boolean).join("");
   const companyOfficer1 = plain.companyOfficer1 || census.company_officer_1 || "";
   const companyOfficer2 = plain.companyOfficer2 || census.company_officer_2 || "";
   const cellPhone = plain.cellPhone || census.cell_phone || "";

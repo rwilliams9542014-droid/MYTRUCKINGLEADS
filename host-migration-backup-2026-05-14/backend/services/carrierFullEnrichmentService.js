@@ -72,7 +72,9 @@ function mergeSavedCarrierIntoLive(liveCarrier = {}, savedCarrier = {}) {
     email: clean(liveCarrier.email) || clean(savedCarrier.email),
     companyOfficer1: clean(liveCarrier.companyOfficer1 || liveCarrier.companyOfficer) || clean(savedCarrier.companyOfficer1),
     companyOfficer2: clean(liveCarrier.companyOfficer2) || clean(savedCarrier.companyOfficer2),
-    mc: clean(liveCarrier.mc || liveCarrier.docketNumber) || clean(savedCarrier.docketNumber)
+    mc: clean(liveCarrier.mc || liveCarrier.docketNumber)
+      || clean(savedCarrier.docketNumber)
+      || clean(savedCarrier.raw?.motusRegister?.authorities?.[0]?.docketNumber)
   };
 }
 
