@@ -208,7 +208,7 @@ export function mapLiveCarrierToCarrier(data) {
   };
 }
 
-export async function fetchCensusCarrierPage({ limit = 1000, offset = 0, where = "", order = "dot_number" } = {}) {
+export async function fetchCensusCarrierPage({ limit = 1000, offset = 0, where = "", order = "add_date DESC" } = {}) {
   const params = {
     $limit: limit,
     $offset: offset,

@@ -67,13 +67,15 @@ async function searchRealTime(identifier: string, type: "dot" | "mc") {
   const endpoint = type === "dot" ? identifier : `mc/${identifier}`;
   const censusField = type === "dot" ? "dot_number" : "mc_mx_ff_number";
   
-  const urls = [
-    `${QCMOBILE_BASE}/${endpoint}?webKey=${FMCSA_WEBKEY}`,
-    `${CENSUS_BASE}?$where=${censusField}='${identifier}'`,
-  ];
+  const qcUrl = new URL(`${QCMOBILE_BASE}/${endpoint}`);
+  qcUrl.searchParams.set("webKey", FMCSA_WEBKEY);
 
+  const censusUrl = new URL(CENSUS_BASE);
+  censusUrl.searchParams.set("$where", `${censusField}='${identifier}'`);
+
+  const urls = [qcUrl.toString(), censusUrl.toString()];
   const results = await Promise.allSettled(
-    urls.map((url) => fetch(url, { signal: AbortSignal.timeout(15000) }))
+    urls.map((u) => fetch(u, { signal: AbortSignal.timeout(15000) }))
   );
 
   // 1. Try Real-time QCMobile API
@@ -96,11 +98,15 @@ async function searchRealTime(identifier: string, type: "dot" | "mc") {
 }
 
 async function searchByName(name: string, state?: string, limit = 25) {
-  let where = `upper(legal_name) LIKE upper('%25${encodeURIComponent(name)}%25')`;
-  if (state) where += ` AND phy_state='${state.toUpperCase()}'`;
+  const url = new URL(CENSUS_BASE);
+  let where = `upper(legal_name) LIKE upper('%${name.replace(/'/g, "''")}%')`;
+  if (state) where += ` AND phy_state='${state.toUpperCase().replace(/'/g, "''")}'`;
 
-  const url = `${CENSUS_BASE}?$where=${where}&$limit=${limit}&$order=mcs150_form_date DESC`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  url.searchParams.set("$where", where);
+  url.searchParams.set("$limit", limit.toString());
+  url.searchParams.set("$order", "add_date DESC");
+
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(20000) });
   if (!res.ok) return [];
   const data = await res.json();
   return data.map((c: any) => mapCensusToCarrier(c));
