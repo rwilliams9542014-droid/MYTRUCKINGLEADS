@@ -55,6 +55,27 @@ function normalizeDot(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function meaningful(value) {
+  const text = clean(value);
+  return text && !/^unknown(?: carrier)?$/i.test(text) ? text : "";
+}
+
+function mergeSavedCarrierIntoLive(liveCarrier = {}, savedCarrier = {}) {
+  return {
+    ...liveCarrier,
+    carrierName: meaningful(liveCarrier.carrierName || liveCarrier.legalName) || meaningful(savedCarrier.legalName || savedCarrier.dbaName),
+    legalName: meaningful(liveCarrier.legalName || liveCarrier.carrierName) || meaningful(savedCarrier.legalName || savedCarrier.dbaName),
+    dbaName: clean(liveCarrier.dbaName) || clean(savedCarrier.dbaName),
+    address: clean(liveCarrier.address) || clean(savedCarrier.address?.raw),
+    phone: clean(liveCarrier.phone) || clean(savedCarrier.phoneNumber),
+    cellPhone: clean(liveCarrier.cellPhone) || clean(savedCarrier.cellPhone),
+    email: clean(liveCarrier.email) || clean(savedCarrier.email),
+    companyOfficer1: clean(liveCarrier.companyOfficer1 || liveCarrier.companyOfficer) || clean(savedCarrier.companyOfficer1),
+    companyOfficer2: clean(liveCarrier.companyOfficer2) || clean(savedCarrier.companyOfficer2),
+    mc: clean(liveCarrier.mc || liveCarrier.docketNumber) || clean(savedCarrier.docketNumber)
+  };
+}
+
 function hasCargoData(carrier = {}) {
   if (Array.isArray(carrier.cargoTypes) && carrier.cargoTypes.length) return true;
   if (clean(carrier.cargo)) return true;
@@ -89,7 +110,7 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
   const cargoTypes = splitCargo(liveCarrier.cargo || liveCarrier.cargoTypes || liveCarrier.saferData?.cargoTypes);
   const set = {
     dotNumber: resolvedDot,
-    legalName: clean(liveCarrier.legalName || liveCarrier.carrierName || liveCarrier.name, "Unknown Carrier"),
+    legalName: meaningful(liveCarrier.legalName || liveCarrier.carrierName || liveCarrier.name),
     dbaName: clean(liveCarrier.dbaName),
     address: splitAddress(liveCarrier.address),
     phoneNumber: clean(liveCarrier.phone),
@@ -151,7 +172,9 @@ export async function enrichCarrierByDot(dotNumber, options = {}) {
   if (delayMs > 0) await sleep(delayMs);
 
   const liveCarrier = await fetchCarrierByDotOrMc({ dot });
-  const { set, rawSet } = mapLiveCarrierToMongoSet(liveCarrier, dot);
+  const savedCarrier = isMongoConnected() ? await Carrier.findOne({ dotNumber: dot }).lean() : null;
+  const mergedCarrier = mergeSavedCarrierIntoLive(liveCarrier, savedCarrier || {});
+  const { set, rawSet } = mapLiveCarrierToMongoSet(mergedCarrier, dot);
 
   if (options.save !== false && isMongoConnected()) {
     await Carrier.findOneAndUpdate(
@@ -175,7 +198,7 @@ export async function enrichCarrierByDot(dotNumber, options = {}) {
   const cargoTypes = Array.isArray(set.cargoTypes) ? set.cargoTypes : [];
 
   return {
-    ...liveCarrier,
+    ...mergedCarrier,
     dotNumber: dot,
     cargoTypes,
     cargo: cargoTypes.join(", "),

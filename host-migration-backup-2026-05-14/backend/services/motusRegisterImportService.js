@@ -5,6 +5,7 @@ import { upsertCarrierBatch } from "./carrierImportService.js";
 
 const MOTUS_REPORT_URL = "https://motus.dot.gov/api/report/getSignedUrlByTypeAndDateRange";
 const MOTUS_CARRIER_SEARCH_URL = "https://motus.dot.gov/api/carriers/search";
+const MOTUS_ENTITY_URL = "https://motus.dot.gov/api/entity/entityId";
 const ACTIVE_DOT_NUMBER_STATUS_ID = "5ec2f394-2899-4a97-876c-abaa4e2219ff";
 const ACTIVE_AUTHORITY_STATUS_ID = "39c8ddf9-e8be-4d82-8d33-ff504ec42793";
 const PENDING_AUTHORITY_STATUS_ID = "42970913-aa47-4778-a7a6-2b3d45cdd67f";
@@ -225,6 +226,8 @@ export function registrationApprovalFromDetails(details) {
 
   return {
     approved,
+    entityId: entities.find(entity => entity.entityId)?.entityId || "",
+    legalName: entities.find(entity => entity.entityName)?.entityName || "",
     registrationStatus: approved ? "Active" : "Not active",
     status: activeAuthority ? "Active" : pendingAuthority ? "Pending" : "Not active",
     authorities: authorities.map(authority => ({
@@ -232,6 +235,32 @@ export function registrationApprovalFromDetails(details) {
       operatingAuthorityStatusId: authority.operatingAuthorityStatusId || "",
       operatingAuthorityType: authority.operatingAuthorityType?.operatingAuthorityType || ""
     }))
+  };
+}
+
+function mapMotusEntityDetails(details = {}) {
+  const locations = (details.locations || []).filter(location => !location.disableDate);
+  const location = locations.find(candidate => candidate.primaryAddressFlag && candidate.isVerified)
+    || locations.find(candidate => candidate.primaryAddressFlag)
+    || locations[0];
+  const phone = (details.phoneNumbers || []).find(candidate => !candidate.disableDate && candidate.phoneNumber)?.phoneNumber || "";
+  const email = (details.emailAddresses || []).find(candidate => !candidate.disableDate && candidate.emailAddress)?.emailAddress || "";
+  const address = location
+    ? {
+        street: [location.addressLine1, location.addressLine2].filter(Boolean).join(" "),
+        city: location.city || "",
+        state: location.state || "",
+        zip: location.zipCode || "",
+        raw: [location.addressLine1, location.addressLine2, location.city, location.state, location.zipCode].filter(Boolean).join(", ")
+      }
+    : null;
+
+  return {
+    legalName: details.entityName || details.entityNames?.find(name => name.nameType === "Legal")?.entityName || "",
+    dbaName: details.entityNames?.find(name => name.nameType === "DBA")?.entityName || "",
+    address,
+    phoneNumber: phone,
+    email
   };
 }
 
@@ -249,7 +278,27 @@ async function fetchMotusCarrierApproval(dotNumber) {
     }
   );
 
-  return registrationApprovalFromDetails(response.data);
+  const approval = registrationApprovalFromDetails(response.data);
+  if (!approval.entityId) return approval;
+
+  try {
+    const detailResponse = await requestWithRetry(
+      {
+        method: "GET",
+        url: `${MOTUS_ENTITY_URL}/${encodeURIComponent(approval.entityId)}`,
+        headers: { Accept: "application/json" },
+        timeout: Number(process.env.FMCSA_REQUEST_TIMEOUT_MS || 30000)
+      },
+      {
+        label: `Motus carrier details ${dotNumber}`,
+        throttleMs: Number(process.env.MOTUS_DETAILS_REQUEST_DELAY_MS || 100)
+      }
+    );
+    return { ...approval, carrier: mapMotusEntityDetails(detailResponse.data) };
+  } catch (err) {
+    console.warn(`[MotusRegister] detail lookup ${dotNumber} skipped:`, err.message);
+    return approval;
+  }
 }
 
 export async function refreshMotusCandidateApprovals(options = {}) {
@@ -278,6 +327,13 @@ export async function refreshMotusCandidateApprovals(options = {}) {
         authorityStatus: approval.status,
         sourceLastSeenAt: now
       };
+      const carrier = approval.carrier || {};
+      if (carrier.legalName) update.legalName = carrier.legalName;
+      if (carrier.dbaName) update.dbaName = carrier.dbaName;
+      if (carrier.address?.raw) update.address = carrier.address;
+      if (carrier.phoneNumber) update.phoneNumber = carrier.phoneNumber;
+      if (carrier.email) update.email = carrier.email;
+      if (approval.authorities[0]?.docketNumber) update.docketNumber = approval.authorities[0].docketNumber;
 
       if (approval.approved) {
         update.newLeadSince = now;
