@@ -1511,7 +1511,11 @@ export async function getNewCarrierLeads(req, res) {
         $group: {
           _id: null,
           totalImported: { $sum: 1 },
-          lastImportTime: { $max: { $ifNull: ["$firstSeenAt", { $ifNull: ["$firstImportedAt", "$newLeadSince"] }] } }
+          lastImportTime: {
+            $max: {
+              $ifNull: ["$sourceLastSeenAt", { $ifNull: ["$firstSeenAt", { $ifNull: ["$firstImportedAt", "$newLeadSince"] }] }]
+            }
+          }
         }
       }
     ]).catch(() => []);
