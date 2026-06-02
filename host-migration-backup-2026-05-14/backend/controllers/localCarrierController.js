@@ -1523,7 +1523,7 @@ export async function getNewCarrierLeads(req, res) {
     const totalImported = importSummary[0]?.totalImported || 0;
     const lastImportTime = importSummary[0]?.lastImportTime || null;
     const message = carriers.length
-      ? "Showing New DOT leads from imported FMCSA Open Data in the database."
+      ? "Showing New DOT leads from imported FMCSA Open Data and Motus Daily Register publications."
       : totalImported === 0
         ? "No new DOT import has run yet."
         : "No new DOT carriers were imported in the selected date window.";
@@ -1540,7 +1540,7 @@ export async function getNewCarrierLeads(req, res) {
       carriers: maskedCarriers,
       leads,
       source: "database",
-      dataSource: "FMCSA Open Data / Database",
+      dataSource: "FMCSA Open Data / Motus Daily Register / Database",
       lastImportTime: lastImportTime ? new Date(lastImportTime).toISOString() : null,
       importedCarrierCount: totalImported,
       access: getPlanAccessSummary(req.user),

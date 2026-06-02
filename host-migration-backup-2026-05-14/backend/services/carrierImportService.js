@@ -239,6 +239,8 @@ export function diffCarrier(existing, incoming) {
   const changes = {};
 
   for (const field of TRACKED_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(incoming, field)) continue;
+
     const oldValue = existing?.[field];
     const newValue = incoming[field];
 
@@ -305,7 +307,11 @@ export async function upsertCarrierBatch(incomingCarriers, { importRunId = getIm
           filter: { dotNumber: incoming.dotNumber },
           update: {
             $set: {
-              sourceLastSeenAt: new Date()
+              sourceLastSeenAt: new Date(),
+              raw: {
+                ...existing.raw,
+                ...incoming.raw
+              }
             }
           }
         }
@@ -323,7 +329,10 @@ export async function upsertCarrierBatch(incomingCarriers, { importRunId = getIm
             source: incoming.source,
             sourceLastSeenAt: new Date(),
             lastUpdated: new Date(),
-            raw: incoming.raw
+            raw: {
+              ...existing.raw,
+              ...incoming.raw
+            }
           }
         }
       }

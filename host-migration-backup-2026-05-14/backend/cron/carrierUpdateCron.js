@@ -3,6 +3,7 @@ import { connectMongo } from "../config/mongo.js";
 import { importCarriersFromCensus } from "../services/carrierImportService.js";
 import { enrichLeadPools } from "../services/carrierFullEnrichmentService.js";
 import { importInsuranceExpirations } from "../services/insuranceEnrichmentService.js";
+import { importCarriersFromMotusRegister } from "../services/motusRegisterImportService.js";
 
 let scheduledTask = null;
 let running = false;
@@ -27,6 +28,14 @@ export async function runDailyCarrierUpdate(options = {}) {
   try {
     await connectMongo({ required: true });
     console.log(`[CarrierCron] Daily carrier update started at ${startedAt.toISOString()}`);
+
+    let motusStats = null;
+    if (process.env.MOTUS_REGISTER_IMPORT_ENABLED !== "false") {
+      motusStats = await importCarriersFromMotusRegister({
+        from: options.motusFrom,
+        to: options.motusTo
+      });
+    }
 
     const where = process.env.FMCSA_DAILY_WHERE || defaultDailyWhere();
     console.log(`[CarrierCron] FMCSA daily census filter: ${where}`);
@@ -56,8 +65,8 @@ export async function runDailyCarrierUpdate(options = {}) {
       });
     }
 
-    console.log("[CarrierCron] Daily carrier update finished:", { carrierStats: stats, insuranceStats, enrichmentStats });
-    return { carrierStats: stats, insuranceStats, enrichmentStats };
+    console.log("[CarrierCron] Daily carrier update finished:", { motusStats, carrierStats: stats, insuranceStats, enrichmentStats });
+    return { motusStats, carrierStats: stats, insuranceStats, enrichmentStats };
   } catch (err) {
     console.error("[CarrierCron] Daily carrier update failed:", err);
     throw err;
