@@ -7,6 +7,14 @@ import { importInsuranceExpirations } from "../services/insuranceEnrichmentServi
 let scheduledTask = null;
 let running = false;
 
+function defaultDailyWhere() {
+  const lookbackDays = Math.max(Number(process.env.FMCSA_DAILY_LOOKBACK_DAYS || 7), 1);
+  const from = new Date();
+  from.setUTCDate(from.getUTCDate() - lookbackDays);
+  const compactDate = from.toISOString().slice(0, 10).replace(/-/g, "");
+  return `add_date >= ${compactDate}`;
+}
+
 export async function runDailyCarrierUpdate(options = {}) {
   if (running) {
     console.warn("[CarrierCron] Carrier update skipped because a previous run is still active.");
@@ -20,10 +28,13 @@ export async function runDailyCarrierUpdate(options = {}) {
     await connectMongo({ required: true });
     console.log(`[CarrierCron] Daily carrier update started at ${startedAt.toISOString()}`);
 
+    const where = process.env.FMCSA_DAILY_WHERE || defaultDailyWhere();
+    console.log(`[CarrierCron] FMCSA daily census filter: ${where}`);
+
     const stats = await importCarriersFromCensus({
       batchSize: Number(process.env.FMCSA_DAILY_BATCH_SIZE || process.env.FMCSA_IMPORT_BATCH_SIZE || 1000),
       limit: Number(process.env.FMCSA_DAILY_IMPORT_LIMIT || 0),
-      where: process.env.FMCSA_DAILY_WHERE || "",
+      where,
       ...options
     });
 
