@@ -8,11 +8,11 @@ let scheduledTask = null;
 let running = false;
 
 function defaultDailyWhere() {
-  const lookbackDays = Math.max(Number(process.env.FMCSA_DAILY_LOOKBACK_DAYS || 7), 1);
+  const lookbackDays = Math.max(Number(process.env.FMCSA_DAILY_LOOKBACK_DAYS || 45), 1);
   const from = new Date();
   from.setUTCDate(from.getUTCDate() - lookbackDays);
   const compactDate = from.toISOString().slice(0, 10).replace(/-/g, "");
-  return `add_date >= ${compactDate}`;
+  return `add_date >= '${compactDate}'`;
 }
 
 export async function runDailyCarrierUpdate(options = {}) {
