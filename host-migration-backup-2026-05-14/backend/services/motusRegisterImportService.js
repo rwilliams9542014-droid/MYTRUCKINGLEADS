@@ -13,8 +13,11 @@ const TABLE_COLUMN_RANGES = [
 ];
 const TABLE_ROW_HEIGHT = 21;
 
-function isoDate(value) {
-  const date = value ? new Date(`${String(value).slice(0, 10)}T00:00:00.000Z`) : new Date();
+export function isoDate(value) {
+  const text = String(value || "").trim();
+  const usDate = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const normalized = usDate ? `${usDate[3]}-${usDate[1]}-${usDate[2]}` : text.slice(0, 10);
+  const date = normalized ? new Date(`${normalized}T00:00:00.000Z`) : new Date();
   if (Number.isNaN(date.getTime())) throw new Error(`Invalid Motus register date: ${value}`);
   return date.toISOString().slice(0, 10);
 }
