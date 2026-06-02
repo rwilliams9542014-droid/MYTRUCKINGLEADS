@@ -6,6 +6,8 @@ import { upsertCarrierBatch } from "./carrierImportService.js";
 const MOTUS_REPORT_URL = "https://motus.dot.gov/api/report/getSignedUrlByTypeAndDateRange";
 const MOTUS_CARRIER_SEARCH_URL = "https://motus.dot.gov/api/carriers/search";
 const MOTUS_ENTITY_URL = "https://motus.dot.gov/api/entity/entityId";
+const MOTUS_CARRIER_DETAILS_URL = "https://motus.dot.gov/api/carriers";
+const MOTUS_PUBLIC_MATRIX_URL = "https://motus.dot.gov/api/public-registration-matrix";
 const ACTIVE_DOT_NUMBER_STATUS_ID = "5ec2f394-2899-4a97-876c-abaa4e2219ff";
 const ACTIVE_AUTHORITY_STATUS_ID = "39c8ddf9-e8be-4d82-8d33-ff504ec42793";
 const PENDING_AUTHORITY_STATUS_ID = "42970913-aa47-4778-a7a6-2b3d45cdd67f";
@@ -238,13 +240,44 @@ export function registrationApprovalFromDetails(details) {
   };
 }
 
-function mapMotusEntityDetails(details = {}) {
-  const locations = (details.locations || []).filter(location => !location.disableDate);
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sumEquipment(equipment, description) {
+  const needle = description.toLowerCase();
+  const matches = equipment.filter(entry => String(entry.equipmentType?.equipmentTypeDesc || "").toLowerCase().includes(needle));
+  if (!matches.length) return null;
+  return matches.reduce((total, entry) => total + (numberOrNull(entry.equipmentCount) || 0), 0);
+}
+
+function readableCargoType(entry) {
+  const value = entry.otherDescription
+    || entry.cargoClassification?.cargoClassificationCode
+    || entry.cargoClassification?.cargoClassificationDescription;
+  return value ? String(value).replace(/-/g, " ").replace(/\b\w/g, letter => letter.toUpperCase()) : "";
+}
+
+function mapMotusEntityDetails(details = {}, matrix = {}) {
+  const merged = { ...details, ...(matrix.entity || {}) };
+  const locations = (merged.locations || []).filter(location => !location.disableDate);
   const location = locations.find(candidate => candidate.primaryAddressFlag && candidate.isVerified)
     || locations.find(candidate => candidate.primaryAddressFlag)
     || locations[0];
-  const phone = (details.phoneNumbers || []).find(candidate => !candidate.disableDate && candidate.phoneNumber)?.phoneNumber || "";
-  const email = (details.emailAddresses || []).find(candidate => !candidate.disableDate && candidate.emailAddress)?.emailAddress || "";
+  const phone = (merged.phoneNumbers || []).find(candidate => !candidate.disableDate && candidate.phoneNumber)?.phoneNumber || "";
+  const email = (merged.emailAddresses || []).find(candidate => !candidate.disableDate && candidate.emailAddress)?.emailAddress || "";
+  const officer = (merged.entityOfficers || []).find(candidate => !candidate.disableDate) || {};
+  const equipment = merged.entityEquipment || [];
+  const tractorCount = sumEquipment(equipment, "truck tractors");
+  const trailerCount = sumEquipment(equipment, "trailers");
+  const straightTruckCount = sumEquipment(equipment, "straight trucks");
+  const calculatedFleetSize = tractorCount === null && straightTruckCount === null
+    ? null
+    : (tractorCount || 0) + (straightTruckCount || 0);
+  const operations = (matrix.matrixProperties || []).map(entry => entry.registrationTypeLabel).filter(Boolean);
+  const detail = merged.carrierEntityDetail || {};
   const address = location
     ? {
         street: [location.addressLine1, location.addressLine2].filter(Boolean).join(" "),
@@ -256,12 +289,86 @@ function mapMotusEntityDetails(details = {}) {
     : null;
 
   return {
-    legalName: details.entityName || details.entityNames?.find(name => name.nameType === "Legal")?.entityName || "",
-    dbaName: details.entityNames?.find(name => name.nameType === "DBA")?.entityName || "",
+    legalName: merged.entityName || merged.entityNames?.find(name => name.nameType === "Legal")?.entityName || "",
+    dbaName: merged.entityNames?.find(name => name.nameType === "DBA")?.entityName || "",
     address,
     phoneNumber: phone,
-    email
+    email,
+    companyOfficer1: [officer.firstName, officer.middleName, officer.lastName].filter(Boolean).join(" "),
+    companyOfficerTitle: officer.title || "",
+    driverCount: numberOrNull(detail.driverTotal),
+    cdlDrivers: numberOrNull(merged.carrierEntityAnswer?.totalCdl),
+    fleetSize: numberOrNull(detail.nbrPowerUnit) ?? calculatedFleetSize,
+    tractorCount,
+    trailerCount,
+    straightTruckCount,
+    cargoTypes: (merged.entityCargoClassification || []).map(readableCargoType).filter(Boolean),
+    entityType: detail.businessType?.businessTypeName || "",
+    carrierOperation: operations.join("; "),
+    rawProfile: {
+      entityId: merged.entityId,
+      equipment,
+      cargoClassifications: merged.entityCargoClassification || [],
+      registrationTypes: operations
+    }
   };
+}
+
+export async function fetchMotusCarrierProfile(dotNumber, entityId = "") {
+  let details;
+  try {
+    const response = await requestWithRetry(
+      {
+        method: "GET",
+        url: `${MOTUS_CARRIER_DETAILS_URL}/${encodeURIComponent(dotNumber)}`,
+        headers: { Accept: "application/json" },
+        timeout: Number(process.env.FMCSA_REQUEST_TIMEOUT_MS || 30000)
+      },
+      {
+        label: `Motus full carrier details ${dotNumber}`,
+        throttleMs: Number(process.env.MOTUS_DETAILS_REQUEST_DELAY_MS || 100)
+      }
+    );
+    details = response.data;
+  } catch (err) {
+    if (!entityId) throw err;
+    const response = await requestWithRetry(
+      {
+        method: "GET",
+        url: `${MOTUS_ENTITY_URL}/${encodeURIComponent(entityId)}`,
+        headers: { Accept: "application/json" },
+        timeout: Number(process.env.FMCSA_REQUEST_TIMEOUT_MS || 30000)
+      },
+      {
+        label: `Motus entity details ${dotNumber}`,
+        throttleMs: Number(process.env.MOTUS_DETAILS_REQUEST_DELAY_MS || 100)
+      }
+    );
+    details = response.data;
+  }
+
+  const resolvedEntityId = entityId || details?.entityId;
+  let matrix = {};
+  if (resolvedEntityId) {
+    try {
+      const response = await requestWithRetry(
+        {
+          method: "GET",
+          url: `${MOTUS_PUBLIC_MATRIX_URL}/${encodeURIComponent(resolvedEntityId)}`,
+          headers: { Accept: "application/json" },
+          timeout: Number(process.env.FMCSA_REQUEST_TIMEOUT_MS || 30000)
+        },
+        {
+          label: `Motus public registration matrix ${dotNumber}`,
+          throttleMs: Number(process.env.MOTUS_DETAILS_REQUEST_DELAY_MS || 100)
+        }
+      );
+      matrix = response.data;
+    } catch (err) {
+      console.warn(`[MotusRegister] registration matrix ${dotNumber} skipped:`, err.message);
+    }
+  }
+  return mapMotusEntityDetails(details, matrix);
 }
 
 async function fetchMotusCarrierApproval(dotNumber) {
@@ -282,19 +389,7 @@ async function fetchMotusCarrierApproval(dotNumber) {
   if (!approval.entityId) return approval;
 
   try {
-    const detailResponse = await requestWithRetry(
-      {
-        method: "GET",
-        url: `${MOTUS_ENTITY_URL}/${encodeURIComponent(approval.entityId)}`,
-        headers: { Accept: "application/json" },
-        timeout: Number(process.env.FMCSA_REQUEST_TIMEOUT_MS || 30000)
-      },
-      {
-        label: `Motus carrier details ${dotNumber}`,
-        throttleMs: Number(process.env.MOTUS_DETAILS_REQUEST_DELAY_MS || 100)
-      }
-    );
-    return { ...approval, carrier: mapMotusEntityDetails(detailResponse.data) };
+    return { ...approval, carrier: await fetchMotusCarrierProfile(dotNumber, approval.entityId) };
   } catch (err) {
     console.warn(`[MotusRegister] detail lookup ${dotNumber} skipped:`, err.message);
     return approval;
@@ -304,12 +399,11 @@ async function fetchMotusCarrierApproval(dotNumber) {
 export async function refreshMotusCandidateApprovals(options = {}) {
   const limit = Number(options.limit ?? process.env.MOTUS_APPROVAL_REFRESH_LIMIT ?? 1000);
   const candidates = await Carrier.find({
-    "raw.motusRegister": { $exists: true },
-    "raw.motusRegister.approved": { $ne: true }
+    "raw.motusRegister": { $exists: true }
   })
     .sort({ "raw.motusRegister.approvalCheckedAt": 1, dateCreated: 1 })
     .limit(limit > 0 ? limit : 0)
-    .select({ dotNumber: 1 })
+    .select({ dotNumber: 1, "raw.motusRegister.approved": 1 })
     .lean();
   const stats = { requested: candidates.length, approved: 0, pending: 0, errors: 0 };
 
@@ -320,6 +414,7 @@ export async function refreshMotusCandidateApprovals(options = {}) {
       const update = {
         "raw.motusRegister.approved": approval.approved,
         "raw.motusRegister.registrationStatus": approval.registrationStatus,
+        "raw.motusRegister.entityId": approval.entityId,
         "raw.motusRegister.authorityStatus": approval.status,
         "raw.motusRegister.authorities": approval.authorities,
         "raw.motusRegister.approvalCheckedAt": now,
@@ -333,10 +428,22 @@ export async function refreshMotusCandidateApprovals(options = {}) {
       if (carrier.address?.raw) update.address = carrier.address;
       if (carrier.phoneNumber) update.phoneNumber = carrier.phoneNumber;
       if (carrier.email) update.email = carrier.email;
+      if (carrier.companyOfficer1) update.companyOfficer1 = carrier.companyOfficer1;
+      if (carrier.companyOfficerTitle) update.companyOfficerTitle = carrier.companyOfficerTitle;
+      if (carrier.driverCount !== null) update.driverCount = carrier.driverCount;
+      if (carrier.cdlDrivers !== null) update.cdlDrivers = carrier.cdlDrivers;
+      if (carrier.fleetSize !== null) update.fleetSize = carrier.fleetSize;
+      if (carrier.tractorCount !== null) update.tractorCount = carrier.tractorCount;
+      if (carrier.trailerCount !== null) update.trailerCount = carrier.trailerCount;
+      if (carrier.straightTruckCount !== null) update.straightTruckCount = carrier.straightTruckCount;
+      if (carrier.cargoTypes?.length) update.cargoTypes = carrier.cargoTypes;
+      if (carrier.entityType) update.entityType = carrier.entityType;
+      if (carrier.carrierOperation) update.carrierOperation = carrier.carrierOperation;
+      if (carrier.rawProfile) update["raw.motusProfile"] = carrier.rawProfile;
       if (approval.authorities[0]?.docketNumber) update.docketNumber = approval.authorities[0].docketNumber;
 
       if (approval.approved) {
-        update.newLeadSince = now;
+        if (!candidate.raw?.motusRegister?.approved) update.newLeadSince = now;
         stats.approved += 1;
       } else {
         stats.pending += 1;

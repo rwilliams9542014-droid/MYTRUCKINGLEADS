@@ -161,6 +161,7 @@ function normalizeCarrier(data) {
   const mc = pick(carrier.mcNumber, carrier.mc_number, carrier.mc, carrier.docketNumber);
   const trucks = pick(carrier.powerUnits, carrier.power_units, carrier.vehicleCount, carrier.vehicle_count, carrier.fleetSize);
   const drivers = pick(carrier.drivers, carrier.driverCount, carrier.driver_count);
+  const fleetBreakdown = firstObject(carrier.fleetBreakdown);
   const cargo = splitCargo(pick(carrier.cargoHauled, carrier.cargo, carrier.cargoCarried, carrier.cargoTypes, carrier.cargo_hauled));
   const safety = firstObject(carrier.safety);
   const inspectionSummary = normalizeInspectionSummary(firstObject(carrier.inspectionSummary, safety.inspectionSummary, carrier.inspection_summary));
@@ -191,6 +192,9 @@ function normalizeCarrier(data) {
     addDate: pick(carrier.addDate, carrier.add_date, carrier.dateCreated),
     trucks,
     drivers,
+    tractors: pick(carrier.tractorCount, fleetBreakdown.tractors),
+    trailers: pick(carrier.trailerCount, fleetBreakdown.trailers),
+    straightTrucks: pick(carrier.straightTruckCount, fleetBreakdown.straightTrucks),
     cargo,
     insuranceCompany: lead.insuranceCompany,
     insuranceExpiration: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration, carrier.licensingInsurance?.insuranceExpirationDate),
@@ -229,6 +233,7 @@ function normalizeCarrier(data) {
     dataSources: carrier.dataSources || {},
     liveFmcsaStatus: carrier.liveFmcsaStatus || {},
     companyRep: pick(carrier.companyRep, carrier.companyOfficer1, carrier.company_rep),
+    companyOfficerTitle: carrier.companyOfficerTitle,
   };
 }
 
@@ -376,7 +381,13 @@ function InsuranceFilingCard({ carrier }) {
 }
 
 function CompanyDetailsCard({ carrier }) {
-  const fleet = [carrier.trucks && `${carrier.trucks} power units`, carrier.drivers && `${carrier.drivers} drivers`].filter(Boolean).join(", ");
+  const fleet = [
+    hasValue(carrier.trucks) && `${carrier.trucks} power units`,
+    hasValue(carrier.tractors) && `${carrier.tractors} tractors`,
+    hasValue(carrier.trailers) && `${carrier.trailers} trailers`,
+    hasValue(carrier.straightTrucks) && `${carrier.straightTrucks} straight trucks`,
+    hasValue(carrier.drivers) && `${carrier.drivers} drivers`,
+  ].filter(Boolean).join(", ");
   return (
     <ProfileCard title="Company Details">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-5">
@@ -384,6 +395,7 @@ function CompanyDetailsCard({ carrier }) {
         <DetailItem label="Email" value={carrier.email} />
         <DetailItem label="Address" value={carrier.address || [carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", ")} />
         <DetailItem label="Entity Type" value={carrier.entityType} />
+        <DetailItem label="Owner / Company Officer" value={[carrier.companyRep, carrier.companyOfficerTitle].filter(Boolean).join(" - ")} />
         <DetailItem label="Fleet Size" value={fleet} />
         <DetailItem label="Operations" value={carrier.operations} />
         <DetailItem label="Authority Status" value={carrier.operatingStatus} />

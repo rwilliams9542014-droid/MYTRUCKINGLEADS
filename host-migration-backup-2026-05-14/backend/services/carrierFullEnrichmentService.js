@@ -2,6 +2,7 @@ import Carrier from "../models/Carrier.js";
 import { isMongoConnected } from "../config/mongo.js";
 import { query as dbQuery } from "../config/db.js";
 import { fetchCarrierByDotOrMc } from "./fmcsaService.js";
+import { fetchMotusCarrierProfile } from "./motusRegisterImportService.js";
 import { sleep } from "./safeScrapingService.js";
 
 function clean(value, fallback = "") {
@@ -72,6 +73,18 @@ function mergeSavedCarrierIntoLive(liveCarrier = {}, savedCarrier = {}) {
     email: clean(liveCarrier.email) || clean(savedCarrier.email),
     companyOfficer1: clean(liveCarrier.companyOfficer1 || liveCarrier.companyOfficer) || clean(savedCarrier.companyOfficer1),
     companyOfficer2: clean(liveCarrier.companyOfficer2) || clean(savedCarrier.companyOfficer2),
+    companyOfficerTitle: clean(liveCarrier.companyOfficerTitle) || clean(savedCarrier.companyOfficerTitle),
+    vehicleCount: numberOrNull(liveCarrier.vehicleCount ?? liveCarrier.vehicles) ?? numberOrNull(savedCarrier.fleetSize),
+    driverCount: numberOrNull(liveCarrier.driverCount ?? liveCarrier.drivers) ?? numberOrNull(savedCarrier.driverCount),
+    cdlDrivers: numberOrNull(liveCarrier.cdlDrivers) ?? numberOrNull(savedCarrier.cdlDrivers),
+    tractorCount: numberOrNull(liveCarrier.tractorCount) ?? numberOrNull(savedCarrier.tractorCount),
+    trailerCount: numberOrNull(liveCarrier.trailerCount) ?? numberOrNull(savedCarrier.trailerCount),
+    straightTruckCount: numberOrNull(liveCarrier.straightTruckCount) ?? numberOrNull(savedCarrier.straightTruckCount),
+    entityType: clean(liveCarrier.entityType) || clean(savedCarrier.entityType),
+    carrierOperation: clean(liveCarrier.carrierOperation) || clean(savedCarrier.carrierOperation),
+    cargoTypes: splitCargo(liveCarrier.cargo || liveCarrier.cargoTypes).length
+      ? splitCargo(liveCarrier.cargo || liveCarrier.cargoTypes)
+      : savedCarrier.cargoTypes || [],
     mc: clean(liveCarrier.mc || liveCarrier.docketNumber)
       || clean(savedCarrier.docketNumber)
       || clean(savedCarrier.raw?.motusRegister?.authorities?.[0]?.docketNumber)
@@ -120,6 +133,7 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
     email: clean(liveCarrier.email).toLowerCase(),
     companyOfficer1: clean(liveCarrier.companyOfficer1 || liveCarrier.companyOfficer),
     companyOfficer2: clean(liveCarrier.companyOfficer2),
+    companyOfficerTitle: clean(liveCarrier.companyOfficerTitle),
     docketNumber: clean(liveCarrier.mc || liveCarrier.docketNumber),
     safetyRating: clean(liveCarrier.safetyRating, "Unknown"),
     authorityStatus: clean(liveCarrier.authorityStatus),
@@ -130,6 +144,12 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
     insuranceType: clean(liveCarrier.insuranceType || liveCarrier.cargoInsurance),
     fleetSize: numberOrNull(liveCarrier.vehicleCount ?? liveCarrier.vehicles),
     driverCount: numberOrNull(liveCarrier.driverCount ?? liveCarrier.drivers),
+    cdlDrivers: numberOrNull(liveCarrier.cdlDrivers),
+    tractorCount: numberOrNull(liveCarrier.tractorCount),
+    trailerCount: numberOrNull(liveCarrier.trailerCount),
+    straightTruckCount: numberOrNull(liveCarrier.straightTruckCount),
+    entityType: clean(liveCarrier.entityType),
+    carrierOperation: clean(liveCarrier.carrierOperation),
     mcs150Date: dateOrNull(liveCarrier.mcs150Date),
     mcs150Mileage: numberOrNull(liveCarrier.mcs150Mileage),
     cargoTypes,
@@ -161,7 +181,8 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
       "raw.liveCarrier": liveCarrier,
       "raw.smsSafety": liveCarrier.smsSafety || null,
       "raw.saferData": liveCarrier.saferData || null,
-      "raw.qcmobileDetails": liveCarrier.qcmobileDetails || null
+      "raw.qcmobileDetails": liveCarrier.qcmobileDetails || null,
+      "raw.motusProfile": liveCarrier.motusProfile || null
     }
   };
 }
@@ -173,9 +194,31 @@ export async function enrichCarrierByDot(dotNumber, options = {}) {
   const delayMs = Number(options.delayMs ?? process.env.FULL_ENRICHMENT_REQUEST_DELAY_MS ?? 750);
   if (delayMs > 0) await sleep(delayMs);
 
-  const liveCarrier = await fetchCarrierByDotOrMc({ dot });
   const savedCarrier = isMongoConnected() ? await Carrier.findOne({ dotNumber: dot }).lean() : null;
-  const mergedCarrier = mergeSavedCarrierIntoLive(liveCarrier, savedCarrier || {});
+  const liveCarrier = await fetchCarrierByDotOrMc({ dot });
+  let motusProfile = null;
+  if (savedCarrier?.raw?.motusRegister) {
+    try {
+      motusProfile = await fetchMotusCarrierProfile(dot, savedCarrier.raw.motusRegister.entityId);
+    } catch (err) {
+      console.warn(`[FullEnrichment] Motus profile lookup skipped for DOT ${dot}:`, err.message);
+    }
+  }
+  const profileCarrier = motusProfile
+    ? {
+        ...liveCarrier,
+        legalName: motusProfile.legalName || liveCarrier.legalName,
+        carrierName: motusProfile.legalName || liveCarrier.carrierName,
+        dbaName: motusProfile.dbaName || liveCarrier.dbaName,
+        address: motusProfile.address?.raw || liveCarrier.address,
+        phone: motusProfile.phoneNumber || liveCarrier.phone,
+        email: motusProfile.email || liveCarrier.email,
+        ...motusProfile,
+        vehicleCount: motusProfile.fleetSize ?? liveCarrier.vehicleCount,
+        motusProfile: motusProfile.rawProfile
+      }
+    : liveCarrier;
+  const mergedCarrier = mergeSavedCarrierIntoLive(profileCarrier, savedCarrier || {});
   const { set, rawSet } = mapLiveCarrierToMongoSet(mergedCarrier, dot);
 
   if (options.save !== false && isMongoConnected()) {

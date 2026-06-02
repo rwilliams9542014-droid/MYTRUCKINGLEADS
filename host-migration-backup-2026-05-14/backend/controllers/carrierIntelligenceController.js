@@ -758,6 +758,7 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     email: clean(carrier.email || census.email_address),
     companyOfficer1: clean(carrier.companyOfficer1 || carrier.companyOfficer || census.company_officer_1),
     companyOfficer2: clean(carrier.companyOfficer2 || census.company_officer_2),
+    companyOfficerTitle: clean(carrier.companyOfficerTitle),
     docketNumber: clean(carrier.docketNumber || carrier.mc || qcmobileDockets[0] || census.docket1 || census.docket_number),
     docketNumbers: qcmobileDockets,
     operatingStatus: clean(qcmobileAuthority.operatingStatus || carrier.operatingStatus || carrier.operatingAuthority || census.status_code, "Not available"),
@@ -782,6 +783,9 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     cargoCarried: cargoList,
     fleetBreakdown: {
       ownedTrucks: fleetSize,
+      tractors: numberOrNull(carrier.tractorCount),
+      trailers: numberOrNull(carrier.trailerCount),
+      straightTrucks: numberOrNull(carrier.straightTruckCount),
       termLeased: clean(census.term_leased_power_units || carrier.termLeased),
       tripLeased: clean(census.trip_leased_power_units || carrier.tripLeased),
       totalPowerUnits: fleetSize,
