@@ -1,8 +1,12 @@
 import { inflateSync } from "zlib";
+import Carrier from "../models/Carrier.js";
 import { requestWithRetry } from "./safeScrapingService.js";
 import { upsertCarrierBatch } from "./carrierImportService.js";
 
 const MOTUS_REPORT_URL = "https://motus.dot.gov/api/report/getSignedUrlByTypeAndDateRange";
+const MOTUS_CARRIER_SEARCH_URL = "https://motus.dot.gov/api/carriers/search";
+const ACTIVE_AUTHORITY_STATUS_ID = "39c8ddf9-e8be-4d82-8d33-ff504ec42793";
+const PENDING_AUTHORITY_STATUS_ID = "42970913-aa47-4778-a7a6-2b3d45cdd67f";
 const TABLE_COLUMN_RANGES = [
   [49, 107],
   [107, 196],
@@ -138,6 +142,7 @@ function mapMotusRowToCarrier(row, publicationDate) {
     phoneNumber: row.phoneNumber,
     companyOfficer1: row.companyOfficer,
     dateCreated: filingDate,
+    isNewLead: false,
     source: "FMCSA Motus Daily Register",
     sourceLastSeenAt: new Date(`${isoDate(publicationDate)}T00:00:00.000Z`),
     raw: {
@@ -195,6 +200,86 @@ function uniqueCarriers(rows, publicationDate) {
   }
 
   return [...carriersByDot.values()];
+}
+
+function authorityStatusFromDetails(details) {
+  const authorities = (Array.isArray(details) ? details : [])
+    .flatMap(entity => entity.entityRegistrations || [])
+    .flatMap(registration => registration.entityRegistrationOperatingAuthorities || [])
+    .map(registrationAuthority => registrationAuthority.entityOperatingAuthority)
+    .filter(authority => authority && !authority.disableDate);
+  const approved = authorities.some(authority => authority.operatingAuthorityStatusId === ACTIVE_AUTHORITY_STATUS_ID);
+  const pending = authorities.some(authority => authority.operatingAuthorityStatusId === PENDING_AUTHORITY_STATUS_ID);
+
+  return {
+    approved,
+    status: approved ? "Active" : pending ? "Pending" : "Not active",
+    authorities: authorities.map(authority => ({
+      docketNumber: authority.docketNumber || "",
+      operatingAuthorityStatusId: authority.operatingAuthorityStatusId || "",
+      operatingAuthorityType: authority.operatingAuthorityType?.operatingAuthorityType || ""
+    }))
+  };
+}
+
+async function fetchMotusCarrierApproval(dotNumber) {
+  const response = await requestWithRetry(
+    {
+      method: "GET",
+      url: `${MOTUS_CARRIER_SEARCH_URL}/${encodeURIComponent(dotNumber)}`,
+      headers: { Accept: "application/json" },
+      timeout: Number(process.env.FMCSA_REQUEST_TIMEOUT_MS || 30000)
+    },
+    {
+      label: `Motus carrier status ${dotNumber}`,
+      throttleMs: Number(process.env.MOTUS_DETAILS_REQUEST_DELAY_MS || 100)
+    }
+  );
+
+  return authorityStatusFromDetails(response.data);
+}
+
+export async function refreshMotusCandidateApprovals(options = {}) {
+  const limit = Number(options.limit ?? process.env.MOTUS_APPROVAL_REFRESH_LIMIT ?? 1000);
+  const candidates = await Carrier.find({
+    "raw.motusRegister": { $exists: true },
+    "raw.motusRegister.approved": { $ne: true }
+  })
+    .sort({ "raw.motusRegister.approvalCheckedAt": 1, dateCreated: 1 })
+    .limit(limit > 0 ? limit : 0)
+    .select({ dotNumber: 1 })
+    .lean();
+  const stats = { requested: candidates.length, approved: 0, pending: 0, errors: 0 };
+
+  for (const candidate of candidates) {
+    try {
+      const approval = await fetchMotusCarrierApproval(candidate.dotNumber);
+      const now = new Date();
+      const update = {
+        "raw.motusRegister.approved": approval.approved,
+        "raw.motusRegister.authorityStatus": approval.status,
+        "raw.motusRegister.authorities": approval.authorities,
+        "raw.motusRegister.approvalCheckedAt": now,
+        isNewLead: approval.approved,
+        authorityStatus: approval.status,
+        sourceLastSeenAt: now
+      };
+
+      if (approval.approved) {
+        update.newLeadSince = now;
+        stats.approved += 1;
+      } else {
+        stats.pending += 1;
+      }
+
+      await Carrier.updateOne({ _id: candidate._id }, { $set: update });
+    } catch (err) {
+      stats.errors += 1;
+      console.error(`[MotusRegister] approval refresh ${candidate.dotNumber} failed:`, err.message);
+    }
+  }
+
+  return stats;
 }
 
 export async function importCarriersFromMotusRegister(options = {}) {

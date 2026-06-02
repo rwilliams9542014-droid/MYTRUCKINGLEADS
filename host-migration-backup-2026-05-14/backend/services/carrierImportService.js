@@ -113,6 +113,22 @@ function valuesEqual(left, right) {
   return JSON.stringify(normalizeComparisonValue(left)) === JSON.stringify(normalizeComparisonValue(right));
 }
 
+function mergeRaw(existingRaw, incomingRaw) {
+  const merged = {
+    ...existingRaw,
+    ...incomingRaw
+  };
+
+  if (existingRaw?.motusRegister || incomingRaw?.motusRegister) {
+    merged.motusRegister = {
+      ...existingRaw?.motusRegister,
+      ...incomingRaw?.motusRegister
+    };
+  }
+
+  return merged;
+}
+
 function getImportRunId() {
   return `${new Date().toISOString()}-${crypto.randomBytes(4).toString("hex")}`;
 }
@@ -285,10 +301,10 @@ export async function upsertCarrierBatch(incomingCarriers, { importRunId = getIm
           update: {
             $setOnInsert: {
               ...incoming,
-              isNewLead: true,
+              isNewLead: incoming.isNewLead ?? true,
               firstSeenAt: importedNow,
               firstImportedAt: importedNow,
-              newLeadSince: importedNow,
+              newLeadSince: incoming.newLeadSince ?? importedNow,
               lastUpdated: importedNow
             }
           },
@@ -308,10 +324,7 @@ export async function upsertCarrierBatch(incomingCarriers, { importRunId = getIm
           update: {
             $set: {
               sourceLastSeenAt: new Date(),
-              raw: {
-                ...existing.raw,
-                ...incoming.raw
-              }
+              raw: mergeRaw(existing.raw, incoming.raw)
             }
           }
         }
@@ -329,10 +342,7 @@ export async function upsertCarrierBatch(incomingCarriers, { importRunId = getIm
             source: incoming.source,
             sourceLastSeenAt: new Date(),
             lastUpdated: new Date(),
-            raw: {
-              ...existing.raw,
-              ...incoming.raw
-            }
+            raw: mergeRaw(existing.raw, incoming.raw)
           }
         }
       }

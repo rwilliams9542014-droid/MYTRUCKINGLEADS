@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { closeMongo, connectMongo } from "../config/mongo.js";
-import { importCarriersFromMotusRegister } from "../services/motusRegisterImportService.js";
+import { importCarriersFromMotusRegister, refreshMotusCandidateApprovals } from "../services/motusRegisterImportService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -17,6 +17,12 @@ connectMongo({ required: true })
   .then(() => importCarriersFromMotusRegister({
     from: option("from"),
     to: option("to")
+  }))
+  .then(async importStats => ({
+    importStats,
+    approvalStats: await refreshMotusCandidateApprovals({
+      limit: option("refresh-limit")
+    })
   }))
   .then(stats => {
     console.log(JSON.stringify(stats, null, 2));

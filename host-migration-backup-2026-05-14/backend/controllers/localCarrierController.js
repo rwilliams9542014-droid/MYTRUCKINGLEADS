@@ -1464,6 +1464,12 @@ export async function getNewCarrierLeads(req, res) {
     const filter = {
       ...buildCarrierQuery(req.query, { includeInsuranceDates: false })
     };
+    const motusApprovalFilter = {
+      $or: [
+        { "raw.motusRegister": { $exists: false } },
+        { "raw.motusRegister.approved": true }
+      ]
+    };
     const operation = String(req.query.operation || "").trim();
     const requestedSort = String(req.query.sort || "dateCreated").trim();
     const direction = sortDirection(req.query.order, -1);
@@ -1481,10 +1487,10 @@ export async function getNewCarrierLeads(req, res) {
       ]
     };
     if (filter.$or) {
-      filter.$and = [{ $or: filter.$or }, importDateFilter];
+      filter.$and = [{ $or: filter.$or }, importDateFilter, motusApprovalFilter];
       delete filter.$or;
     } else {
-      Object.assign(filter, importDateFilter);
+      filter.$and = [importDateFilter, motusApprovalFilter];
     }
 
     const [total, carriersPlusOne] = await Promise.all([
@@ -1523,7 +1529,7 @@ export async function getNewCarrierLeads(req, res) {
     const totalImported = importSummary[0]?.totalImported || 0;
     const lastImportTime = importSummary[0]?.lastImportTime || null;
     const message = carriers.length
-      ? "Showing New DOT leads from imported FMCSA Open Data and Motus Daily Register publications."
+      ? "Showing New DOT leads from imported FMCSA Open Data and approved Motus registrations."
       : totalImported === 0
         ? "No new DOT import has run yet."
         : "No new DOT carriers were imported in the selected date window.";
@@ -1540,7 +1546,7 @@ export async function getNewCarrierLeads(req, res) {
       carriers: maskedCarriers,
       leads,
       source: "database",
-      dataSource: "FMCSA Open Data / Motus Daily Register / Database",
+      dataSource: "FMCSA Open Data / Approved Motus Registrations / Database",
       lastImportTime: lastImportTime ? new Date(lastImportTime).toISOString() : null,
       importedCarrierCount: totalImported,
       access: getPlanAccessSummary(req.user),
