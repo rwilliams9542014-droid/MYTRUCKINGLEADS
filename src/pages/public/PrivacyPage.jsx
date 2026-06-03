@@ -80,12 +80,12 @@ export default function PrivacyPage() {
               <li>Opt out of marketing communications</li>
               <li>Withdraw consent where applicable</li>
             </ul>
-            <p className="mt-3">To exercise any of these rights, contact us at <a href="mailto:rwilliams9542014@gmail.com" className="text-brand-400">rwilliams9542014@gmail.com</a>.</p>
+            <p className="mt-3">To exercise any of these rights, contact us at <a href="mailto:mytruckingleads@gmail.com" className="text-brand-400">mytruckingleads@gmail.com</a>.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">8. Carrier Data Opt-Out</h2>
-            <p>If you are a carrier or trucking company and wish to have your information removed from our platform, please contact us at <a href="mailto:rwilliams9542014@gmail.com" className="text-brand-400">rwilliams9542014@gmail.com</a> with your DOT number and company name. We will process removal requests within 10 business days. Note that public FMCSA records remain accessible through government channels.</p>
+            <p>If you are a carrier or trucking company and wish to have your information removed from our platform, please contact us at <a href="mailto:mytruckingleads@gmail.com" className="text-brand-400">mytruckingleads@gmail.com</a> with your DOT number and company name. We will process removal requests within 10 business days. Note that public FMCSA records remain accessible through government channels.</p>
           </section>
 
           <section>
@@ -107,8 +107,8 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-white mb-3">12. Contact Us</h2>
             <p>
               MyTruckingLeads LLC<br />
-              Email: <a href="mailto:rwilliams9542014@gmail.com" className="text-brand-400">rwilliams9542014@gmail.com</a><br />
-              For data requests: <a href="mailto:rwilliams9542014@gmail.com" className="text-brand-400">rwilliams9542014@gmail.com</a>
+              Email: <a href="mailto:mytruckingleads@gmail.com" className="text-brand-400">mytruckingleads@gmail.com</a><br />
+              For data requests: <a href="mailto:mytruckingleads@gmail.com" className="text-brand-400">mytruckingleads@gmail.com</a>
             </p>
           </section>
         </div>

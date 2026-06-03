@@ -69,7 +69,7 @@ export async function submitPrivacyRequest(req, res, next) {
     let result = null;
     try {
       result = await sendPrivacyRequestEmail({
-        toEmail: process.env.PRIVACY_REQUEST_TO || process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        toEmail: process.env.PRIVACY_REQUEST_TO || process.env.CONTACT_REQUEST_TO || "mytruckingleads@gmail.com",
         requestType,
         name,
         email,
@@ -83,7 +83,7 @@ export async function submitPrivacyRequest(req, res, next) {
       console.error("Unexpected privacy request email delivery error:", {
         error: err.message,
         stack: err.stack,
-        toEmail: process.env.PRIVACY_REQUEST_TO || process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        toEmail: process.env.PRIVACY_REQUEST_TO || process.env.CONTACT_REQUEST_TO || "mytruckingleads@gmail.com",
         requesterEmail: email,
         sourcePage
       });
@@ -92,7 +92,7 @@ export async function submitPrivacyRequest(req, res, next) {
     if (!result?.success) {
       const failureMessage = result?.message || "Privacy request email is not available right now.";
       console.warn("Privacy request email unavailable:", {
-        toEmail: process.env.PRIVACY_REQUEST_TO || process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        toEmail: process.env.PRIVACY_REQUEST_TO || process.env.CONTACT_REQUEST_TO || "mytruckingleads@gmail.com",
         requesterEmail: email,
         message: failureMessage,
         sourcePage

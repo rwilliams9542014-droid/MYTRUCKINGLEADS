@@ -47,7 +47,7 @@ async function testContactRequestUsesResend() {
     };
 
     const result = await sendContactRequestEmail({
-      toEmail: "rwilliams9542014@gmail.com",
+      toEmail: "mytruckingleads@gmail.com",
       name: "Ron Test",
       email: "prospect@example.com",
       phone: "5551234567",
@@ -66,7 +66,7 @@ async function testContactRequestUsesResend() {
 
     const payload = JSON.parse(requests[0].options.body);
     assert.strictEqual(payload.from, "MyTruckingLeads <noreply@example.com>");
-    assert.deepStrictEqual(payload.to, ["rwilliams9542014@gmail.com"]);
+    assert.deepStrictEqual(payload.to, ["mytruckingleads@gmail.com"]);
     assert.deepStrictEqual(payload.reply_to, ["prospect@example.com"]);
     assert.match(String(payload.subject), /Ron Test/);
     assert.match(String(payload.html), /New Contact Request/);

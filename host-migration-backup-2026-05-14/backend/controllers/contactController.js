@@ -83,7 +83,7 @@ export async function submitContactRequest(req, res, next) {
     let result = null;
     try {
       result = await sendContactRequestEmail({
-        toEmail: process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        toEmail: process.env.CONTACT_REQUEST_TO || "mytruckingleads@gmail.com",
         name,
         email,
         phone,
@@ -96,7 +96,7 @@ export async function submitContactRequest(req, res, next) {
       console.error("Unexpected contact email delivery error:", {
         error: err.message,
         stack: err.stack,
-        toEmail: process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        toEmail: process.env.CONTACT_REQUEST_TO || "mytruckingleads@gmail.com",
         requesterEmail: email,
         sourcePage
       });
@@ -117,7 +117,7 @@ export async function submitContactRequest(req, res, next) {
       });
 
       console.warn("Contact request email unavailable:", {
-        toEmail: process.env.CONTACT_REQUEST_TO || "rwilliams9542014@gmail.com",
+        toEmail: process.env.CONTACT_REQUEST_TO || "mytruckingleads@gmail.com",
         requesterEmail: email,
         message: failureMessage,
         sourcePage

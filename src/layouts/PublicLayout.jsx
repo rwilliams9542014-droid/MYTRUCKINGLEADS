@@ -145,7 +145,7 @@ export function PublicLayout() {
                 <Link to="/privacy" className="text-sm text-navy-400 hover:text-white transition-colors">Privacy</Link>
                 <Link to="/terms" className="text-sm text-navy-400 hover:text-white transition-colors">Terms</Link>
                 <Link to="/subscription-agreement" className="text-sm text-navy-400 hover:text-white transition-colors">Subscription Agreement</Link>
-                <a href="mailto:rwilliams9542014@gmail.com" className="text-sm text-navy-400 hover:text-white transition-colors">Contact Support</a>
+                <a href="mailto:mytruckingleads@gmail.com" className="text-sm text-navy-400 hover:text-white transition-colors">Contact Support</a>
               </div>
             </div>
             <div>

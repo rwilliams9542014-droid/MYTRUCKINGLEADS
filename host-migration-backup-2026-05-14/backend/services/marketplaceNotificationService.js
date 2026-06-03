@@ -106,7 +106,7 @@ export async function notifyAdminOfNewQuoteRequest(quoteRequest, client = null) 
   const fallbackEmail = String(
     process.env.MARKETPLACE_ADMIN_EMAIL ||
     process.env.CONTACT_REQUEST_TO ||
-    "rwilliams9542014@gmail.com"
+    "mytruckingleads@gmail.com"
   ).trim();
 
   for (const owner of owners) {

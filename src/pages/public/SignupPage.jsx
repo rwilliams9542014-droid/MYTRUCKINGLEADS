@@ -32,7 +32,6 @@ export default function SignupPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedSubscription, setAgreedSubscription] = useState(false);
   const [agreedCompliance, setAgreedCompliance] = useState(false);
 
@@ -95,10 +94,6 @@ export default function SignupPage() {
       return;
     }
     if (!agreedSubscription) {
-      setError("You must accept the subscription terms before continuing.");
-      return;
-    }
-    if (!agreedTerms) {
       setError("You must accept the subscription terms before continuing.");
       return;
     }
@@ -242,7 +237,7 @@ export default function SignupPage() {
                 <p><span className="text-white">First billing date:</span> {firstBillingDate}</p>
                 <p>Your free trial lasts {currentPlan.trialDays} days. After the trial, your selected plan will automatically renew at ${currentPlan.price} per month unless you cancel before the trial ends.</p>
                 <p>You can cancel from Settings &gt; Subscription before your trial ends to avoid future charges. Refunds are reviewed case by case and are not guaranteed after a billing period begins.</p>
-                <p>Support: <a href="mailto:rwilliams9542014@gmail.com" className="text-brand-300 underline">rwilliams9542014@gmail.com</a></p>
+                <p>Support: <a href="mailto:mytruckingleads@gmail.com" className="text-brand-300 underline">mytruckingleads@gmail.com</a></p>
               </div>
             </div>
           ) : (
@@ -333,19 +328,6 @@ export default function SignupPage() {
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={agreedTerms}
-                onChange={(e) => setAgreedTerms(e.target.checked)}
-                className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30 mt-0.5"
-              />
-              <span className="text-xs text-navy-300">
-                I agree to the{" "}
-                <Link to="/terms" className="text-brand-400 underline" target="_blank">Terms of Service</Link> and{" "}
-                <Link to="/privacy" className="text-brand-400 underline" target="_blank">Privacy Policy</Link>.
-              </span>
-            </label>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
                 checked={agreedSubscription}
                 onChange={(e) => setAgreedSubscription(e.target.checked)}
                 className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30 mt-0.5"
@@ -373,7 +355,7 @@ export default function SignupPage() {
             </label>
           </div>
 
-          <Button type="submit" loading={loading} className="w-full" disabled={!agreedTerms || !agreedSubscription || !agreedCompliance || !currentPlan}>
+          <Button type="submit" loading={loading} className="w-full" disabled={!agreedSubscription || !agreedCompliance || !currentPlan}>
             Create Account
           </Button>
         </form>

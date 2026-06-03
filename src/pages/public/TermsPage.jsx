@@ -120,7 +120,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">12. Contact</h2>
-            <p>For questions about these Terms, contact us at: <a href="mailto:rwilliams9542014@gmail.com" className="text-brand-400">rwilliams9542014@gmail.com</a></p>
+            <p>For questions about these Terms, contact us at: <a href="mailto:mytruckingleads@gmail.com" className="text-brand-400">mytruckingleads@gmail.com</a></p>
           </section>
         </div>
 

@@ -43,14 +43,14 @@ async function testMissingEmailConfigReturns503() {
   delete process.env.SMTP_PORT;
   delete process.env.SMTP_USER;
   delete process.env.SMTP_PASS;
-  process.env.CONTACT_REQUEST_TO = "rwilliams9542014@gmail.com";
-  process.env.PRIVACY_REQUEST_TO = "rwilliams9542014@gmail.com";
+  process.env.CONTACT_REQUEST_TO = "mytruckingleads@gmail.com";
+  process.env.PRIVACY_REQUEST_TO = "mytruckingleads@gmail.com";
 
   const req = {
     body: {
       requestType: "export",
       name: "Ron Test",
-      email: "rwilliams9542014@gmail.com",
+      email: "mytruckingleads@gmail.com",
       accountEmail: "account@example.com",
       location: "Florida",
       details: "Please send me a copy of my account information.",
@@ -113,7 +113,7 @@ async function testInvalidRequestTypeForwardsValidationError() {
     body: {
       requestType: "not-real",
       name: "Ron Test",
-      email: "rwilliams9542014@gmail.com",
+      email: "mytruckingleads@gmail.com",
       details: "Please help with my privacy request.",
       website: ""
     }

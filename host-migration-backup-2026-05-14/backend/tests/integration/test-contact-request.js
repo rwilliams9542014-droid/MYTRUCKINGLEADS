@@ -35,12 +35,12 @@ async function testMissingEmailConfigReturns503() {
   delete process.env.SMTP_PORT;
   delete process.env.SMTP_USER;
   delete process.env.SMTP_PASS;
-  process.env.CONTACT_REQUEST_TO = "rwilliams9542014@gmail.com";
+  process.env.CONTACT_REQUEST_TO = "mytruckingleads@gmail.com";
 
   const req = {
     body: {
       name: "Ron Test",
-      email: "rwilliams9542014@gmail.com",
+      email: "mytruckingleads@gmail.com",
       phone: "5551234567",
       agency: "Test Agency",
       message: "Need access for Florida trucking leads.",

@@ -64,7 +64,7 @@ export default function SubscriptionAgreementPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">11. Contact Information</h2>
-            <p>Questions about billing, cancellation, or this agreement can be sent to <a href="mailto:rwilliams9542014@gmail.com" className="text-brand-400">rwilliams9542014@gmail.com</a>.</p>
+            <p>Questions about billing, cancellation, or this agreement can be sent to <a href="mailto:mytruckingleads@gmail.com" className="text-brand-400">mytruckingleads@gmail.com</a>.</p>
           </section>
         </div>
 
@@ -75,4 +75,3 @@ export default function SubscriptionAgreementPage() {
     </div>
   );
 }
-
