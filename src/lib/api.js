@@ -155,6 +155,9 @@ export const api = {
     method: "POST",
     body: JSON.stringify({ plan }),
   }),
+  cancelSubscription: () => apiRequest("/api/billing/cancel", {
+    method: "POST",
+  }),
 
   getAdminStats: () => apiRequest("/api/admin/overview"),
   getAdminOverview: () => apiRequest("/api/admin/overview"),

@@ -8,9 +8,12 @@ const US_STATES = [
 ];
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
   const [message, setMessage] = useState("");
+  const [subscriptionMessage, setSubscriptionMessage] = useState("");
+  const [subscriptionError, setSubscriptionError] = useState("");
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -49,6 +52,27 @@ export default function SettingsPage() {
       setMessage(err.status === 404 ? "Password updates are not enabled on the server yet." : (err.message || "Password could not be updated."));
     } finally {
       setPasswordLoading(false);
+    }
+  }
+
+  async function cancelSubscription() {
+    setSubscriptionMessage("");
+    setSubscriptionError("");
+
+    const confirmed = window.confirm(
+      "Cancel your free trial or subscription? If you are in a trial, it will be canceled before billing starts. If you have a paid subscription, access continues until the end of the current billing period when Stripe allows it."
+    );
+    if (!confirmed) return;
+
+    setCancelLoading(true);
+    try {
+      const result = await api.cancelSubscription();
+      await refreshUser();
+      setSubscriptionMessage(result.message || "Your subscription cancellation request was processed.");
+    } catch (err) {
+      setSubscriptionError(err.message || "Subscription could not be canceled. Please contact support.");
+    } finally {
+      setCancelLoading(false);
     }
   }
 
@@ -142,6 +166,16 @@ export default function SettingsPage() {
       {/* Subscription Tab */}
       {activeTab === "subscription" && (
         <div className="space-y-6">
+          {subscriptionMessage && (
+            <div className="bg-accent-500/10 border border-accent-500/20 rounded-xl p-3 text-sm text-accent-200">
+              {subscriptionMessage}
+            </div>
+          )}
+          {subscriptionError && (
+            <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-3 text-sm text-danger-200">
+              {subscriptionError}
+            </div>
+          )}
           <Card>
             <div className="flex items-start justify-between">
               <div>
@@ -151,13 +185,28 @@ export default function SettingsPage() {
               <Badge variant="brand">{user?.plan || "Data unavailable"}</Badge>
             </div>
             <div className="mt-6 p-4 bg-navy-800/50 rounded-xl">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm text-white font-medium">{user?.plan ? `${user.plan} plan` : "Plan data unavailable."}</p>
                   <p className="text-xs text-navy-400 mt-1">Access expires: {user?.subscription_expires_at || user?.trialEndsAt || "Data unavailable."}</p>
                 </div>
-                <Button variant="secondary" size="sm" type="button">Manage</Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  type="button"
+                  loading={cancelLoading}
+                  disabled={["canceled", "cancelled", "inactive", "expired"].includes(String(user?.subscriptionStatus || user?.subscription_status || "").toLowerCase())}
+                  onClick={cancelSubscription}
+                >
+                  Cancel Trial / Subscription
+                </Button>
               </div>
+            </div>
+            <div className="mt-4 rounded-xl border border-warning-500/20 bg-warning-500/10 p-4">
+              <p className="text-sm font-medium text-warning-200">Cancel anytime</p>
+              <p className="mt-1 text-xs leading-relaxed text-navy-300">
+                Trial accounts are canceled before billing starts. Paid subscriptions are canceled safely through Stripe and normally remain active until the current billing period ends.
+              </p>
             </div>
           </Card>
           <Card>
