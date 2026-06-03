@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const [subscriptionMessage, setSubscriptionMessage] = useState("");
   const [subscriptionError, setSubscriptionError] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -73,6 +74,24 @@ export default function SettingsPage() {
       setSubscriptionError(err.message || "Subscription could not be canceled. Please contact support.");
     } finally {
       setCancelLoading(false);
+    }
+  }
+
+  async function openBillingPortal() {
+    setSubscriptionMessage("");
+    setSubscriptionError("");
+    setPortalLoading(true);
+    try {
+      const result = await api.createBillingPortalSession();
+      if (result?.url) {
+        window.location.assign(result.url);
+        return;
+      }
+      setSubscriptionError("Billing portal is not configured yet. Please contact support to cancel.");
+    } catch (err) {
+      setSubscriptionError(err.message || "Billing portal is not configured yet. Please contact support to cancel.");
+    } finally {
+      setPortalLoading(false);
     }
   }
 
@@ -190,22 +209,33 @@ export default function SettingsPage() {
                   <p className="text-sm text-white font-medium">{user?.plan ? `${user.plan} plan` : "Plan data unavailable."}</p>
                   <p className="text-xs text-navy-400 mt-1">Access expires: {user?.subscription_expires_at || user?.trialEndsAt || "Data unavailable."}</p>
                 </div>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  type="button"
-                  loading={cancelLoading}
-                  disabled={["canceled", "cancelled", "inactive", "expired"].includes(String(user?.subscriptionStatus || user?.subscription_status || "").toLowerCase())}
-                  onClick={cancelSubscription}
-                >
-                  Cancel Trial / Subscription
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    loading={portalLoading}
+                    onClick={openBillingPortal}
+                  >
+                    Manage Billing
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    type="button"
+                    loading={cancelLoading}
+                    disabled={["canceled", "cancelled", "inactive", "expired"].includes(String(user?.subscriptionStatus || user?.subscription_status || "").toLowerCase())}
+                    onClick={cancelSubscription}
+                  >
+                    Cancel Trial / Subscription
+                  </Button>
+                </div>
               </div>
             </div>
             <div className="mt-4 rounded-xl border border-warning-500/20 bg-warning-500/10 p-4">
               <p className="text-sm font-medium text-warning-200">Cancel anytime</p>
               <p className="mt-1 text-xs leading-relaxed text-navy-300">
-                Trial accounts are canceled before billing starts. Paid subscriptions are canceled safely through Stripe and normally remain active until the current billing period ends.
+                You may cancel from your Billing page before your trial ends to avoid future charges. Trial accounts are canceled before billing starts. Paid subscriptions are canceled safely through Stripe and normally remain active until the current billing period ends.
               </p>
             </div>
           </Card>

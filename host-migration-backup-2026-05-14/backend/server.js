@@ -502,6 +502,39 @@ async function ensureOperationalTables() {
     CREATE INDEX IF NOT EXISTS idx_owner_action_logs_owner_created
       ON owner_action_logs (owner_user_id, created_at DESC)
   `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS subscription_consents (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      email TEXT NOT NULL,
+      plan_id TEXT NOT NULL,
+      plan_name TEXT NOT NULL,
+      plan_price NUMERIC(10, 2) NOT NULL,
+      billing_interval TEXT NOT NULL,
+      trial_days INTEGER NOT NULL,
+      trial_start_at TIMESTAMPTZ,
+      trial_end_at TIMESTAMPTZ,
+      first_billing_at TIMESTAMPTZ,
+      terms_version TEXT NOT NULL,
+      privacy_version TEXT NOT NULL,
+      subscription_agreement_version TEXT NOT NULL,
+      accepted_terms BOOLEAN NOT NULL DEFAULT false,
+      accepted_privacy BOOLEAN NOT NULL DEFAULT false,
+      accepted_subscription_agreement BOOLEAN NOT NULL DEFAULT false,
+      accepted_at TIMESTAMPTZ NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      checkout_session_id TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`CREATE INDEX IF NOT EXISTS idx_subscription_consents_user ON subscription_consents (user_id, accepted_at DESC)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_subscription_consents_checkout ON subscription_consents (checkout_session_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_subscription_consents_stripe_subscription ON subscription_consents (stripe_subscription_id)`);
 }
 
 connectMongo()

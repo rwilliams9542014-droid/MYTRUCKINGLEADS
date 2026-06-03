@@ -4,9 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button, Input } from "@/components/ui";
 
 const plans = [
-  { value: "basic", label: "Starter - $79/mo", stateLimit: 1 },
-  { value: "pro", label: "Pro - $199/mo (Most Popular)", stateLimit: 1 },
-  { value: "premium", label: "Agency - $499/mo", stateLimit: 3 },
+  { value: "basic", label: "Starter - $79/mo", name: "Starter", price: 79, trialDays: 3, stateLimit: 1 },
+  { value: "pro", label: "Pro - $199/mo (Most Popular)", name: "Pro", price: 199, trialDays: 3, stateLimit: 1 },
+  { value: "premium", label: "Agency - $499/mo", name: "Agency Unlimited", price: 499, trialDays: 3, stateLimit: 3 },
 ];
 
 const US_STATES = [
@@ -33,10 +33,14 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [agreedTerms, setAgreedTerms] = useState(false);
+  const [agreedSubscription, setAgreedSubscription] = useState(false);
   const [agreedCompliance, setAgreedCompliance] = useState(false);
 
   const currentPlan = plans.find((p) => p.value === form.plan);
   const stateLimit = currentPlan?.stateLimit || 1;
+  const firstBillingDate = currentPlan
+    ? new Date(Date.now() + currentPlan.trialDays * 24 * 60 * 60 * 1000).toLocaleDateString()
+    : "";
 
   function updateField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -86,8 +90,16 @@ export default function SignupPage() {
       setError("Enter your billing address so the account can be created.");
       return;
     }
+    if (!currentPlan) {
+      setError("Plan billing details are unavailable. Please try again.");
+      return;
+    }
+    if (!agreedSubscription) {
+      setError("You must accept the subscription terms before continuing.");
+      return;
+    }
     if (!agreedTerms) {
-      setError("You must agree to the Terms of Service and Privacy Policy.");
+      setError("You must accept the subscription terms before continuing.");
       return;
     }
     if (!agreedCompliance) {
@@ -112,6 +124,9 @@ export default function SignupPage() {
         billingState: form.billingState,
         billingPostalCode: form.billingPostalCode,
         billingCountry: "US",
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        acceptedSubscriptionAgreement: true,
       });
       if (result?.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
@@ -137,7 +152,7 @@ export default function SignupPage() {
             />
           </Link>
           <h1 className="text-2xl font-bold text-white">Create your account</h1>
-          <p className="text-navy-400 mt-2 text-sm">Start your 3-day free trial. No credit card required.</p>
+          <p className="text-navy-400 mt-2 text-sm">Start your 3-day free trial. Payment details are collected securely by Stripe; you will not be charged during the trial.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="glass-card p-8 space-y-5">
@@ -216,6 +231,25 @@ export default function SignupPage() {
               ))}
             </select>
           </div>
+
+          {currentPlan ? (
+            <div className="rounded-2xl border border-brand-500/20 bg-brand-500/10 p-4">
+              <p className="text-sm font-semibold text-white">Subscription disclosure</p>
+              <div className="mt-3 space-y-2 text-xs leading-relaxed text-navy-200">
+                <p><span className="text-white">Selected plan:</span> {currentPlan.name}</p>
+                <p><span className="text-white">Free trial:</span> {currentPlan.trialDays} days</p>
+                <p><span className="text-white">Price after trial:</span> ${currentPlan.price}/month</p>
+                <p><span className="text-white">First billing date:</span> {firstBillingDate}</p>
+                <p>Your free trial lasts {currentPlan.trialDays} days. After the trial, your selected plan will automatically renew at ${currentPlan.price} per month unless you cancel before the trial ends.</p>
+                <p>You can cancel from Settings &gt; Subscription before your trial ends to avoid future charges. Refunds are reviewed case by case and are not guaranteed after a billing period begins.</p>
+                <p>Support: <a href="mailto:rwilliams9542014@gmail.com" className="text-brand-300 underline">rwilliams9542014@gmail.com</a></p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-danger-500/20 bg-danger-500/10 p-3 text-sm text-danger-300">
+              Plan billing details are unavailable. Please try again.
+            </div>
+          )}
 
           <div className="space-y-4">
             <Input
@@ -312,6 +346,21 @@ export default function SignupPage() {
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
+                checked={agreedSubscription}
+                onChange={(e) => setAgreedSubscription(e.target.checked)}
+                className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30 mt-0.5"
+              />
+              <span className="text-xs text-navy-300">
+                I agree to the{" "}
+                <Link to="/terms" className="text-brand-400 underline" target="_blank">Terms of Service</Link>,{" "}
+                <Link to="/privacy" className="text-brand-400 underline" target="_blank">Privacy Policy</Link>, and{" "}
+                <Link to="/subscription-agreement" className="text-brand-400 underline" target="_blank">Subscription Agreement</Link>.
+                I understand that my free trial will convert to a paid subscription unless I cancel before the trial ends.
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
                 checked={agreedCompliance}
                 onChange={(e) => setAgreedCompliance(e.target.checked)}
                 className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30 mt-0.5"
@@ -324,7 +373,7 @@ export default function SignupPage() {
             </label>
           </div>
 
-          <Button type="submit" loading={loading} className="w-full" disabled={!agreedTerms || !agreedCompliance}>
+          <Button type="submit" loading={loading} className="w-full" disabled={!agreedTerms || !agreedSubscription || !agreedCompliance || !currentPlan}>
             Create Account
           </Button>
         </form>

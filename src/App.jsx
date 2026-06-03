@@ -12,6 +12,7 @@ const SignupPage = lazy(() => import("@/pages/public/SignupPage"));
 const QuoteRequestPage = lazy(() => import("@/pages/public/QuoteRequestPage"));
 const TermsPage = lazy(() => import("@/pages/public/TermsPage"));
 const PrivacyPage = lazy(() => import("@/pages/public/PrivacyPage"));
+const SubscriptionAgreementPage = lazy(() => import("@/pages/public/SubscriptionAgreementPage"));
 const DashboardPage = lazy(() => import("@/pages/app/DashboardPage"));
 const LeadDeskPage = lazy(() => import("@/pages/app/LeadDeskPage"));
 const CrmPage = lazy(() => import("@/pages/app/CrmPage"));
@@ -53,12 +54,14 @@ export default function App() {
             <Route path="/quote-request" element={<QuoteRequestPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/subscription-agreement" element={<SubscriptionAgreementPage />} />
             <Route path="/login.html" element={<HtmlRedirect to="/login" />} />
             <Route path="/signup.html" element={<HtmlRedirect to="/signup" />} />
             <Route path="/pricing.html" element={<HtmlRedirect to="/pricing" />} />
             <Route path="/quote-request.html" element={<HtmlRedirect to="/quote-request" />} />
             <Route path="/terms.html" element={<HtmlRedirect to="/terms" />} />
             <Route path="/privacy.html" element={<HtmlRedirect to="/privacy" />} />
+            <Route path="/subscription-agreement.html" element={<HtmlRedirect to="/subscription-agreement" />} />
           </Route>
 
           <Route

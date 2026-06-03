@@ -151,11 +151,14 @@ export const api = {
   }),
 
   getSubscription: () => apiRequest("/api/subscription/me"),
-  createCheckout: (plan) => apiRequest("/api/billing/checkout", {
+  createCheckout: (payload) => apiRequest("/api/billing/checkout", {
     method: "POST",
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify(typeof payload === "string" ? { plan: payload } : payload),
   }),
   cancelSubscription: () => apiRequest("/api/billing/cancel", {
+    method: "POST",
+  }),
+  createBillingPortalSession: () => apiRequest("/api/billing/create-portal-session", {
     method: "POST",
   }),
 

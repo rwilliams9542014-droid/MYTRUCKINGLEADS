@@ -29,7 +29,7 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-white mb-3">4. Subscription & Billing</h2>
             <ul className="list-disc list-inside space-y-2 ml-2">
               <li>Subscriptions are billed monthly on the anniversary of your signup date.</li>
-              <li>All plans begin with a 3-day free trial period. No credit card is required during the trial.</li>
+              <li>All plans begin with a 3-day free trial period. Payment details are collected securely by Stripe, and no charge is made during the trial.</li>
               <li>You may cancel your subscription at any time. Access continues through the end of the current billing period.</li>
               <li>Plan features and pricing are subject to change with 30 days notice to active subscribers.</li>
               <li>Refunds are issued on a case-by-case basis at our sole discretion.</li>

@@ -62,7 +62,7 @@ const plans = [
 const faqs = [
   {
     q: "How does the free trial work?",
-    a: "You get full access to your selected plan for 3 days, no credit card required. If you love it (you will), pick a plan and keep going.",
+    a: "You get full access to your selected plan for 3 days. Payment details are collected securely by Stripe, but you are not charged during the trial. Cancel before the trial ends to avoid future billing.",
   },
   {
     q: "What are 'hot leads' from truckers?",
@@ -89,7 +89,7 @@ export default function PricingPage() {
             Choose Your Plan
           </h1>
           <p className="text-lg text-navy-300 max-w-xl mx-auto">
-            Every plan includes a 3-day free trial. No credit card required. Cancel anytime.
+            Every plan includes a 3-day free trial. Payment details are collected securely by Stripe. Cancel anytime.
           </p>
         </div>
 

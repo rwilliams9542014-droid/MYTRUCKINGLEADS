@@ -4,6 +4,10 @@ import Stripe from "stripe";
 import { query } from "../config/db.js";
 import { sendSubscriptionConfirmation, sendPaymentFailedNotification } from "./emailService.js";
 import { PLAN_DETAILS, normalizePlan } from "../utils/planAccess.js";
+import {
+  attachStripeIdsToConsent,
+  consentMetadata
+} from "./subscriptionConsentService.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -267,7 +271,7 @@ async function ensureLocalUserForSubscription(subscription, fallbackUserId = nul
   return inserted.rows[0] || null;
 }
 
-export async function createCheckoutSession({ plan, customerEmail, userId, billingCycle }) {
+export async function createCheckoutSession({ plan, customerEmail, userId, billingCycle, consentRecord }) {
   plan = normalizePlan(plan);
   const cycle = normalizeBillingCycle(billingCycle);
   const priceId = PRICE_IDS[cycle]?.[plan];
@@ -290,11 +294,19 @@ export async function createCheckoutSession({ plan, customerEmail, userId, billi
     throw error;
   }
 
+  if (!consentRecord?.id) {
+    const error = new Error("Subscription agreement acceptance is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
   const metadata = {
     userId: userId.toString(),
+    planId: plan,
     plan,
     billingCycle: cycle,
-    customerEmail: String(customerEmail).trim().toLowerCase()
+    customerEmail: String(customerEmail).trim().toLowerCase(),
+    ...consentMetadata(consentRecord)
   };
 
   try {
@@ -326,6 +338,40 @@ export async function createCheckoutSession({ plan, customerEmail, userId, billi
     console.error("Stripe checkout error:", err.message);
     const error = new Error("Failed to create checkout session");
     error.statusCode = 500;
+    throw error;
+  }
+}
+
+export async function createBillingPortalSessionForUser(userId, returnUrl) {
+  const userResult = await query(
+    `SELECT id, email, stripe_customer_id
+     FROM users
+     WHERE id = $1`,
+    [userId]
+  );
+
+  const user = userResult.rows[0];
+  if (!user) {
+    const error = new Error("User not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (!user.stripe_customer_id) {
+    const error = new Error("Billing portal is not configured yet. Please contact support to cancel.");
+    error.statusCode = 503;
+    throw error;
+  }
+
+  try {
+    return await stripe.billingPortal.sessions.create({
+      customer: user.stripe_customer_id,
+      return_url: returnUrl || `${process.env.FRONTEND_URL || ""}/settings`
+    });
+  } catch (err) {
+    console.warn("Stripe billing portal session failed:", err.message);
+    const error = new Error("Billing portal is not configured yet. Please contact support to cancel.");
+    error.statusCode = 503;
     throw error;
   }
 }
@@ -656,6 +702,13 @@ async function handleCheckoutCompleted(session) {
   if (!session.subscription) return;
 
   const subscription = await stripe.subscriptions.retrieve(session.subscription);
+  await attachStripeIdsToConsent({
+    consentId: session.metadata?.consentId,
+    userId: Number.parseInt(session.metadata?.userId, 10),
+    stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id,
+    stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id,
+    checkoutSessionId: session.id
+  }).catch((err) => console.warn("Subscription consent Stripe ID update skipped:", err.message));
   await handleSubscriptionEvent(
     subscription,
     session.client_reference_id || session.metadata?.userId || null
@@ -677,6 +730,12 @@ async function handleSubscriptionEvent(subscription, fallbackUserId = null) {
   }
 
   await updateUserPlan(userId, plan, subscription.id, subscriptionStatus, expiresAt);
+  await attachStripeIdsToConsent({
+    consentId: subscription.metadata?.consentId,
+    userId,
+    stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id,
+    stripeSubscriptionId: subscription.id
+  }).catch((err) => console.warn("Subscription consent sync skipped:", err.message));
   console.log(`Updated user ${userId} to plan: ${plan}`);
 }
 

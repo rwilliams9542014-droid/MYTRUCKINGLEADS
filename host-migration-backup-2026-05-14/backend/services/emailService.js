@@ -512,6 +512,37 @@ export async function sendSubscriptionConfirmation({ email, userName, plan, rene
   }
 }
 
+export async function sendTrialStartedEmail({ email, userName, planName, trialEndAt, planPrice, billingInterval = "monthly" }) {
+  const appName = process.env.APP_NAME || "MyTruckingLeads";
+  const appUrl = process.env.APP_URL || process.env.FRONTEND_URL || "https://www.mytruckingleads.com";
+  const trialEndLabel = trialEndAt ? new Date(trialEndAt).toLocaleDateString("en-US") : "the end of your trial";
+  const priceLabel = planPrice == null ? "your selected plan price" : `$${Number(planPrice).toLocaleString()}`;
+  const subject = `Your ${appName} free trial has started`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+      <h2>Your free trial has started</h2>
+      <p>Hello ${escapeHtml(userName || "there")},</p>
+      <p>Your ${escapeHtml(planName || "selected")} plan trial is active until ${escapeHtml(trialEndLabel)}.</p>
+      <p>After the trial, your subscription will automatically renew at ${escapeHtml(priceLabel)} per ${escapeHtml(billingInterval)} unless you cancel before the trial ends.</p>
+      <p>You can cancel from your account billing page: <a href="${escapeHtml(`${appUrl}/settings`)}">${escapeHtml(`${appUrl}/settings`)}</a></p>
+      <p>If you need help, reply to this email or contact support.</p>
+    </div>
+  `;
+  const text = [
+    `Your ${appName} free trial has started.`,
+    `Plan: ${planName || "selected plan"}`,
+    `Trial ends: ${trialEndLabel}`,
+    `After the trial: ${priceLabel} per ${billingInterval}`,
+    `Cancel before the trial ends from ${appUrl}/settings to avoid future charges.`
+  ].join("\n");
+
+  const result = await sendEmailMessage({ to: email, subject, html, text });
+  if (!result.success) {
+    console.warn(`Email provider not configured. Trial started email not sent to ${email}.`);
+  }
+  return result;
+}
+
 /**
  * Send payment failed email
  */

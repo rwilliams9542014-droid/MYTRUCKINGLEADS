@@ -1,9 +1,14 @@
-import { cancelSubscriptionForUser, createCheckoutSession, getSessionDetails, handleWebhook, syncCheckoutSession } from "../services/stripeService.js";
+import { cancelSubscriptionForUser, createBillingPortalSessionForUser, createCheckoutSession, getSessionDetails, handleWebhook, syncCheckoutSession } from "../services/stripeService.js";
 import { sendTestEmail } from "../services/emailService.js";
+import {
+  attachCheckoutSessionToConsent,
+  recordSubscriptionConsent,
+  requireSubscriptionConsent
+} from "../services/subscriptionConsentService.js";
 
 export async function createCheckout(req, res) {
   try {
-    const { plan, email, customerEmail, billingCycle } = req.body;
+    const { plan, email, customerEmail, billingCycle, acceptedTerms, acceptedPrivacy, acceptedSubscriptionAgreement } = req.body;
     const checkoutEmail = email || customerEmail;
     const userId = req.user?.id;
 
@@ -11,7 +16,17 @@ export async function createCheckout(req, res) {
       return res.status(400).json({ error: "plan, email, and userId are required" });
     }
 
-    const session = await createCheckoutSession({ plan, customerEmail: checkoutEmail, userId, billingCycle });
+    requireSubscriptionConsent({ acceptedTerms, acceptedPrivacy, acceptedSubscriptionAgreement });
+    const consentRecord = await recordSubscriptionConsent({
+      userId,
+      email: checkoutEmail,
+      plan,
+      billingCycle,
+      consent: { acceptedTerms, acceptedPrivacy, acceptedSubscriptionAgreement },
+      req
+    });
+    const session = await createCheckoutSession({ plan, customerEmail: checkoutEmail, userId, billingCycle, consentRecord });
+    await attachCheckoutSessionToConsent(consentRecord.id, session.id);
     res.json({ url: session.url, sessionId: session.id });
   } catch (err) {
     console.error("Stripe checkout error:", err);
@@ -39,6 +54,21 @@ export async function getCheckoutStatus(req, res) {
   } catch (err) {
     console.error("Session retrieval error:", err);
     res.status(500).json({ error: "Failed to retrieve session" });
+  }
+}
+
+export async function createBillingPortalSession(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const returnUrl = `${process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`}/settings`;
+    const session = await createBillingPortalSessionForUser(userId, returnUrl);
+    res.json({ url: session.url });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message || "Billing portal is not configured yet. Please contact support to cancel." });
   }
 }
 

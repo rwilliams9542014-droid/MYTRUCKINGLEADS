@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { query } from "../config/db.js";
 import { createCheckoutSession, syncUserSubscriptionFromStripe } from "../services/stripeService.js";
+import { sendTrialStartedEmail } from "../services/emailService.js";
 import { validateEmail, validateLeadState, validatePassword, validatePhone, validatePlan, validateString, validateUsername } from "../utils/validators.js";
 import { ValidationError, ConflictError, AuthenticationError } from "../middleware/errorHandler.js";
 import { getTrialUsage } from "../utils/trialAccess.js";
@@ -9,6 +10,11 @@ import { getPlanAccessSummary } from "../utils/planAccess.js";
 import { loadEffectiveTeamUser } from "../utils/teamAccounts.js";
 import { isOwnerUser } from "../utils/ownerAccess.js";
 import { clearOwnerPreviewCookie } from "../utils/ownerPreview.js";
+import {
+  attachCheckoutSessionToConsent,
+  recordSubscriptionConsent,
+  requireSubscriptionConsent
+} from "../services/subscriptionConsentService.js";
 
 function effectiveSubscriptionStatus(user) {
   if (process.env.LOCAL_DEV_FREE_ACCESS === "true" && process.env.NODE_ENV !== "production") {
@@ -135,8 +141,13 @@ export async function signup(req, res, next) {
       leadState,
       leadStates,
       password,
-      plan
+      plan,
+      acceptedTerms,
+      acceptedPrivacy,
+      acceptedSubscriptionAgreement
     } = req.body;
+
+    requireSubscriptionConsent({ acceptedTerms, acceptedPrivacy, acceptedSubscriptionAgreement });
 
     // Validate inputs
     const validatedFirstName = validateString(firstName, "First name", 2, 80);
@@ -218,12 +229,30 @@ export async function signup(req, res, next) {
     );
 
     const user = result.rows[0];
+    const consentRecord = await recordSubscriptionConsent({
+      userId: user.id,
+      email: validatedEmail,
+      plan: validatedPlan,
+      billingCycle: "monthly",
+      consent: { acceptedTerms, acceptedPrivacy, acceptedSubscriptionAgreement },
+      req
+    });
     const checkoutSession = await createCheckoutSession({
       plan: validatedPlan,
       customerEmail: validatedEmail,
       userId: user.id,
-      billingCycle: "monthly"
+      billingCycle: "monthly",
+      consentRecord
     });
+    await attachCheckoutSessionToConsent(consentRecord.id, checkoutSession.id);
+    sendTrialStartedEmail({
+      email: validatedEmail,
+      userName: validatedName,
+      planName: consentRecord.plan_name,
+      trialEndAt: consentRecord.trial_end_at,
+      planPrice: consentRecord.plan_price,
+      billingInterval: consentRecord.billing_interval
+    }).catch((err) => console.warn("Trial started email skipped:", err.message));
 
     const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, {
       expiresIn: "7d"

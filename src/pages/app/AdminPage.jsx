@@ -137,6 +137,26 @@ function DetailDrawer({ detail, loading, note, setNote, onClose, onAction, actio
             </Card>
 
             <Card className="bg-white/[0.03]">
+              <h3 className="font-semibold text-white">Subscription Consent</h3>
+              {detail.subscriptionConsent ? (
+                <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                  <div><p className="text-navy-500">Accepted</p><Badge variant={detail.subscriptionConsent.accepted ? "success" : "danger"}>{detail.subscriptionConsent.accepted ? "Yes" : "No"}</Badge></div>
+                  <div><p className="text-navy-500">Accepted At</p><p className="text-white">{dateValue(detail.subscriptionConsent.acceptedAt)}</p></div>
+                  <div><p className="text-navy-500">Plan Accepted</p><p className="text-white">{detail.subscriptionConsent.planName || "-"}</p></div>
+                  <div><p className="text-navy-500">Price Accepted</p><p className="text-white">{money(detail.subscriptionConsent.planPrice)}</p></div>
+                  <div><p className="text-navy-500">Billing Interval</p><p className="text-white">{detail.subscriptionConsent.billingInterval || "-"}</p></div>
+                  <div><p className="text-navy-500">Trial Days</p><p className="text-white">{detail.subscriptionConsent.trialDays ?? "-"}</p></div>
+                  <div><p className="text-navy-500">Terms Version</p><p className="text-white">{detail.subscriptionConsent.termsVersion || "-"}</p></div>
+                  <div><p className="text-navy-500">Agreement Version</p><p className="text-white">{detail.subscriptionConsent.subscriptionAgreementVersion || "-"}</p></div>
+                  <div><p className="text-navy-500">Stripe Customer</p><p className="text-white">{detail.subscriptionConsent.stripeCustomerIdMasked || "Pending"}</p></div>
+                  <div><p className="text-navy-500">Stripe Subscription</p><p className="text-white">{detail.subscriptionConsent.stripeSubscriptionIdMasked || "Pending"}</p></div>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-navy-500">No subscription consent record found for this user.</p>
+              )}
+            </Card>
+
+            <Card className="bg-white/[0.03]">
               <h3 className="font-semibold text-white">Admin Notes</h3>
               <div className="mt-3 space-y-3">
                 {(detail.adminNotes || []).map((item) => (
@@ -430,4 +450,3 @@ export default function AdminPage() {
     </div>
   );
 }
-

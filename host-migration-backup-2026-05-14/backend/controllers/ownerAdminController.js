@@ -5,6 +5,7 @@ import { query } from "../config/db.js";
 import { connectMongo, getMongoUri, isMongoConnected } from "../config/mongo.js";
 import Carrier from "../models/Carrier.js";
 import { cancelSubscriptionForUser, listStripeSignupRecords } from "../services/stripeService.js";
+import { getLatestSubscriptionConsentForUser } from "../services/subscriptionConsentService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +68,28 @@ function safeUser(row = {}) {
     cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
     frozenAt: row.frozen_at || null,
     frozenReason: row.frozen_reason || null
+  };
+}
+
+function safeConsent(row = null) {
+  if (!row) return null;
+  return {
+    accepted: Boolean(row.accepted_terms && row.accepted_privacy && row.accepted_subscription_agreement),
+    acceptedAt: row.accepted_at || null,
+    planId: row.plan_id || null,
+    planName: row.plan_name || null,
+    planPrice: row.plan_price == null ? null : Number(row.plan_price),
+    billingInterval: row.billing_interval || null,
+    trialDays: row.trial_days ?? null,
+    trialStartAt: row.trial_start_at || null,
+    trialEndAt: row.trial_end_at || null,
+    firstBillingAt: row.first_billing_at || null,
+    termsVersion: row.terms_version || null,
+    privacyVersion: row.privacy_version || null,
+    subscriptionAgreementVersion: row.subscription_agreement_version || null,
+    stripeCustomerIdMasked: maskId(row.stripe_customer_id),
+    stripeSubscriptionIdMasked: maskId(row.stripe_subscription_id),
+    checkoutSessionIdMasked: maskId(row.checkout_session_id)
   };
 }
 
@@ -487,11 +510,12 @@ export async function getOwnerSubscriber(req, res, next) {
     );
     if (!rows[0]) return res.status(404).json({ error: "Subscriber not found" });
     const subscriber = safeUser(rows[0]);
-    const [notes, actionHistory, purchaseRows, quoteRows] = await Promise.all([
+    const [notes, actionHistory, purchaseRows, quoteRows, consentRecord] = await Promise.all([
       loadAdminNotes(userId),
       loadActionHistory(userId),
       safeQuery("SELECT COUNT(*)::int AS count FROM lead_purchases WHERE user_id = $1", [userId], [{ count: null }]),
-      safeQuery("SELECT COUNT(*)::int AS count FROM quote_requests WHERE assigned_user_id = $1 OR purchased_by = $1", [userId], [{ count: null }])
+      safeQuery("SELECT COUNT(*)::int AS count FROM quote_requests WHERE assigned_user_id = $1 OR purchased_by = $1", [userId], [{ count: null }]),
+      getLatestSubscriptionConsentForUser(userId).catch(() => null)
     ]);
 
     res.json({
@@ -505,7 +529,8 @@ export async function getOwnerSubscriber(req, res, next) {
         quoteRequestsClaimed: quoteRows[0]?.count
       },
       adminNotes: notes,
-      actionHistory
+      actionHistory,
+      subscriptionConsent: safeConsent(consentRecord)
     });
   } catch (err) {
     next(err);

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { cancelBillingSubscription, createCheckout, getCheckoutStatus, testEmail } from "../controllers/billingController.js";
+import { cancelBillingSubscription, createBillingPortalSession, createCheckout, getCheckoutStatus, testEmail } from "../controllers/billingController.js";
 import { authRequired } from "../middleware/authMiddleware.js";
 
 const router = Router();
@@ -12,6 +12,9 @@ router.get("/checkout-status", authRequired, getCheckoutStatus);
 
 // Cancel current subscription through Stripe.
 router.post("/cancel", authRequired, cancelBillingSubscription);
+
+// Open Stripe Customer Portal when configured.
+router.post("/create-portal-session", authRequired, createBillingPortalSession);
 
 // NOTE: The /webhook route is intentionally absent here. It is registered
 // directly on the app in server.js, BEFORE the global body parsers, so that
