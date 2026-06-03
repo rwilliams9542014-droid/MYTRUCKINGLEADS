@@ -26,6 +26,10 @@ export function applyTeamOwnerAccess(user, owner) {
     lead_states: owner.lead_states ?? normalizedUser.lead_states,
     subscription_status: owner.subscription_status ?? normalizedUser.subscription_status,
     subscription_expires_at: owner.subscription_expires_at ?? normalizedUser.subscription_expires_at,
+    account_status: owner.account_status ?? normalizedUser.account_status,
+    frozen_at: owner.frozen_at ?? normalizedUser.frozen_at,
+    frozen_by: owner.frozen_by ?? normalizedUser.frozen_by,
+    frozen_reason: owner.frozen_reason ?? normalizedUser.frozen_reason,
     trial_ends_at: owner.trial_ends_at ?? normalizedUser.trial_ends_at,
     team_owner_name: owner.name || null,
     team_owner_email: owner.email || null,
@@ -35,7 +39,8 @@ export function applyTeamOwnerAccess(user, owner) {
 
 async function loadOwnerAccount(ownerUserId) {
   const result = await query(
-    `SELECT id, name, email, plan, lead_state, lead_states, subscription_status, subscription_expires_at, trial_ends_at
+    `SELECT id, name, email, plan, lead_state, lead_states, subscription_status, subscription_expires_at,
+            account_status, frozen_at, frozen_by, frozen_reason, trial_ends_at
      FROM users
      WHERE id = $1`,
     [ownerUserId]

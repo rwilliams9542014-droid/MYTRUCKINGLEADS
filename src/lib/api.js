@@ -160,6 +160,30 @@ export const api = {
   getAdminOverview: () => apiRequest("/api/admin/overview"),
   getAdminUsers: () => apiRequest("/api/admin/users"),
   getAdminHealth: () => apiRequest("/api/admin/webhook-health"),
+  getOwnerSummary: () => apiRequest("/api/admin/owner/summary"),
+  getOwnerHealth: () => apiRequest("/api/admin/owner/health"),
+  getOwnerSubscribers: () => apiRequest("/api/admin/owner/subscribers"),
+  getOwnerSubscriber: (id) => apiRequest(`/api/admin/owner/subscribers/${encodeURIComponent(id)}`),
+  freezeOwnerSubscriber: (id, reason) => apiRequest(`/api/admin/owner/subscribers/${encodeURIComponent(id)}/freeze`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  }),
+  unfreezeOwnerSubscriber: (id, reason) => apiRequest(`/api/admin/owner/subscribers/${encodeURIComponent(id)}/unfreeze`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  }),
+  cancelOwnerSubscriber: (id, reason) => apiRequest(`/api/admin/owner/subscribers/${encodeURIComponent(id)}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  }),
+  addOwnerSubscriberNote: (id, note) => apiRequest(`/api/admin/owner/subscribers/${encodeURIComponent(id)}/note`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  }),
+  getOwnerRevenue: () => apiRequest("/api/admin/owner/revenue"),
+  getOwnerActivity: () => apiRequest("/api/admin/owner/activity"),
+  getOwnerDataFreshness: () => apiRequest("/api/admin/owner/data-freshness"),
+  getOwnerAlerts: () => apiRequest("/api/admin/owner/alerts"),
   getFmcsaDiagnostics: (dot) => apiRequest(`/api/admin/fmcsa-diagnostics/${encodeURIComponent(dot)}`),
 
   updateProfile: (data) => apiRequest("/api/auth/profile", {

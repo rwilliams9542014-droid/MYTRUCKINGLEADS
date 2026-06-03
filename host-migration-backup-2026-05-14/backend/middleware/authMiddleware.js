@@ -25,6 +25,7 @@ function extractToken(req) {
 async function loadUserForRequest(userId) {
   const userResult = await query(
     `SELECT id, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
+            account_status, frozen_at, frozen_by, frozen_reason,
             trial_ends_at, daily_profile_views, daily_contact_views,
             daily_saved_prospects, last_usage_reset_at,
             monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
@@ -48,6 +49,7 @@ async function loadUserForRequest(userId) {
       await syncUserSubscriptionFromStripe(syncUserId).catch(() => null);
       const refreshedUser = await query(
         `SELECT id, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
+                account_status, frozen_at, frozen_by, frozen_reason,
                 trial_ends_at, daily_profile_views, daily_contact_views,
                 daily_saved_prospects, last_usage_reset_at,
                 monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
@@ -71,6 +73,10 @@ async function loadUserForRequest(userId) {
   let effectiveUser = await loadEffectiveTeamUser(user);
   effectiveUser = await hydrateTrialAccessUser(effectiveUser);
 
+  if (String(effectiveUser.account_status || user.account_status || "").toLowerCase() === "frozen") {
+    throw new AuthenticationError("Your account is currently frozen. Please contact support.");
+  }
+
   if (isOwnerUser(user)) {
     effectiveUser = applyOwnerPreview(effectiveUser, readOwnerPreviewCookie(req));
   }
@@ -87,6 +93,10 @@ function assignRequestUser(req, res, user) {
     role: user.role,
     subscription_status: user.subscription_status,
     subscription_expires_at: user.subscription_expires_at,
+    account_status: user.account_status || "active",
+    frozen_at: user.frozen_at || null,
+    frozen_by: user.frozen_by || null,
+    frozen_reason: user.frozen_reason || null,
     trial_ends_at: user.trial_ends_at,
     daily_profile_views: user.daily_profile_views,
     daily_contact_views: user.daily_contact_views,

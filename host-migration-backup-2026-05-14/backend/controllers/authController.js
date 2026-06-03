@@ -71,6 +71,8 @@ function publicUser(user) {
     role: user.role,
     isOwner: isOwnerUser(user),
     plan: publicPlan(user.plan, subscriptionStatus),
+    accountStatus: user.account_status || "active",
+    frozenAt: user.frozen_at || null,
     stripe_subscription_id: user.stripe_subscription_id,
     subscription_status: subscriptionStatus,
     subscriptionStatus,
@@ -259,6 +261,7 @@ export async function login(req, res, next) {
     const result = await query(
       `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, password_hash,
               plan, stripe_subscription_id, subscription_status, subscription_expires_at,
+              account_status, frozen_at, frozen_by, frozen_reason,
               trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
               monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
               team_owner_user_id, team_member_role
@@ -272,6 +275,9 @@ export async function login(req, res, next) {
     }
 
     const user = result.rows[0];
+    if (String(user.account_status || "").toLowerCase() === "frozen") {
+      return next(new AuthenticationError("Your account is currently frozen. Please contact support."));
+    }
     
     // Verify password
     const match = await bcrypt.compare(password, user.password_hash);
@@ -316,6 +322,7 @@ export async function getCurrentUser(req, res, next) {
 
     const userResult = await query(
       `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, plan, stripe_subscription_id, subscription_status, subscription_expires_at,
+              account_status, frozen_at, frozen_by, frozen_reason,
               trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
               monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
               team_owner_user_id, team_member_role

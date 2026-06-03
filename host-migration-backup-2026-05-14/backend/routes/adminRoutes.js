@@ -9,6 +9,20 @@ import {
   syncUserStripe,
   updateContactRequestStatus
 } from "../controllers/adminController.js";
+import {
+  addOwnerSubscriberNote,
+  cancelOwnerSubscriber,
+  freezeOwnerSubscriber,
+  getOwnerActivity,
+  getOwnerAlerts,
+  getOwnerDataFreshness,
+  getOwnerHealth,
+  getOwnerRevenue,
+  getOwnerSubscriber,
+  getOwnerSubscribers,
+  getOwnerSummary,
+  unfreezeOwnerSubscriber
+} from "../controllers/ownerAdminController.js";
 import { authRequired } from "../middleware/authMiddleware.js";
 import { ownerRequired } from "../middleware/ownerMiddleware.js";
 
@@ -19,6 +33,18 @@ router.use(authRequired, ownerRequired);
 router.get("/overview", getOwnerOverview);
 router.get("/users", listUsers);
 router.get("/webhook-health", getWebhookHealth);
+router.get("/owner/summary", getOwnerSummary);
+router.get("/owner/health", getOwnerHealth);
+router.get("/owner/subscribers", getOwnerSubscribers);
+router.get("/owner/subscribers/:id", getOwnerSubscriber);
+router.patch("/owner/subscribers/:id/freeze", freezeOwnerSubscriber);
+router.patch("/owner/subscribers/:id/unfreeze", unfreezeOwnerSubscriber);
+router.post("/owner/subscribers/:id/cancel", cancelOwnerSubscriber);
+router.post("/owner/subscribers/:id/note", addOwnerSubscriberNote);
+router.get("/owner/revenue", getOwnerRevenue);
+router.get("/owner/activity", getOwnerActivity);
+router.get("/owner/data-freshness", getOwnerDataFreshness);
+router.get("/owner/alerts", getOwnerAlerts);
 router.get("/fmcsa-diagnostics/:dotNumber", getFmcsaDiagnostics);
 router.post("/users/:id/sync-stripe", syncUserStripe);
 router.post("/preview-session", setOwnerPreviewSession);

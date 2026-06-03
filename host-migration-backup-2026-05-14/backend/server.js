@@ -300,7 +300,11 @@ async function ensureUserAccountSchema() {
       ADD COLUMN IF NOT EXISTS monthly_export_reset_at TIMESTAMPTZ DEFAULT NOW(),
       ADD COLUMN IF NOT EXISTS daily_export_rows INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS daily_export_reset_at TIMESTAMPTZ DEFAULT NOW(),
-      ADD COLUMN IF NOT EXISTS last_usage_reset_at TIMESTAMPTZ DEFAULT NOW()
+      ADD COLUMN IF NOT EXISTS last_usage_reset_at TIMESTAMPTZ DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active',
+      ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS frozen_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS frozen_reason TEXT
   `);
 
   await query(`
@@ -476,6 +480,28 @@ async function ensureOperationalTables() {
     )
   `);
   await query(`ALTER TABLE outreach_usage ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS owner_action_logs (
+      id SERIAL PRIMARY KEY,
+      owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      reason TEXT,
+      metadata JSONB DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_owner_action_logs_target_created
+      ON owner_action_logs (target_user_id, created_at DESC)
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_owner_action_logs_owner_created
+      ON owner_action_logs (owner_user_id, created_at DESC)
+  `);
 }
 
 connectMongo()

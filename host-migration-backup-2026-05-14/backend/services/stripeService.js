@@ -562,6 +562,12 @@ export async function listStripeSignupRecords({ limit = 100, backfillLocalUsers 
         stripe_subscription_id: subscription.id,
         subscription_status: subscription.status || null,
         subscription_expires_at: expiresAt,
+        monthly_price: subscription.items?.data?.[0]?.price?.recurring?.interval === "year"
+          ? Number(((subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100 / 12).toFixed(2))
+          : Number(((subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100).toFixed(2)),
+        billing_interval: subscription.items?.data?.[0]?.price?.recurring?.interval || null,
+        seats: subscription.items?.data?.[0]?.quantity || 1,
+        cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
         created_at: subscription.created ? new Date(subscription.created * 1000).toISOString() : null,
         updated_at: subscription.created ? new Date(subscription.created * 1000).toISOString() : null,
         has_access: hasAccess,
