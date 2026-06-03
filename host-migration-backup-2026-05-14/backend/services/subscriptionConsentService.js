@@ -1,4 +1,5 @@
 import { query } from "../config/db.js";
+import { ValidationError } from "../middleware/errorHandler.js";
 import { PLAN_DETAILS, normalizePlan } from "../utils/planAccess.js";
 
 export const TERMS_VERSION = "2026-06-03";
@@ -11,9 +12,7 @@ export function requireSubscriptionConsent(input = {}) {
     input.acceptedPrivacy !== true ||
     input.acceptedSubscriptionAgreement !== true
   ) {
-    const error = new Error("Subscription agreement acceptance is required.");
-    error.statusCode = 400;
-    throw error;
+    throw new ValidationError("Subscription agreement acceptance is required.");
   }
 }
 
@@ -23,16 +22,12 @@ export function getSubscriptionConsentTerms(planInput, billingCycleInput = "mont
   const plan = PLAN_DETAILS[planId];
 
   if (!plan) {
-    const error = new Error("Plan billing details are unavailable. Please try again.");
-    error.statusCode = 400;
-    throw error;
+    throw new ValidationError("Plan billing details are unavailable. Please try again.");
   }
 
   const price = billingInterval === "annual" ? plan.annualPrice : plan.price;
   if (!Number.isFinite(Number(price)) || Number(price) <= 0 || !Number.isFinite(Number(plan.trialDays))) {
-    const error = new Error("Plan billing details are unavailable. Please try again.");
-    error.statusCode = 400;
-    throw error;
+    throw new ValidationError("Plan billing details are unavailable. Please try again.");
   }
 
   const trialStartAt = new Date();
@@ -184,4 +179,3 @@ export async function getLatestSubscriptionConsentForUser(userId) {
   );
   return result.rows[0] || null;
 }
-
