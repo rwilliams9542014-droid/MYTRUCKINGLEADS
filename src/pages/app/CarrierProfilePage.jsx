@@ -7,7 +7,7 @@ import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import {
-  collectContactNumbers,
+  collectContactNumbersFromAllSources,
   dedupeContactNumbers,
   formatAllContactNumbers,
   getPrimaryContactNumber,
@@ -161,7 +161,19 @@ function normalizeCarrier(data) {
   const city = pick(carrier.city, addressParts.city, carrier.phy_city, carrier.hq_city);
   const state = pick(carrier.state, addressParts.state, carrier.phy_state, carrier.hq_state);
   const zip = pick(carrier.zip, addressParts.zip, carrier.phy_zip, carrier.hq_zip);
-  const contactNumbers = dedupeContactNumbers([...collectContactNumbers(carrier), ...(lead.contactNumbers || [])]);
+  const contactNumbers = dedupeContactNumbers([
+    ...lead.contactNumbers,
+    ...collectContactNumbersFromAllSources({
+      leadSearchResult: carrier,
+      carrierProfile: carrier,
+      motusRecord: carrier.motusProfile || carrier.raw?.motusProfile || carrier.raw?.motusRegister,
+      fmcsaRecord: carrier.qcmobileDetails || carrier.raw?.liveCarrier || carrier.raw?.qcmobileDetails,
+      saferRecord: carrier.saferData || carrier.raw?.saferData,
+      dataTransportRecord: carrier.census || carrier.raw?.census,
+      cachedDatabaseRecord: carrier.cachedDatabaseRecord || carrier.raw?.databaseRecord,
+      enrichmentRecord: carrier,
+    }),
+  ]);
   const primaryContact = getPrimaryContactNumber(contactNumbers);
   const email = pick(carrier.email, carrier.emailAddress);
   const dot = pick(carrier.dotNumber, carrier.dot_number, carrier.usdot, carrier.usdotNumber, carrier.dot);
@@ -407,8 +419,8 @@ function ContactNumbersSection({ numbers = [], onStatus }) {
           {numbers.map((entry) => (
             <div key={`${entry.type}-${entry.digits}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.025] px-3 py-2">
               <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">{entry.label}</p>
                 <p className="text-sm font-semibold text-white">{entry.number}</p>
-                <p className="text-xs text-navy-400">{[entry.label, entry.source, entry.confidence && `${entry.confidence} confidence`].filter(Boolean).join(" / ")}</p>
               </div>
               <button type="button" onClick={() => copyValue(entry.number, entry.label || "Phone number")} className="btn-secondary rounded-lg border border-white/10 px-3 py-1.5 text-xs">Copy</button>
             </div>
@@ -418,7 +430,7 @@ function ContactNumbersSection({ numbers = [], onStatus }) {
           )}
         </div>
       ) : (
-        <p className="mt-1 text-sm text-navy-400">{NOT_AVAILABLE}</p>
+        <p className="mt-1 text-sm text-navy-400">No public phone number found.</p>
       )}
     </div>
   );

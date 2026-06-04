@@ -8,6 +8,10 @@ import { normalizeCanonicalCarrier } from "../services/carrierNormalizationServi
 import { getPlanAccessSummary, requirePaidPlan } from "../utils/planAccess.js";
 import { getTrialUsage, maskTrialCarrierContacts, maskTrialLeadContacts } from "../utils/trialAccess.js";
 import { normalizeUSStateCode } from "../utils/usStates.js";
+import {
+  collectContactNumbersFromAllSources,
+  getBestPrimaryPhone
+} from "../utils/contactNumbers.js";
 
 const PUBLIC_CONTACT_LOCK_MESSAGE = "Create an account to reveal carrier phone and email.";
 
@@ -144,6 +148,17 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
   const smsSafety = plain.smsSafety || plain.raw?.smsSafety || {};
   const saferData = plain.raw?.saferData || {};
   const canonical = normalizeCanonicalCarrier(plain);
+  const contactNumbers = collectContactNumbersFromAllSources({
+    carrierProfile: plain,
+    motusRecord: plain.raw?.motusProfile || plain.raw?.motusRegister,
+    fmcsaRecord: plain.raw?.liveCarrier || plain.raw?.qcmobileDetails || plain,
+    saferRecord: plain.raw?.saferData,
+    dataTransportRecord: census,
+    cachedDatabaseRecord: plain,
+    enrichmentRecord: canonical
+  });
+  const primaryContact = getBestPrimaryPhone(contactNumbers);
+  const primaryPhone = primaryContact?.type === "fax" ? canonical.phone || plain.phoneNumber : primaryContact?.number || canonical.phone || plain.phoneNumber;
 
   return {
     id: String(plain._id),
@@ -155,11 +170,12 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
     address: canonical.physicalAddress || addressText,
     addressParts: address,
     state: canonical.physicalState || address.state || "",
-    phoneNumber: canonical.phone || plain.phoneNumber,
-    phone: canonical.phone || plain.phoneNumber,
+    phoneNumber: primaryPhone,
+    phone: primaryPhone,
     cellPhone,
     fax,
     faxNumber: fax,
+    contactNumbers,
     email: canonical.email || plain.email,
     companyOfficer1,
     companyOfficer2,
@@ -550,6 +566,12 @@ function monthKeysBetween(from, to) {
 function mapFmcsaCensusLead(row = {}) {
   const powerUnits = parseInteger(row.power_units, null);
   const fleetSize = parseInteger(row.fleetsize, null) ?? powerUnits ?? parseInteger(row.truck_units, null);
+  const contactNumbers = collectContactNumbersFromAllSources({
+    dataTransportRecord: row,
+    leadSearchResult: row
+  });
+  const primaryContact = getBestPrimaryPhone(contactNumbers);
+  const primaryPhone = primaryContact?.type === "fax" ? row.phone || row.cell_phone || "" : primaryContact?.number || row.phone || row.cell_phone || "";
   return {
     dotNumber: row.dot_number || "",
     mcNumber: "",
@@ -581,10 +603,12 @@ function mapFmcsaCensusLead(row = {}) {
     emailSource: row.email_address ? "FMCSA Company Census File / MCS-150 self-reported" : "",
     emailVerified: false,
     verificationProvider: "",
-    phone: row.phone || row.cell_phone || "",
+    phone: primaryPhone,
+    phoneNumber: primaryPhone,
     cellPhone: row.cell_phone || "",
     fax: row.fax || "",
     faxNumber: row.fax || "",
+    contactNumbers,
     cargoHauled: "Not listed",
     cargo_hauled: "Not listed"
   };
@@ -610,6 +634,7 @@ async function fetchFmcsaCensusNewLeads(filters = {}) {
     "business_org_desc",
     "phone",
     "cell_phone",
+    "fax",
     "email_address",
     "fleetsize",
     "power_units",
@@ -658,6 +683,12 @@ async function fetchFmcsaCensusNewLeads(filters = {}) {
 function postgresCarrierToApi(row = {}) {
   const address = [row.hq_address, row.hq_city, row.hq_state, row.hq_zip].filter(Boolean).join(", ");
   const safetyData = row.safety_data || {};
+  const contactNumbers = collectContactNumbersFromAllSources({
+    cachedDatabaseRecord: row,
+    carrierProfile: row
+  });
+  const primaryContact = getBestPrimaryPhone(contactNumbers);
+  const primaryPhone = primaryContact?.type === "fax" ? row.phone || "" : primaryContact?.number || row.phone || "";
   return {
     id: String(row.id),
     dotNumber: row.dot_number,
@@ -673,10 +704,11 @@ function postgresCarrierToApi(row = {}) {
       zip: row.hq_zip || ""
     },
     state: row.hq_state || "",
-    phoneNumber: row.phone || "",
-    phone: row.phone || "",
+    phoneNumber: primaryPhone,
+    phone: primaryPhone,
     fax: row.fax || "",
     faxNumber: row.fax || "",
+    contactNumbers,
     email: row.email || "",
     website: row.website || "",
     docketNumber: row.mc_number || "",
@@ -841,6 +873,7 @@ async function fetchCensusRowsForDots(dotNumbers, state = "") {
     "carrier_mailing_zip",
     "phone",
     "cell_phone",
+    "fax",
     "email_address",
     "mcs150_date",
     "mcs150_mileage",

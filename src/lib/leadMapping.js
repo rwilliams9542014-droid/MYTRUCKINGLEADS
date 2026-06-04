@@ -1,5 +1,5 @@
 import {
-  collectContactNumbers,
+  collectContactNumbersFromAllSources,
   getContactNumberByType,
   getPrimaryContactNumber,
 } from "@/lib/contactNumbers";
@@ -251,7 +251,16 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
   const basicSummary = normalizeBasicScores(raw);
   const dotNumber = pick(raw.dotNumber, raw.dot_number, raw.usdot, raw.usdotNumber, raw.dot);
   const carrierName = pick(raw.carrierName, raw.legalName, raw.legal_name, raw.carrier_name, raw.name, "Unknown carrier");
-  const contactNumbers = collectContactNumbers(raw);
+  const contactNumbers = collectContactNumbersFromAllSources({
+    leadSearchResult: raw,
+    carrierProfile: raw.profile,
+    motusRecord: raw.motusProfile || raw.motusRecord || raw.raw?.motusProfile || raw.raw?.motusRegister,
+    fmcsaRecord: raw.fmcsaRecord || raw.qcmobileDetails || raw.raw?.liveCarrier || raw.raw?.qcmobileDetails,
+    saferRecord: raw.saferData || raw.raw?.saferData,
+    dataTransportRecord: raw.census || raw.raw?.census,
+    cachedDatabaseRecord: raw.cachedDatabaseRecord || raw.databaseRecord,
+    enrichmentRecord: raw.enrichmentRecord || raw,
+  });
   const primaryContact = getPrimaryContactNumber(contactNumbers);
   const faxContact = getContactNumberByType(contactNumbers, "fax");
   const insuranceCancelDate = pick(

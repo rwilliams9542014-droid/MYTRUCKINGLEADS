@@ -5,6 +5,10 @@ import { fetchCarrierByDotOrMc } from "./fmcsaService.js";
 import { fetchMotusCarrierProfile } from "./motusRegisterImportService.js";
 import { canonicalCarrierToLead, normalizeCanonicalCarrier } from "./carrierNormalizationService.js";
 import { sleep } from "./safeScrapingService.js";
+import {
+  collectContactNumbersFromAllSources,
+  getBestPrimaryPhone
+} from "../utils/contactNumbers.js";
 
 function clean(value, fallback = "") {
   if (value === undefined || value === null) return fallback;
@@ -131,6 +135,7 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
     address: splitAddress(liveCarrier.address),
     phoneNumber: clean(liveCarrier.phone),
     cellPhone: clean(liveCarrier.cellPhone),
+    contactNumbers: Array.isArray(liveCarrier.contactNumbers) ? liveCarrier.contactNumbers : [],
     email: clean(liveCarrier.email).toLowerCase(),
     companyOfficer1: clean(liveCarrier.companyOfficer1 || liveCarrier.companyOfficer),
     companyOfficer2: clean(liveCarrier.companyOfficer2),
@@ -175,6 +180,7 @@ export function mapLiveCarrierToMongoSet(liveCarrier = {}, dotNumber = "") {
     const keepEmpty = ["dotNumber", "lastFullEnrichedAt", "lastUpdated", "sourceLastSeenAt", "enrichmentStatus", "dataCompletenessScore"].includes(key);
     if (!keepEmpty && (value === "" || value === null || value === undefined)) delete set[key];
     if (key === "cargoTypes" && Array.isArray(value) && value.length === 0) delete set[key];
+    if (key === "contactNumbers" && Array.isArray(value) && value.length === 0) delete set[key];
     if (key === "address" && value && typeof value === "object" && !value.raw) delete set[key];
   }
 
@@ -222,6 +228,25 @@ export async function enrichCarrierByDot(dotNumber, options = {}) {
       }
     : liveCarrier;
   const mergedCarrier = mergeSavedCarrierIntoLive(profileCarrier, savedCarrier || {});
+  const contactNumbers = collectContactNumbersFromAllSources({
+    carrierProfile: profileCarrier,
+    motusRecord: motusProfile || savedCarrier?.raw?.motusRegister || savedCarrier?.raw?.motusProfile,
+    fmcsaRecord: liveCarrier?.qcmobileDetails || liveCarrier?.raw?.liveCarrier || liveCarrier,
+    saferRecord: liveCarrier?.saferData || savedCarrier?.raw?.saferData,
+    dataTransportRecord: liveCarrier?.raw?.census || savedCarrier?.raw?.census,
+    cachedDatabaseRecord: savedCarrier,
+    enrichmentRecord: mergedCarrier
+  });
+  const primaryContact = getBestPrimaryPhone(contactNumbers);
+  if (contactNumbers.length) {
+    mergedCarrier.contactNumbers = contactNumbers;
+    if (primaryContact?.type !== "fax") {
+      mergedCarrier.phone = primaryContact.number;
+      mergedCarrier.phoneNumber = primaryContact.number;
+    }
+    const faxContact = contactNumbers.find((entry) => entry.type === "fax");
+    if (faxContact) mergedCarrier.fax = faxContact.number;
+  }
   const { set, rawSet } = mapLiveCarrierToMongoSet(mergedCarrier, dot);
 
   if (options.save !== false && isMongoConnected()) {
@@ -281,6 +306,9 @@ function overlayLeadWithLive(row = {}, liveCarrier = {}, mode = "new") {
       ...row,
       carrier_name: row.carrier_name || liveCarrier.carrierName || liveCarrier.legalName,
       phone: row.phone || liveCarrier.phone || "",
+      phoneNumber: row.phoneNumber || liveCarrier.phoneNumber || liveCarrier.phone || "",
+      fax: row.fax || liveCarrier.fax || "",
+      contactNumbers: liveCarrier.contactNumbers?.length ? liveCarrier.contactNumbers : row.contactNumbers || [],
       email: row.email || liveCarrier.email || "",
       physicalAddress: row.physicalAddress || liveCarrier.address?.raw || liveCarrier.address || "",
       vehicle_count: row.vehicle_count ?? powerUnits,
@@ -300,6 +328,9 @@ function overlayLeadWithLive(row = {}, liveCarrier = {}, mode = "new") {
     ...row,
     carrierName: row.carrierName || liveCarrier.carrierName || liveCarrier.legalName,
     phone: row.phone || liveCarrier.phone || "",
+    phoneNumber: row.phoneNumber || liveCarrier.phoneNumber || liveCarrier.phone || "",
+    fax: row.fax || liveCarrier.fax || "",
+    contactNumbers: liveCarrier.contactNumbers?.length ? liveCarrier.contactNumbers : row.contactNumbers || [],
     email: row.email || liveCarrier.email || "",
     physicalAddress: row.physicalAddress || liveCarrier.address?.raw || liveCarrier.address || "",
     address: row.address || liveCarrier.address?.raw || liveCarrier.address || "",
@@ -361,6 +392,7 @@ async function findPostgresLeadOverlay(dotNumber) {
       state: clean(row.hq_state),
       zip: clean(row.hq_zip),
       phone: clean(row.phone),
+      phoneNumber: clean(row.phone),
       email: clean(row.email),
       powerUnits: numberOrNull(row.vehicle_count),
       drivers: numberOrNull(row.driver_count),
@@ -389,6 +421,9 @@ function overlayLeadWithPostgres(row = {}, postgresCarrier = {}, mode = "new") {
       hq_state: row.hq_state || postgresCarrier.state || row.state || "",
       hq_zip: row.hq_zip || postgresCarrier.zip || "",
       phone: row.phone || postgresCarrier.phone || "",
+      phoneNumber: row.phoneNumber || postgresCarrier.phoneNumber || postgresCarrier.phone || "",
+      fax: row.fax || postgresCarrier.fax || "",
+      contactNumbers: postgresCarrier.contactNumbers?.length ? postgresCarrier.contactNumbers : row.contactNumbers || [],
       email: row.email || postgresCarrier.email || "",
       vehicle_count: row.vehicle_count ?? postgresCarrier.powerUnits,
       driver_count: row.driver_count ?? postgresCarrier.drivers,
@@ -412,6 +447,9 @@ function overlayLeadWithPostgres(row = {}, postgresCarrier = {}, mode = "new") {
     state: row.state || postgresCarrier.state || "",
     city: row.city || postgresCarrier.city || "",
     phone: row.phone || postgresCarrier.phone || "",
+    phoneNumber: row.phoneNumber || postgresCarrier.phoneNumber || postgresCarrier.phone || "",
+    fax: row.fax || postgresCarrier.fax || "",
+    contactNumbers: postgresCarrier.contactNumbers?.length ? postgresCarrier.contactNumbers : row.contactNumbers || [],
     email: row.email || postgresCarrier.email || "",
     powerUnits: row.powerUnits ?? postgresCarrier.powerUnits,
     drivers: row.drivers ?? postgresCarrier.drivers,
@@ -485,11 +523,19 @@ export async function enrichSelectedCarriers(dotNumbers = [], options = {}) {
     .map(carrier => clean(carrier.email).toLowerCase())
     .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
   const distinctEmails = [...new Set(emails)];
+  const phoneDigits = carriers.flatMap(carrier => Array.isArray(carrier.contactNumbers)
+    ? carrier.contactNumbers.map(number => number.digits).filter(Boolean)
+    : []);
+  const distinctPhoneDigits = [...new Set(phoneDigits)];
   return {
     carriers,
     summary: {
       requested: uniqueDots.length,
       enriched,
+      phonesFound: distinctPhoneDigits.length,
+      carriersWithMultipleNumbers: carriers.filter(carrier => (carrier.contactNumbers || []).length > 1).length,
+      carriersMissingPhones: Math.max(uniqueDots.length - carriers.filter(carrier => (carrier.contactNumbers || []).length).length, 0),
+      phoneDuplicatesRemoved: phoneDigits.length - distinctPhoneDigits.length,
       emailsFound: distinctEmails.length,
       missingEmails: Math.max(uniqueDots.length - emails.length, 0),
       duplicatesRemoved: emails.length - distinctEmails.length

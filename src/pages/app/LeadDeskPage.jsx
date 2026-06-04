@@ -666,13 +666,20 @@ export default function LeadDeskPage() {
       return (lead.contactNumbers || []).filter((entry) => entry.type !== "fax").map((entry) => entry.number);
     }).map((value) => String(value || "").trim()).filter(Boolean);
     const values = [...new Set(numbers)];
+    const missing = hydrated.filter((lead) => {
+      const phones = phoneColumns(lead);
+      if (mode === "primary") return !phones.primaryPhone;
+      if (mode === "fax") return !phones.faxNumber;
+      return !(lead.contactNumbers || []).some((entry) => entry.type !== "fax");
+    }).length;
+    const duplicates = numbers.length - values.length;
     if (!values.length) {
       setSaveMessage(`No ${mode === "fax" ? "fax numbers" : "phone numbers"} found for ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
       return;
     }
     try {
       await navigator.clipboard.writeText(values.join("\n"));
-      setSaveMessage(`Copied ${values.length} ${mode === "fax" ? "fax number" : "phone number"}${values.length === 1 ? "" : "s"} from ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
+      setSaveMessage(`Copied ${values.length} ${mode === "fax" ? "fax number" : "phone number"}${values.length === 1 ? "" : "s"} from ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed. ${missing} carrier${missing === 1 ? "" : "s"} had no public ${mode === "fax" ? "fax number" : "phone number"}.`);
     } catch {
       setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
     }
@@ -1065,7 +1072,6 @@ export default function LeadDeskPage() {
                                 {(lead.contactNumbers || []).length ? lead.contactNumbers.map((entry) => (
                                   <p key={`${entry.type}-${entry.digits}`}>
                                     <span className="text-white">{formatContactNumber(entry)}</span>
-                                    {entry.source && <span className="text-xs text-navy-500"> / {entry.source}</span>}
                                   </p>
                                 )) : <p>{UNAVAILABLE}</p>}
                               </div>

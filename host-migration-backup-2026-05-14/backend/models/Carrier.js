@@ -11,6 +11,21 @@ const addressSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const contactNumberSchema = new mongoose.Schema(
+  {
+    type: { type: String, trim: true, default: "unknown" },
+    label: { type: String, trim: true, default: "Phone Number" },
+    number: { type: String, trim: true, default: "" },
+    rawNumber: { type: String, trim: true, default: "" },
+    digits: { type: String, trim: true, index: true, default: "" },
+    source: { type: String, trim: true, default: "" },
+    sourceField: { type: String, trim: true, default: "" },
+    confidence: { type: String, trim: true, default: "low" },
+    isPrimary: { type: Boolean, default: false }
+  },
+  { _id: false }
+);
+
 const carrierSchema = new mongoose.Schema(
   {
     dotNumber: {
@@ -25,6 +40,7 @@ const carrierSchema = new mongoose.Schema(
     address: { type: addressSchema, default: () => ({}) },
     phoneNumber: { type: String, trim: true, default: "" },
     cellPhone: { type: String, trim: true, default: "" },
+    contactNumbers: { type: [contactNumberSchema], default: [] },
     email: { type: String, trim: true, lowercase: true, default: "" },
     companyOfficer1: { type: String, trim: true, default: "" },
     companyOfficer2: { type: String, trim: true, default: "" },

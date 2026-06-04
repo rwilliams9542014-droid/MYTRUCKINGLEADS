@@ -1,3 +1,8 @@
+import {
+  collectContactNumbersFromAllSources,
+  getBestPrimaryPhone
+} from "../utils/contactNumbers.js";
+
 function clean(value, fallback = "") {
   if (value === undefined || value === null) return fallback;
   const text = String(value).trim();
@@ -100,6 +105,19 @@ export function normalizeCanonicalCarrier(input = {}) {
   const cargoTypes = splitCargo(source.cargoTypes || source.cargoCarried || source.cargoHauled || source.cargo || source.cargo_hauled);
   const insuranceExpirationDate = dateText(source.insuranceExpirationDate || source.insuranceExpiration || source.insurance_expiration);
   const insuranceCancellationDate = dateText(source.insuranceCancellationDate || source.insuranceCancelDate || source.fmcsaInsuranceCancellationDate || insuranceExpirationDate);
+  const contactNumbers = collectContactNumbersFromAllSources({
+    leadSearchResult: source,
+    carrierProfile: source,
+    motusRecord: source.motusProfile || source.raw?.motusProfile || source.raw?.motusRegister,
+    fmcsaRecord: source.qcmobileDetails || source.raw?.liveCarrier || source.raw?.qcmobileDetails,
+    saferRecord: source.saferData || source.raw?.saferData,
+    dataTransportRecord: census,
+    cachedDatabaseRecord: source.cachedDatabaseRecord || source.raw?.databaseRecord,
+    enrichmentRecord: source
+  });
+  const primaryContact = getBestPrimaryPhone(contactNumbers);
+  const bestPhone = primaryContact?.type === "fax" ? "" : primaryContact?.number || "";
+  const faxContact = contactNumbers.find((entry) => entry.type === "fax");
 
   return {
     dotNumber: first(combined, ["dotNumber", "dot_number", "usdot", "usdotNumber", "dot"]),
@@ -112,9 +130,11 @@ export function normalizeCanonicalCarrier(input = {}) {
     authorityStatus: first(combined, ["authorityStatus", "authority_status"]),
     outOfServiceStatus: first(combined, ["outOfServiceStatus", "out_of_service_status"]),
     outOfServiceDate: dateText(first(combined, ["outOfServiceDate", "out_of_service_date"])),
-    phone: first(combined, ["telephone", "phone", "phoneNumber", "carrierPhone"]),
+    phone: bestPhone || first(combined, ["telephone", "phone", "phoneNumber", "carrierPhone"]),
+    phoneNumber: bestPhone || first(combined, ["telephone", "phone", "phoneNumber", "carrierPhone"]),
     email: first(combined, ["email", "emailAddress", "carrierEmail", "contactEmail", "businessEmail", "email_address"]).toLowerCase(),
-    fax: first(combined, ["fax", "faxNumber"]),
+    fax: faxContact?.number || first(combined, ["fax", "faxNumber"]),
+    contactNumbers,
     physicalAddress: physical.text,
     physicalStreet: physical.street,
     physicalCity: physical.city,
@@ -171,6 +191,9 @@ export function canonicalCarrierToLead(carrier = {}, mode = "new") {
     city: carrier.physicalCity,
     address: carrier.physicalAddress,
     phone: carrier.phone,
+    phoneNumber: carrier.phoneNumber || carrier.phone,
+    fax: carrier.fax,
+    contactNumbers: carrier.contactNumbers || [],
     email: carrier.email,
     trucks: carrier.powerUnits,
     powerUnits: carrier.powerUnits,

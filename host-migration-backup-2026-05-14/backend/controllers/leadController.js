@@ -34,6 +34,7 @@ function normalizeStoredContactNumbers(value) {
     number: String(entry?.number || entry?.phone || ""),
     digits: String(entry?.digits || entry?.number || "").replace(/\D/g, ""),
     source: String(entry?.source || ""),
+    sourceField: String(entry?.sourceField || ""),
     confidence: String(entry?.confidence || "")
   })).filter((entry) => {
     if (!entry.number || !entry.digits || seen.has(entry.digits)) return false;

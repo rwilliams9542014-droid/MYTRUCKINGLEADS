@@ -1,59 +1,93 @@
 const UNAVAILABLE_PATTERN = /^(n\/a|na|none|null|not available|not public|not publicly available|unavailable)$/i;
 
+const SOURCE_LABELS = {
+  leadSearchResult: "LeadSearch",
+  carrierProfile: "Profile",
+  motusRecord: "Motus",
+  fmcsaRecord: "FMCSA",
+  saferRecord: "SAFER",
+  dataTransportRecord: "DataTransportGov",
+  cachedDatabaseRecord: "Database",
+  enrichmentRecord: "Enrichment",
+};
+
 const PHONE_CANDIDATES = [
-  ["phone", "phone"],
-  ["phoneNumber", "phoneNumber"],
-  ["telephone", "telephone"],
-  ["tel", "tel"],
-  ["carrierPhone", "carrierPhone"],
-  ["businessPhone", "businessPhone"],
-  ["primaryPhone", "primaryPhone"],
-  ["contactPhone", "contactPhone"],
-  ["contact_phone", "contact_phone"],
-  ["cellPhone", "cellPhone"],
-  ["cell_phone", "cell_phone"],
-  ["mobilePhone", "mobilePhone"],
+  ["phone", "business"],
+  ["phoneNumber", "business"],
+  ["telephone", "business"],
+  ["tel", "business"],
+  ["carrierPhone", "business"],
+  ["businessPhone", "business"],
+  ["primaryPhone", "primary"],
+  ["contactPhone", "contact"],
+  ["contact_phone", "contact"],
+  ["phone1", "business"],
+  ["phone2", "secondary"],
+  ["alternatePhone", "secondary"],
+  ["secondaryPhone", "secondary"],
+  ["mainPhone", "business"],
+  ["registrationPhone", "contact"],
+  ["applicantPhone", "contact"],
+  ["companyPhone", "business"],
+  ["cellPhone", "mobile"],
+  ["cell_phone", "mobile"],
+  ["mobilePhone", "mobile"],
   ["mobile", "mobile"],
-  ["cellphone", "cellphone"],
-  ["phone1", "phone1"],
-  ["phone2", "phone2"],
-  ["alternatePhone", "alternatePhone"],
-  ["secondaryPhone", "secondaryPhone"],
+  ["cellphone", "mobile"],
+  ["contactMobile", "mobile"],
   ["fax", "fax"],
-  ["faxNumber", "faxNumber"],
-  ["carrierFax", "carrierFax"],
-  ["businessFax", "businessFax"],
-  ["fax_phone", "fax_phone"],
-  ["contact.phone", "contact.phone"],
-  ["contactInfo.phone", "contactInfo.phone"],
-  ["carrier.phone", "carrier.phone"],
-  ["raw.phone", "raw.phone"],
-  ["raw.phoneNumber", "raw.phoneNumber"],
-  ["raw.telephone", "raw.telephone"],
-  ["raw.cellPhone", "raw.cellPhone"],
-  ["raw.cell_phone", "raw.cell_phone"],
-  ["raw.mobilePhone", "raw.mobilePhone"],
-  ["raw.fax", "raw.fax"],
-  ["raw.faxNumber", "raw.faxNumber"],
-  ["raw.contact.phone", "raw.contact.phone"],
-  ["raw.contactInfo.phone", "raw.contactInfo.phone"],
-  ["raw.census.phone", "raw.census.phone"],
-  ["raw.census.cell_phone", "raw.census.cell_phone"],
-  ["raw.census.fax", "raw.census.fax"],
+  ["faxNumber", "fax"],
+  ["carrierFax", "fax"],
+  ["businessFax", "fax"],
+  ["fax_phone", "fax"],
+  ["carrier.phone", "business"],
+  ["carrier.telephone", "business"],
+  ["carrier.fax", "fax"],
+  ["contact.phone", "contact"],
+  ["contact.mobile", "mobile"],
+  ["contactInfo.phone", "contact"],
+  ["registration.phone", "contact"],
+  ["business.phone", "business"],
+  ["business.fax", "fax"],
+  ["raw.phone", "business"],
+  ["raw.telephone", "business"],
+  ["raw.phoneNumber", "business"],
+  ["raw.mobile", "mobile"],
+  ["raw.mobilePhone", "mobile"],
+  ["raw.cellPhone", "mobile"],
+  ["raw.cell_phone", "mobile"],
+  ["raw.fax", "fax"],
+  ["raw.faxNumber", "fax"],
+  ["raw.carrier.phone", "business"],
+  ["raw.carrier.telephone", "business"],
+  ["raw.carrier.fax", "fax"],
+  ["raw.contact.phone", "contact"],
+  ["raw.contact.mobile", "mobile"],
+  ["raw.contactInfo.phone", "contact"],
+  ["raw.registration.phone", "contact"],
+  ["raw.business.phone", "business"],
+  ["raw.business.fax", "fax"],
+  ["raw.census.phone", "business"],
+  ["raw.census.cell_phone", "mobile"],
+  ["raw.census.fax", "fax"],
 ];
 
 export const PHONE_TYPE_LABELS = {
-  primary: "Primary",
-  business: "Business",
-  mobile: "Mobile",
-  contact: "Contact",
-  fax: "Fax",
-  secondary: "Secondary",
-  unknown: "Other",
+  business: "Business Phone",
+  primary: "Primary Phone",
+  secondary: "Secondary Phone",
+  mobile: "Mobile Phone",
+  fax: "Fax Number",
+  contact: "Contact Phone",
+  unknown: "Phone Number",
 };
 
 function clean(value) {
   return String(value || "").trim();
+}
+
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
 function getPath(source, path) {
@@ -68,7 +102,7 @@ export function normalizePhoneDigits(value) {
   if (!text || UNAVAILABLE_PATTERN.test(text)) return "";
   const digits = text.replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
-  if (digits.length === 10) return digits;
+  if (digits.length === 10 && !/^(\d)\1{9}$/.test(digits) && !/^[01]/.test(digits) && !/^\d{3}[01]/.test(digits)) return digits;
   return "";
 }
 
@@ -78,86 +112,121 @@ export function formatPhoneNumber(value) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
-function inferType(label = "") {
-  const text = String(label).toLowerCase();
+function normalizeType(type = "") {
+  const text = String(type || "").toLowerCase();
   if (/fax/.test(text)) return "fax";
   if (/mobile|cell/.test(text)) return "mobile";
   if (/primary/.test(text)) return "primary";
-  if (/business|carrier|telephone|tel\b|phone$|^phone$|phone1/.test(text)) return "business";
-  if (/contact/.test(text)) return "contact";
+  if (/business|main|company|carrier|telephone|tel\b|phone$|^phone$|phone1/.test(text)) return "business";
+  if (/contact|registration|applicant/.test(text)) return "contact";
   if (/alternate|secondary|phone2/.test(text)) return "secondary";
   return "unknown";
 }
 
-function inferSource(label = "") {
-  const text = String(label).toLowerCase();
-  if (/fmcsa|census|safer/.test(text)) return "FMCSA";
-  if (/motus/.test(text)) return "Motus";
-  if (/raw/.test(text)) return "Enrichment";
-  return "Carrier record";
-}
-
 function confidenceFor(type) {
-  if (type === "primary" || type === "business" || type === "mobile" || type === "fax") return "high";
-  if (type === "contact" || type === "secondary") return "medium";
+  if (["business", "primary", "mobile", "fax"].includes(type)) return "high";
+  if (["contact", "secondary"].includes(type)) return "medium";
   return "low";
 }
 
-function normalizeEntry(value, label = "", extra = {}) {
+function rankType(type) {
+  return { business: 1, primary: 2, contact: 3, mobile: 4, unknown: 5, secondary: 6, fax: 7 }[type] || 8;
+}
+
+function normalizeEntry(value, fieldType = "unknown", extra = {}) {
   const digits = normalizePhoneDigits(value);
   if (!digits) return null;
-  const type = extra.type || inferType(label);
+  const type = normalizeType(extra.type || fieldType);
   return {
     type,
-    label: extra.label || PHONE_TYPE_LABELS[type] || "Other",
+    label: PHONE_TYPE_LABELS[type] || PHONE_TYPE_LABELS.unknown,
     number: formatPhoneNumber(digits),
+    rawNumber: clean(value),
     digits,
-    source: extra.source || inferSource(label),
+    source: extra.source || "Profile",
+    sourceField: extra.sourceField || extra.field || "",
     confidence: extra.confidence || confidenceFor(type),
-    original: clean(value),
+    isPrimary: Boolean(extra.isPrimary) || type === "business" || type === "primary",
   };
 }
 
-function rankType(type) {
-  return { primary: 1, business: 2, contact: 3, mobile: 4, secondary: 5, unknown: 6, fax: 7 }[type] || 8;
+function mergeEntry(existing, next) {
+  if (!existing) return next;
+  if (existing.type === "fax" && next.type !== "fax") return { ...existing, ...next };
+  if (next.type === "fax" && existing.type !== "fax") return existing;
+  if (rankType(next.type) < rankType(existing.type)) return { ...existing, ...next };
+  return {
+    ...next,
+    ...existing,
+    source: existing.source || next.source,
+    sourceField: existing.sourceField || next.sourceField,
+    confidence: existing.confidence === "high" ? "high" : next.confidence || existing.confidence,
+  };
 }
 
 export function dedupeContactNumbers(numbers = []) {
   const byDigits = new Map();
   numbers.filter(Boolean).forEach((entry) => {
-    const normalized = normalizeEntry(entry.digits || entry.number || entry.original, entry.type || entry.label, entry);
+    const normalized = normalizeEntry(entry.rawNumber || entry.number || entry.phone || entry.value || entry.digits, entry.type || entry.label, entry);
     if (!normalized) return;
-    const current = byDigits.get(normalized.digits);
-    if (!current || rankType(normalized.type) < rankType(current.type)) {
-      byDigits.set(normalized.digits, {
-        ...current,
-        ...normalized,
-        source: [current?.source, normalized.source].filter(Boolean)[0] || normalized.source,
-      });
-    }
+    byDigits.set(normalized.digits, mergeEntry(byDigits.get(normalized.digits), normalized));
   });
   return [...byDigits.values()].sort((a, b) => rankType(a.type) - rankType(b.type) || a.number.localeCompare(b.number));
 }
 
-export function collectContactNumbers(raw = {}) {
+export function collectContactNumbers(raw = {}, options = {}) {
   const entries = [];
-  const source = raw && typeof raw === "object" ? raw : {};
+  const source = safeObject(raw);
+  const sourceName = options.source || source.sourceName || "Profile";
+
   if (Array.isArray(source.contactNumbers)) {
-    source.contactNumbers.forEach((entry) => entries.push(normalizeEntry(entry.number || entry.phone || entry.value || entry.digits, entry.type || entry.label, entry)));
+    source.contactNumbers.forEach((entry) => entries.push(normalizeEntry(
+      entry.rawNumber || entry.number || entry.phone || entry.value || entry.digits,
+      entry.type || entry.label,
+      { ...entry, source: entry.source || sourceName, sourceField: entry.sourceField || "contactNumbers" }
+    )));
   }
-  PHONE_CANDIDATES.forEach(([path, label]) => {
+
+  PHONE_CANDIDATES.forEach(([path, fieldType]) => {
     const value = getPath(source, path);
     if (Array.isArray(value)) {
-      value.forEach((item) => entries.push(normalizeEntry(item, label)));
+      value.forEach((item) => entries.push(normalizeEntry(item, fieldType, { source: sourceName, sourceField: path })));
     } else {
-      entries.push(normalizeEntry(value, label));
+      entries.push(normalizeEntry(value, fieldType, { source: sourceName, sourceField: path }));
+    }
+  });
+
+  return dedupeContactNumbers(entries);
+}
+
+export function collectContactNumbersFromAllSources(carrierSources = {}) {
+  const entries = [];
+  Object.entries(SOURCE_LABELS).forEach(([key, source]) => {
+    const value = carrierSources[key];
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => entries.push(...collectContactNumbers(item, { source })));
+    } else {
+      entries.push(...collectContactNumbers(value, { source }));
     }
   });
   return dedupeContactNumbers(entries);
 }
 
+export function getBestPrimaryPhone(numbers = []) {
+  const deduped = dedupeContactNumbers(numbers);
+  return deduped.find((entry) => entry.type === "business")
+    || deduped.find((entry) => entry.type === "primary")
+    || deduped.find((entry) => entry.type === "contact")
+    || deduped.find((entry) => entry.type === "mobile")
+    || deduped.find((entry) => entry.type === "unknown")
+    || deduped.find((entry) => entry.type === "fax")
+    || null;
+}
+
 export function getPrimaryContactNumber(numbers = []) {
-  return dedupeContactNumbers(numbers).find((entry) => entry.type !== "fax") || null;
+  const best = getBestPrimaryPhone(numbers);
+  return best?.type === "fax" ? null : best;
 }
 
 export function getContactNumberByType(numbers = [], type) {
@@ -167,12 +236,13 @@ export function getContactNumberByType(numbers = [], type) {
 export function getTextCandidateNumber(numbers = []) {
   const candidates = dedupeContactNumbers(numbers).filter((entry) => entry.type !== "fax");
   return candidates.find((entry) => entry.type === "mobile")
-    || candidates.find((entry) => ["business", "contact", "primary", "secondary", "unknown"].includes(entry.type))
+    || candidates.find((entry) => ["business", "contact", "primary", "unknown", "secondary"].includes(entry.type))
     || null;
 }
 
 export function formatContactNumber(entry = {}) {
-  return [entry.label || PHONE_TYPE_LABELS[entry.type] || "Other", entry.number].filter(Boolean).join(": ");
+  const type = normalizeType(entry.type || entry.label);
+  return [PHONE_TYPE_LABELS[type] || PHONE_TYPE_LABELS.unknown, entry.number].filter(Boolean).join(": ");
 }
 
 export function formatAllContactNumbers(numbers = []) {
