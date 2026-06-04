@@ -140,6 +140,7 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
   const companyOfficer1 = plain.companyOfficer1 || census.company_officer_1 || "";
   const companyOfficer2 = plain.companyOfficer2 || census.company_officer_2 || "";
   const cellPhone = plain.cellPhone || census.cell_phone || "";
+  const fax = plain.fax || plain.faxNumber || census.fax || census.fax_number || "";
   const smsSafety = plain.smsSafety || plain.raw?.smsSafety || {};
   const saferData = plain.raw?.saferData || {};
   const canonical = normalizeCanonicalCarrier(plain);
@@ -157,6 +158,8 @@ function carrierToApi(carrier, { includeRaw = false } = {}) {
     phoneNumber: canonical.phone || plain.phoneNumber,
     phone: canonical.phone || plain.phoneNumber,
     cellPhone,
+    fax,
+    faxNumber: fax,
     email: canonical.email || plain.email,
     companyOfficer1,
     companyOfficer2,
@@ -580,6 +583,8 @@ function mapFmcsaCensusLead(row = {}) {
     verificationProvider: "",
     phone: row.phone || row.cell_phone || "",
     cellPhone: row.cell_phone || "",
+    fax: row.fax || "",
+    faxNumber: row.fax || "",
     cargoHauled: "Not listed",
     cargo_hauled: "Not listed"
   };
@@ -670,6 +675,8 @@ function postgresCarrierToApi(row = {}) {
     state: row.hq_state || "",
     phoneNumber: row.phone || "",
     phone: row.phone || "",
+    fax: row.fax || "",
+    faxNumber: row.fax || "",
     email: row.email || "",
     website: row.website || "",
     docketNumber: row.mc_number || "",

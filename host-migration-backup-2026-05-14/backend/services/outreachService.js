@@ -116,6 +116,15 @@ function normalizePhone(value) {
   return clean(value).replace(/[^\d+]/g, "");
 }
 
+function selectSmsPhone(lead = {}, explicitPhone = "") {
+  if (explicitPhone) return normalizePhone(explicitPhone);
+  const contactNumbers = Array.isArray(lead.contactNumbers) ? lead.contactNumbers : [];
+  const nonFax = contactNumbers.filter((entry) => String(entry?.type || entry?.label || "").toLowerCase() !== "fax");
+  const mobile = nonFax.find((entry) => /mobile|cell/i.test(`${entry?.type || ""} ${entry?.label || ""}`));
+  const business = nonFax.find((entry) => /business|contact|primary|secondary|unknown/i.test(`${entry?.type || ""} ${entry?.label || ""}`));
+  return normalizePhone(mobile?.number || business?.number || lead.phone || "");
+}
+
 function userDisplay(user = {}) {
   return {
     agencyName: clean(user.business_name || user.businessName || "MyTruckingLeads"),
@@ -437,7 +446,7 @@ export async function sendEmailOutreach({ user, lead = {}, to, subject, body }) 
 }
 
 export async function sendSmsOutreach({ user, lead = {}, to, body }) {
-  const recipientPhone = normalizePhone(to || lead.phone);
+  const recipientPhone = selectSmsPhone(lead, to);
   assertOutreachAccess(user, "sms");
   await assertUsageAvailable(user, "sms", 1);
   if (!recipientPhone) throw Object.assign(new Error("Recipient phone number is required."), { status: 400 });
@@ -511,7 +520,7 @@ export async function sendBulkSmsOutreach({ user, leads = [], body }) {
   const results = [];
   for (const lead of leads) {
     try {
-      results.push(await sendSmsOutreach({ user, lead, to: lead.phone, body }));
+      results.push(await sendSmsOutreach({ user, lead, body }));
     } catch (err) {
       results.push({ sent: 0, skipped: 0, error: err.message });
     }

@@ -4,6 +4,12 @@ import { Badge, Card } from "@/components/ui";
 import ScoutEmptyState from "@/components/ScoutEmptyState";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import {
+  collectContactNumbers,
+  formatAllContactNumbers,
+  getContactNumberByType,
+  getPrimaryContactNumber,
+} from "@/lib/contactNumbers";
 import { canUseAiEmailDraft, copyAiEmailDraft, openEmailClientForLeads } from "@/lib/emailDrafts";
 
 const stages = [
@@ -18,6 +24,8 @@ const stages = [
 
 function normalizeLead(lead) {
   const status = lead.status === "Contacted" ? "Called" : (lead.status || "New");
+  const contactNumbers = collectContactNumbers(lead);
+  const primaryContact = getPrimaryContactNumber(contactNumbers);
   return {
     ...lead,
     status,
@@ -26,7 +34,10 @@ function normalizeLead(lead) {
     mc: lead.mc_number || lead.mc || "",
     state: lead.state || lead.physicalState || "",
     address: lead.address || lead.physicalAddress || "",
-    phone: lead.phone || "",
+    phone: primaryContact?.number || lead.phone || "",
+    phoneNumber: primaryContact?.number || lead.phone || "",
+    fax: getContactNumberByType(contactNumbers, "fax")?.number || lead.fax || "",
+    contactNumbers,
     email: lead.email || lead.email_address || "",
     leadType: lead.lead_type || lead.leadType || "",
     nextFollowUp: lead.next_follow_up || lead.nextFollowUp || "",
@@ -48,6 +59,7 @@ function leadForOutreach(lead) {
     dotNumber: lead.dot,
     mcNumber: lead.mc,
     phone: lead.phone,
+    contactNumbers: lead.contactNumbers || [],
     email: lead.email,
     state: lead.state,
     cargoHauled: lead.cargoHauled,
@@ -56,6 +68,28 @@ function leadForOutreach(lead) {
     powerUnits: lead.powerUnits || lead.trucks,
     drivers: lead.drivers,
   };
+}
+
+function phoneColumns(lead = {}) {
+  const numbers = lead.contactNumbers || [];
+  const primary = getPrimaryContactNumber(numbers);
+  const business = getContactNumberByType(numbers, "business") || primary;
+  const mobile = getContactNumberByType(numbers, "mobile");
+  const fax = getContactNumberByType(numbers, "fax");
+  return {
+    primaryPhone: primary?.number || lead.phone || "",
+    businessPhone: business?.number || "",
+    mobilePhone: mobile?.number || "",
+    faxNumber: fax?.number || lead.fax || "",
+    allContactNumbers: formatAllContactNumbers(numbers),
+  };
+}
+
+function contactSummary(lead = {}) {
+  const numbers = lead.contactNumbers || [];
+  const primary = getPrimaryContactNumber(numbers);
+  const more = Math.max(0, numbers.length - (primary ? 1 : 0));
+  return [primary?.number || lead.phone, more ? `+${more} more` : ""].filter(Boolean).join(" / ");
 }
 
 function csvValue(value) {
@@ -126,7 +160,10 @@ export default function CrmPage() {
     const dots = rows.map((lead) => lead.dot).filter(Boolean);
     if (!dots.length) return rows;
     const data = await api.enrichSelectedCarriers(dots, "crm");
-    const byDot = new Map((data?.carriers || []).map((carrier) => [carrier.dotNumber, normalizeLead(carrier)]));
+    const byDot = new Map((data?.carriers || []).map((carrier) => {
+      const normalized = normalizeLead(carrier);
+      return [normalized.dot, normalized];
+    }));
     const hydrated = rows.map((lead) => ({ ...lead, ...(byDot.get(lead.dot) || {}) }));
     setLeads((current) => current.map((lead) => ({ ...lead, ...(byDot.get(lead.dot) || {}) })));
     return hydrated;
@@ -197,22 +234,29 @@ export default function CrmPage() {
       setError(err.message || "Selected carrier details could not be refreshed for export.");
       return;
     }
-    const headers = ["Carrier Name", "DOT Number", "MC Number", "Phone", "Email", "State", "Physical Address", "Lead Type", "Status", "Power Units", "Drivers", "Cargo Hauled", "Renewal Date"];
-    const rows = enrichedRows.map((lead) => [
-      lead.name,
-      lead.dot,
-      lead.mc,
-      lead.phone,
-      lead.email,
-      lead.state,
-      lead.address,
-      lead.leadType,
-      lead.status,
-      lead.powerUnits || lead.trucks,
-      lead.drivers,
-      lead.cargoHauled,
-      lead.renewalDate,
-    ].map(csvValue).join(","));
+    const headers = ["Carrier Name", "DOT Number", "MC Number", "Primary Phone", "Business Phone", "Mobile Phone", "Fax Number", "All Contact Numbers", "Email", "State", "Physical Address", "Lead Type", "Status", "Power Units", "Drivers", "Cargo Hauled", "Renewal Date"];
+    const rows = enrichedRows.map((lead) => {
+      const phones = phoneColumns(lead);
+      return [
+        lead.name,
+        lead.dot,
+        lead.mc,
+        phones.primaryPhone,
+        phones.businessPhone,
+        phones.mobilePhone,
+        phones.faxNumber,
+        phones.allContactNumbers,
+        lead.email,
+        lead.state,
+        lead.address,
+        lead.leadType,
+        lead.status,
+        lead.powerUnits || lead.trucks,
+        lead.drivers,
+        lead.cargoHauled,
+        lead.renewalDate,
+      ].map(csvValue).join(",");
+    });
     const csv = [headers.map(csvValue).join(","), ...rows].join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -310,7 +354,7 @@ export default function CrmPage() {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-navy-400">
                       {card.dot && <span className="font-mono">DOT {card.dot}</span>}
                       {card.mc && <span className="font-mono">{card.mc}</span>}
-                      {card.phone && <span>{card.phone}</span>}
+                      {contactSummary(card) && <span>{contactSummary(card)}</span>}
                       {card.email && <span className="truncate max-w-[220px]">{card.email}</span>}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -375,7 +419,7 @@ export default function CrmPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-navy-300 font-mono border-r border-white/[0.04]">{card.dot || "-"}</td>
                     <td className="px-4 py-3 text-sm text-navy-300 font-mono border-r border-white/[0.04]">{card.mc || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-navy-300 border-r border-white/[0.04]">{card.phone || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-navy-300 border-r border-white/[0.04]">{contactSummary(card) || "-"}</td>
                     <td className="px-4 py-3 text-sm text-navy-300 border-r border-white/[0.04] max-w-[220px] truncate">{card.email || "-"}</td>
                     <td className="px-4 py-3 text-sm text-navy-300 border-r border-white/[0.04]">{card.state || "-"}</td>
                     <td className="px-4 py-3 text-sm text-navy-300 border-r border-white/[0.04]">{card.leadType || "-"}</td>

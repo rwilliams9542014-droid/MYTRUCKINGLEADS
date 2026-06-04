@@ -6,6 +6,12 @@ import ScoutMascot from "@/components/ScoutMascot";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import {
+  formatAllContactNumbers,
+  formatContactNumber,
+  getContactNumberByType,
+  getPrimaryContactNumber,
+} from "@/lib/contactNumbers";
 import { canUseAiEmailDraft, copyAiEmailDraft, openEmailClientForLeads } from "@/lib/emailDrafts";
 import {
   UNAVAILABLE,
@@ -79,6 +85,7 @@ function leadForOutreach(lead, activeTab) {
     dotNumber: lead.dot,
     mcNumber: lead.mc,
     phone: lead.phone,
+    contactNumbers: lead.contactNumbers || [],
     email: lead.email,
     state: lead.state,
     cargoHauled: Array.isArray(lead.cargo) ? lead.cargo.join(", ") : lead.cargo,
@@ -88,6 +95,28 @@ function leadForOutreach(lead, activeTab) {
     powerUnits: lead.trucks,
     drivers: lead.drivers,
   };
+}
+
+function phoneColumns(lead = {}) {
+  const numbers = lead.contactNumbers || [];
+  const primary = getPrimaryContactNumber(numbers);
+  const business = getContactNumberByType(numbers, "business") || primary;
+  const mobile = getContactNumberByType(numbers, "mobile");
+  const fax = getContactNumberByType(numbers, "fax");
+  return {
+    primaryPhone: primary?.number || lead.phone || "",
+    businessPhone: business?.number || "",
+    mobilePhone: mobile?.number || "",
+    faxNumber: fax?.number || lead.fax || "",
+    allContactNumbers: formatAllContactNumbers(numbers),
+  };
+}
+
+function contactSummary(lead = {}) {
+  const numbers = lead.contactNumbers || [];
+  const primary = getPrimaryContactNumber(numbers);
+  const more = Math.max(0, numbers.length - (primary ? 1 : 0));
+  return [primary?.number || lead.phone, more ? `+${more} more` : "", lead.email].filter(Boolean).join(" / ");
 }
 
 function loadSavedLeadDeskState() {
@@ -404,9 +433,11 @@ export default function LeadDeskPage() {
         state: savedLead.state || null,
         status: "New",
         insurance_expiration: activeTab === "renewal" ? savedLead.renewalDisplay.date || null : null,
+        contactNumbers: savedLead.contactNumbers || [],
         notes: [
           savedLead.state ? `State: ${savedLead.state}` : "",
           savedLead.phone ? `Phone: ${savedLead.phone}` : "",
+          savedLead.contactNumbers?.length ? `All Contact Numbers: ${formatAllContactNumbers(savedLead.contactNumbers)}` : "",
           savedLead.email ? `Email: ${savedLead.email}` : "",
           savedLead.cargo.length ? `Cargo: ${savedLead.cargo.join(", ")}` : "",
         ].filter(Boolean).join(" "),
@@ -508,7 +539,11 @@ export default function LeadDeskPage() {
       "Carrier Name",
       "State",
       "Physical Address",
-      "Phone",
+      "Primary Phone",
+      "Business Phone",
+      "Mobile Phone",
+      "Fax Number",
+      "All Contact Numbers",
       "Email",
       "Power Units",
       "Drivers",
@@ -527,31 +562,38 @@ export default function LeadDeskPage() {
       "Status",
       "Last Refreshed",
     ];
-    const rows = rowsToExport.map((lead) => [
-      lead.dot,
-      lead.mc,
-      lead.name,
-      lead.state,
-      lead.address,
-      lead.phone,
-      lead.email,
-      lead.trucks,
-      lead.drivers,
-      lead.cargo.join(", "),
-      lead.mcs150Date,
-      lead.addedDate,
-      activeTab === "renewal" ? "Renewal Lead" : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
-      lead.authorityStatus,
-      lead.insuranceFilingStatus,
-      lead.insuranceEffectiveDate,
-      lead.insuranceCancelDate,
-      lead.insuranceExpirationDate,
-      lead.renewalDisplay?.date || "",
-      lead.renewalDisplay?.label || "",
-      safetyIndicator(safetyDetails[lead.dot] || lead),
-      lead.rating,
-      lastUpdated,
-    ].map(csvValue).join(","));
+    const rows = rowsToExport.map((lead) => {
+      const phones = phoneColumns(lead);
+      return [
+        lead.dot,
+        lead.mc,
+        lead.name,
+        lead.state,
+        lead.address,
+        phones.primaryPhone,
+        phones.businessPhone,
+        phones.mobilePhone,
+        phones.faxNumber,
+        phones.allContactNumbers,
+        lead.email,
+        lead.trucks,
+        lead.drivers,
+        lead.cargo.join(", "),
+        lead.mcs150Date,
+        lead.addedDate,
+        activeTab === "renewal" ? "Renewal Lead" : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
+        lead.authorityStatus,
+        lead.insuranceFilingStatus,
+        lead.insuranceEffectiveDate,
+        lead.insuranceCancelDate,
+        lead.insuranceExpirationDate,
+        lead.renewalDisplay?.date || "",
+        lead.renewalDisplay?.label || "",
+        safetyIndicator(safetyDetails[lead.dot] || lead),
+        lead.rating,
+        lastUpdated,
+      ].map(csvValue).join(",");
+    });
     const csv = [headers.map(csvValue).join(","), ...rows].join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -599,6 +641,38 @@ export default function LeadDeskPage() {
     try {
       await navigator.clipboard.writeText(values.join("\n"));
       setSaveMessage(`Selected ${selectedRows.length} carrier${selectedRows.length === 1 ? "" : "s"}. Copied ${values.length} email${values.length === 1 ? "" : "s"}. ${missing} missing email${missing === 1 ? "" : "s"}. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed.`);
+    } catch {
+      setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
+    }
+  }
+
+  async function copyPhones(mode = "all") {
+    const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
+    if (!selectedRows.length) {
+      setSaveMessage("Select at least one lead before copying phone numbers.");
+      return;
+    }
+    let hydrated;
+    try {
+      hydrated = await hydrateRows(selectedRows);
+    } catch (err) {
+      setSaveMessage(err.message || "Selected carrier details could not be refreshed.");
+      return;
+    }
+    const numbers = hydrated.flatMap((lead) => {
+      const phones = phoneColumns(lead);
+      if (mode === "primary") return [phones.primaryPhone];
+      if (mode === "fax") return [phones.faxNumber];
+      return (lead.contactNumbers || []).filter((entry) => entry.type !== "fax").map((entry) => entry.number);
+    }).map((value) => String(value || "").trim()).filter(Boolean);
+    const values = [...new Set(numbers)];
+    if (!values.length) {
+      setSaveMessage(`No ${mode === "fax" ? "fax numbers" : "phone numbers"} found for ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(values.join("\n"));
+      setSaveMessage(`Copied ${values.length} ${mode === "fax" ? "fax number" : "phone number"}${values.length === 1 ? "" : "s"} from ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
     } catch {
       setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
     }
@@ -832,6 +906,9 @@ export default function LeadDeskPage() {
               <button type="button" onClick={() => exportCsv()} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
               <button type="button" onClick={exportSelectedCsv} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Export Selected</button>
               <button type="button" onClick={copyEmails} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
+              <button type="button" onClick={() => copyPhones("all")} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Phones</button>
+              <button type="button" onClick={() => copyPhones("primary")} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Primary Phones</button>
+              <button type="button" onClick={() => copyPhones("fax")} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Fax Numbers</button>
               <button type="button" onClick={emailSelectedLeads} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Email Selected Leads</button>
               <button type="button" onClick={() => setSelectedLeadIds([])} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Clear Selection</button>
             </div>
@@ -918,7 +995,7 @@ export default function LeadDeskPage() {
                       ) : (
                         <p className="text-sm font-medium text-white">{lead.name}</p>
                       )}
-                      <p className="text-xs text-navy-500">{[lead.phone, lead.email].filter(Boolean).join(" · ") || "Contact details unavailable"}</p>
+                      <p className="text-xs text-navy-500">{contactSummary(lead) || "Contact details unavailable"}</p>
                     </td>
                     <td className="px-6 py-3">
                       <p className="text-sm text-navy-300 font-mono">{lead.dot ? `DOT ${lead.dot}` : "-"}</p>
@@ -982,6 +1059,17 @@ export default function LeadDeskPage() {
                           </div>
                           <div>
                             <p className="text-xs text-navy-500 uppercase mb-2">Actions</p>
+                            <div className="mb-4">
+                              <p className="text-xs text-navy-500 uppercase mb-2">Contact Numbers</p>
+                              <div className="space-y-1 text-sm text-navy-300">
+                                {(lead.contactNumbers || []).length ? lead.contactNumbers.map((entry) => (
+                                  <p key={`${entry.type}-${entry.digits}`}>
+                                    <span className="text-white">{formatContactNumber(entry)}</span>
+                                    {entry.source && <span className="text-xs text-navy-500"> / {entry.source}</span>}
+                                  </p>
+                                )) : <p>{UNAVAILABLE}</p>}
+                              </div>
+                            </div>
                             <div className="flex flex-wrap gap-2">
                               {lead.dot && <Link to={`/carrier/${lead.dot}`} state={{ from: `${location.pathname}${location.search}`, label: "Back to search results" }} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">View Carrier Profile</Link>}
                               <button onClick={() => emailLead(lead)} className="btn-secondary text-xs px-3 py-2 rounded-lg border border-white/10">Email This Carrier</button>

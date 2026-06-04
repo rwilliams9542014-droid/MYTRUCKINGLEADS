@@ -25,6 +25,52 @@ function extractNoteValue(notes = "", label) {
   return match?.[1]?.trim().replace(/[.。]+$/, "").trim() || "";
 }
 
+function normalizeStoredContactNumbers(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.map((entry) => ({
+    type: String(entry?.type || "unknown"),
+    label: String(entry?.label || entry?.type || "Other"),
+    number: String(entry?.number || entry?.phone || ""),
+    digits: String(entry?.digits || entry?.number || "").replace(/\D/g, ""),
+    source: String(entry?.source || ""),
+    confidence: String(entry?.confidence || "")
+  })).filter((entry) => {
+    if (!entry.number || !entry.digits || seen.has(entry.digits)) return false;
+    seen.add(entry.digits);
+    return true;
+  });
+}
+
+function extractContactNumbers(notes = "") {
+  const json = extractNoteValue(notes, "Contact Numbers JSON");
+  if (json) {
+    try {
+      return normalizeStoredContactNumbers(JSON.parse(json));
+    } catch {
+      return [];
+    }
+  }
+  const allLine = String(notes || "").match(/All Contact Numbers:\s*([\s\S]*?)(?=\s+(?:Email|Cargo|State|Phone|Contact Numbers JSON):|$)/i)?.[1] || "";
+  if (!allLine) return [];
+  return normalizeStoredContactNumbers(allLine.split("|").map((item) => {
+    const [label, ...rest] = item.split(":");
+    const number = rest.join(":").trim();
+    return {
+      type: String(label || "").trim().toLowerCase(),
+      label: String(label || "Other").trim(),
+      number,
+      digits: number.replace(/\D/g, "")
+    };
+  }));
+}
+
+function notesWithContactNumbers(notes = "", contactNumbers = []) {
+  const normalized = normalizeStoredContactNumbers(contactNumbers);
+  if (!normalized.length || /Contact Numbers JSON:/i.test(notes)) return notes || "";
+  return [notes || "", `Contact Numbers JSON: ${JSON.stringify(normalized)}`].filter(Boolean).join(" ");
+}
+
 function enforceSavedLeadState(req, res, notes, explicitState = "") {
   const access = getPlanAccessSummary(req.user);
   if (!access.requiresSingleState) return true;
@@ -69,14 +115,18 @@ export async function getLeads(req, res, next) {
     );
     res.json({
       trialAccess,
-      leads: result.rows.map((lead) => ({
-        ...lead,
-        status: normalizeLeadStatus(lead.status) || lead.status || "New",
-        state: extractNoteValue(lead.notes, "State"),
-        phone: extractNoteValue(lead.notes, "Phone"),
-        email: extractNoteValue(lead.notes, "Email"),
-        cargo_hauled: extractNoteValue(lead.notes, "Cargo") || "Not listed"
-      }))
+      leads: result.rows.map((lead) => {
+        const contactNumbers = extractContactNumbers(lead.notes);
+        return {
+          ...lead,
+          status: normalizeLeadStatus(lead.status) || lead.status || "New",
+          state: extractNoteValue(lead.notes, "State"),
+          phone: extractNoteValue(lead.notes, "Phone"),
+          email: extractNoteValue(lead.notes, "Email"),
+          cargo_hauled: extractNoteValue(lead.notes, "Cargo") || "Not listed",
+          contactNumbers
+        };
+      })
     });
   } catch (err) {
     next(err);
@@ -101,14 +151,17 @@ export async function createLead(req, res, next) {
       last_contact,
       follow_up_date,
       insurance_expiration,
-      notes
+      notes,
+      contactNumbers
     } = req.body;
 
     if (!carrier_name) {
       return res.status(400).json({ error: "carrier_name is required" });
     }
 
-    if (!enforceSavedLeadState(req, res, notes, state || hq_state)) return;
+    const savedNotes = notesWithContactNumbers(notes, contactNumbers);
+
+    if (!enforceSavedLeadState(req, res, savedNotes, state || hq_state)) return;
 
     const access = getPlanAccessSummary(req.user);
     if (access.savedLeadLimit !== null) {
@@ -141,7 +194,7 @@ export async function createLead(req, res, next) {
         last_contact || null,
         follow_up_date || null,
         insurance_expiration || null,
-        notes || ""
+        savedNotes
       ]
     );
 

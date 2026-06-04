@@ -6,6 +6,12 @@ import ScoutMascot from "@/components/ScoutMascot";
 import SafetyBarsPanel from "@/components/SafetyBarsPanel";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import {
+  collectContactNumbers,
+  dedupeContactNumbers,
+  formatAllContactNumbers,
+  getPrimaryContactNumber,
+} from "@/lib/contactNumbers";
 import { canUseAiEmailDraft, copyAiEmailDraft, openEmailClientForLeads } from "@/lib/emailDrafts";
 import {
   getRenewalDisplay,
@@ -155,7 +161,8 @@ function normalizeCarrier(data) {
   const city = pick(carrier.city, addressParts.city, carrier.phy_city, carrier.hq_city);
   const state = pick(carrier.state, addressParts.state, carrier.phy_state, carrier.hq_state);
   const zip = pick(carrier.zip, addressParts.zip, carrier.phy_zip, carrier.hq_zip);
-  const phone = pick(carrier.phone, carrier.phoneNumber, carrier.telephone, carrier.cellPhone, carrier.cell_phone);
+  const contactNumbers = dedupeContactNumbers([...collectContactNumbers(carrier), ...(lead.contactNumbers || [])]);
+  const primaryContact = getPrimaryContactNumber(contactNumbers);
   const email = pick(carrier.email, carrier.emailAddress);
   const dot = pick(carrier.dotNumber, carrier.dot_number, carrier.usdot, carrier.usdotNumber, carrier.dot);
   const mc = pick(carrier.mcNumber, carrier.mc_number, carrier.mc, carrier.docketNumber);
@@ -178,7 +185,9 @@ function normalizeCarrier(data) {
     city,
     state,
     zip,
-    phone,
+    phone: primaryContact?.number || "",
+    phoneNumber: primaryContact?.number || "",
+    contactNumbers,
     email,
     entityType: pick(carrier.entityType, carrier.entity_type, carrier.carrierEntityType, carrier.carrierType, carrier.carrier?.entityType),
     operations: pick(carrier.operations, carrier.operationType, carrier.operationsScope, carrier.carrierOperation, carrier.carrier_operation),
@@ -380,7 +389,42 @@ function InsuranceFilingCard({ carrier }) {
   );
 }
 
-function CompanyDetailsCard({ carrier }) {
+function ContactNumbersSection({ numbers = [], onStatus }) {
+  async function copyValue(value, label) {
+    try {
+      await navigator.clipboard.writeText(value);
+      onStatus?.(`${label} copied.`);
+    } catch {
+      onStatus?.("Copy failed. Your browser may not allow clipboard access.");
+    }
+  }
+
+  return (
+    <div className="sm:col-span-2">
+      <p className="profile-label">Contact Numbers</p>
+      {numbers.length ? (
+        <div className="mt-2 space-y-2">
+          {numbers.map((entry) => (
+            <div key={`${entry.type}-${entry.digits}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.025] px-3 py-2">
+              <div>
+                <p className="text-sm font-semibold text-white">{entry.number}</p>
+                <p className="text-xs text-navy-400">{[entry.label, entry.source, entry.confidence && `${entry.confidence} confidence`].filter(Boolean).join(" / ")}</p>
+              </div>
+              <button type="button" onClick={() => copyValue(entry.number, entry.label || "Phone number")} className="btn-secondary rounded-lg border border-white/10 px-3 py-1.5 text-xs">Copy</button>
+            </div>
+          ))}
+          {numbers.length > 1 && (
+            <button type="button" onClick={() => copyValue(formatAllContactNumbers(numbers), "All contact numbers")} className="btn-secondary rounded-lg border border-white/10 px-3 py-1.5 text-xs">Copy All</button>
+          )}
+        </div>
+      ) : (
+        <p className="mt-1 text-sm text-navy-400">{NOT_AVAILABLE}</p>
+      )}
+    </div>
+  );
+}
+
+function CompanyDetailsCard({ carrier, onStatus }) {
   const fleet = [
     hasValue(carrier.trucks) && `${carrier.trucks} power units`,
     hasValue(carrier.tractors) && `${carrier.tractors} tractors`,
@@ -391,7 +435,7 @@ function CompanyDetailsCard({ carrier }) {
   return (
     <ProfileCard title="Company Details">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-5">
-        <DetailItem label="Phone" value={carrier.phone} />
+        <ContactNumbersSection numbers={carrier.contactNumbers} onStatus={onStatus} />
         <DetailItem label="Email" value={carrier.email} />
         <DetailItem label="Address" value={carrier.address || [carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", ")} />
         <DetailItem label="Entity Type" value={carrier.entityType} />
@@ -514,9 +558,11 @@ export default function CarrierProfilePage() {
         state: carrier.state,
         status: "New",
         insurance_expiration: carrier.insuranceExpiration || null,
+        contactNumbers: carrier.contactNumbers || [],
         notes: [
           carrier.state ? `State: ${carrier.state}` : "",
           carrier.phone ? `Phone: ${carrier.phone}` : "",
+          carrier.contactNumbers?.length ? `All Contact Numbers: ${formatAllContactNumbers(carrier.contactNumbers)}` : "",
           carrier.email ? `Email: ${carrier.email}` : "",
           carrier.cargo.length ? `Cargo: ${carrier.cargo.join(", ")}` : "",
         ].filter(Boolean).join(" "),
@@ -609,7 +655,7 @@ export default function CarrierProfilePage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,0.9fr)] gap-6">
         <div className="min-w-0 space-y-6">
-          <CompanyDetailsCard carrier={carrier} />
+          <CompanyDetailsCard carrier={carrier} onStatus={setSaveStatus} />
 
           <ProfileCard title="BASIC Safety Scores">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

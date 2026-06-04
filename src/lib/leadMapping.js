@@ -1,3 +1,9 @@
+import {
+  collectContactNumbers,
+  getContactNumberByType,
+  getPrimaryContactNumber,
+} from "@/lib/contactNumbers";
+
 export const UNAVAILABLE = "Not available from public FMCSA data";
 export const INSPECTION_UNAVAILABLE = "Inspection history not available from public FMCSA data.";
 
@@ -245,6 +251,9 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
   const basicSummary = normalizeBasicScores(raw);
   const dotNumber = pick(raw.dotNumber, raw.dot_number, raw.usdot, raw.usdotNumber, raw.dot);
   const carrierName = pick(raw.carrierName, raw.legalName, raw.legal_name, raw.carrier_name, raw.name, "Unknown carrier");
+  const contactNumbers = collectContactNumbers(raw);
+  const primaryContact = getPrimaryContactNumber(contactNumbers);
+  const faxContact = getContactNumberByType(contactNumbers, "fax");
   const insuranceCancelDate = pick(
     raw.insuranceCancelDate,
     raw.insuranceCancellationDate,
@@ -262,7 +271,7 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
   );
 
   return {
-    id: pick(raw.id, dotNumber, `${carrierName}-${raw.phone || raw.phoneNumber || ""}`),
+    id: pick(raw.id, dotNumber, `${carrierName}-${primaryContact?.digits || raw.phone || raw.phoneNumber || ""}`),
     type,
     dotNumber,
     dot: dotNumber,
@@ -272,7 +281,10 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
     state: pick(raw.state, raw.physicalState, raw.hq_state, raw.phy_state),
     city: pick(raw.city, raw.physicalCity, raw.hq_city, raw.phy_city),
     address: pick(raw.physicalAddress, raw.address, raw.hq_address),
-    phone: pick(raw.phone, raw.phoneNumber, raw.telephone, raw.carrierPhone, raw.cell_phone, raw.cellPhone),
+    phone: primaryContact?.number || "",
+    phoneNumber: primaryContact?.number || "",
+    fax: faxContact?.number || "",
+    contactNumbers,
     email: pick(raw.email, raw.emailAddress, raw.carrierEmail, raw.contactEmail, raw.businessEmail, raw.raw?.contact?.email, raw.raw?.emailAddress),
     powerUnits: pick(raw.powerUnits, raw.power_units, raw.fleetSize, raw.vehicle_count, raw.vehicleCount),
     drivers: pick(raw.drivers, raw.driverCount, raw.driver_count),
