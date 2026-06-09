@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -290,6 +290,103 @@
   .dashboard-hero-panel > * {
     position: relative;
     z-index: 1;
+  }
+
+  .dashboard-premium-surface {
+    position: relative;
+    margin: -0.75rem;
+    padding: clamp(1rem, 2vw, 1.75rem);
+    border-radius: 2rem;
+    background:
+      radial-gradient(circle at 18% 2%, rgba(34, 211, 238, 0.18), transparent 28rem),
+      radial-gradient(circle at 86% 12%, rgba(20, 124, 255, 0.16), transparent 26rem),
+      linear-gradient(180deg, rgba(8, 20, 38, 0.68), rgba(2, 7, 19, 0.28) 42%, rgba(2, 7, 19, 0.12));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .dashboard-premium-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background-image:
+      linear-gradient(rgba(125, 211, 252, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(125, 211, 252, 0.04) 1px, transparent 1px);
+    background-size: 54px 54px;
+    mask-image: linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,.18));
+  }
+
+  .dashboard-content-stack {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(2rem, 4vw, 3.25rem);
+  }
+
+  .dashboard-section {
+    position: relative;
+  }
+
+  .dashboard-kicker {
+    @apply text-[11px] font-black uppercase tracking-[0.2em];
+    color: rgba(165, 243, 252, 0.48);
+    font-family: "Plus Jakarta Sans", Inter, system-ui, sans-serif;
+  }
+
+  .dashboard-section-title {
+    @apply mt-1 text-xl font-black tracking-tight text-white sm:text-2xl;
+    font-family: "Plus Jakarta Sans", Inter, system-ui, sans-serif;
+  }
+
+  .dashboard-metric-card,
+  .dashboard-panel-card,
+  .dashboard-action-card {
+    background:
+      linear-gradient(155deg, rgba(15, 35, 58, 0.86), rgba(5, 13, 26, 0.82)),
+      radial-gradient(circle at 18% 0%, rgba(34, 211, 238, 0.09), transparent 20rem);
+    border-color: rgba(125, 211, 252, 0.16);
+    box-shadow:
+      0 26px 72px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  }
+
+  .dashboard-metric-card {
+    @apply transition-all duration-300;
+  }
+
+  .dashboard-metric-card:hover,
+  .dashboard-action-card:hover {
+    border-color: rgba(59, 147, 255, 0.32);
+    transform: translateY(-2px);
+    box-shadow:
+      0 30px 90px rgba(0, 0, 0, 0.34),
+      0 0 34px rgba(20, 124, 255, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  .dashboard-icon-tile {
+    @apply flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-brand-200 transition-colors;
+    background: linear-gradient(145deg, rgba(20, 124, 255, 0.18), rgba(34, 211, 238, 0.08));
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    box-shadow: 0 0 24px rgba(20, 124, 255, 0.14);
+  }
+
+  .dashboard-lead-row {
+    @apply flex items-center gap-4 rounded-2xl border p-4 transition-all duration-200;
+    min-height: 76px;
+    background: rgba(5, 13, 26, 0.42);
+    border-color: rgba(125, 211, 252, 0.08);
+  }
+
+  .dashboard-lead-row:hover {
+    background: rgba(34, 211, 238, 0.045);
+    border-color: rgba(125, 211, 252, 0.16);
+  }
+
+  .dashboard-action-card {
+    @apply block min-h-[210px] rounded-2xl border p-6 transition-all duration-300;
   }
 
   .premium-table {

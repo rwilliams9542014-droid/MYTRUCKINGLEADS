@@ -125,149 +125,187 @@ export default function DashboardPage() {
   const maxPipeline = Math.max(...pipelineStages.map((stage) => stage.count), 1);
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="dashboard-hero-panel flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">{greeting}</h1>
-          <p className="text-navy-400 text-sm mt-1">
-            {user?.name || user?.username ? `${user.name || user.username}, here is your live lead activity.` : "Here is your live lead activity."}
-          </p>
-        </div>
-        <Link to="/lead-desk" className="btn-primary text-sm">
-          View All Leads
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-          </svg>
-        </Link>
-      </div>
-
-      {error && (
-        <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-3 text-sm text-danger-300">
-          {error}
-        </div>
-      )}
-
-      {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((m) => (
-          <Card key={m.label} className="group hover:border-white/10 transition-all duration-300">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-navy-400">{m.label}</p>
-                <p className="text-2xl font-bold text-white mt-1">{loading ? "..." : m.value === "undefined" ? "Data unavailable." : <AnimatedNumber value={m.value} />}</p>
-              </div>
-              <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center text-brand-400 group-hover:bg-brand-500/20 transition-colors">
-                {m.icon}
-              </div>
+    <div className="dashboard-premium-surface animate-fade-in">
+      <div className="dashboard-content-stack">
+        {/* Header */}
+        <div className="dashboard-hero-panel flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <Badge variant="brand" className="mb-5 border border-brand-300/20 bg-brand-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-100">
+              Command Center
+            </Badge>
+            <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">{greeting}</h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-sky-100/62">
+              {user?.name || user?.username ? `${user.name || user.username}, here is your live lead activity.` : "Here is your live lead activity."}
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row lg:items-center">
+            <div className="rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.045] px-4 py-3 text-sm text-sky-100/70">
+              <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200/55">Workspace</span>
+              <span className="mt-1 block font-semibold text-white">Lead operations live</span>
             </div>
-            <div className="mt-3 flex items-center gap-1">
-              <svg className="w-3 h-3 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            <Link to="/lead-desk" className="btn-primary text-sm">
+              View All Leads
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
-              <span className="text-xs text-accent-400 font-medium">{m.change || "Data unavailable."}</span>
-              {m.change && <span className="text-xs text-navy-500 ml-1">vs last week</span>}
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Leads */}
-        <div className="lg:col-span-2">
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Recent Leads</h2>
-              <Link to="/lead-desk" className="text-sm text-brand-400 hover:text-brand-300">View all</Link>
-            </div>
-            <div className="space-y-2">
-              {recentLeads.length > 0 ? recentLeads.map((lead) => (
-                <div
-                  key={lead.id}
-                  className="flex items-center gap-4 p-3 rounded-xl hover:bg-white/[0.03] transition-colors group"
-                >
-                  <div className="w-10 h-10 bg-navy-800 rounded-lg flex items-center justify-center text-navy-300 text-xs font-mono flex-shrink-0">
-                    {lead.state}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{lead.name}</p>
-                    <p className="text-xs text-navy-500 font-mono">DOT {lead.dot}</p>
-                  </div>
-                  <Badge variant={lead.type === "New DOT" ? "brand" : "warning"}>
-                    {lead.type}
-                  </Badge>
-                  <span className="text-xs text-navy-500 hidden sm:block">{lead.date}</span>
-                </div>
-              )) : (
-                loading ? (
-                  <div className="flex flex-col items-center gap-3 py-8 text-center">
-                    <ScoutMascot size="md" />
-                    <p className="text-sm text-navy-400">Scout is reviewing recent lead activity...</p>
-                  </div>
-                ) : (
-                  <ScoutEmptyState
-                    title="No saved leads yet."
-                    message="Scout will surface recent activity here once you start saving carriers."
-                    actionLabel="Open Lead Desk"
-                    onAction={() => window.location.assign("/lead-desk")}
-                    className="py-6"
-                  />
-                )
-              )}
-            </div>
-          </Card>
+            </Link>
+          </div>
         </div>
 
-        {/* Pipeline Overview */}
-        <Card>
-          <h2 className="text-lg font-semibold text-white mb-4">Pipeline</h2>
-          <div className="space-y-4">
-            {pipelineStages.map((stage) => (
-              <div key={stage.label}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm text-navy-300">{stage.label}</span>
-                  <span className="text-sm font-medium text-white">{stage.count}</span>
+        {error && (
+          <div className="rounded-2xl border border-danger-500/20 bg-danger-500/10 p-4 text-sm text-danger-300">
+            {error}
+          </div>
+        )}
+
+        {/* Metrics */}
+        <section className="dashboard-section">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="dashboard-kicker">Performance Snapshot</p>
+              <h2 className="dashboard-section-title">Your lead desk at a glance</h2>
+            </div>
+            <p className="text-xs text-sky-100/42">Updated from your live account activity</p>
+          </div>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {metrics.map((m) => (
+              <Card key={m.label} className="dashboard-metric-card group">
+                <div className="flex min-h-[150px] flex-col justify-between">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-100/45">{m.label}</p>
+                      <p className="mt-4 text-3xl font-black tracking-tight text-white">{loading ? "..." : m.value === "undefined" ? "Data unavailable." : <AnimatedNumber value={m.value} />}</p>
+                    </div>
+                    <div className="dashboard-icon-tile">
+                      {m.icon}
+                    </div>
+                  </div>
+                  <div className="mt-6 flex items-center gap-2 rounded-full border border-accent-300/10 bg-accent-400/[0.055] px-3 py-1.5">
+                    <svg className="h-3.5 w-3.5 text-accent-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                    <span className="text-xs font-bold text-accent-300">{m.change || "Data unavailable."}</span>
+                    {m.change && <span className="text-xs text-sky-100/38">vs last week</span>}
+                  </div>
                 </div>
-                <div className="h-2 bg-navy-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${stage.color} rounded-full transition-all duration-1000`}
-                    style={{ width: `${(stage.count / maxPipeline) * 100}%` }}
-                  />
-                </div>
-              </div>
+              </Card>
             ))}
           </div>
-          <Link
-            to="/crm"
-            className="block mt-6 text-center text-sm text-brand-400 hover:text-brand-300 font-medium"
-          >
-            Open CRM Pipeline
-          </Link>
-        </Card>
-      </div>
+        </section>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: "Search Carriers", desc: "Look up any carrier by DOT or name", path: "/carrier-search", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
-          { label: "New DOT Leads", desc: "Recently registered trucking companies", path: "/lead-desk", icon: "M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" },
-          { label: "Renewal Calendar", desc: "Carriers with expiring policies", path: "/lead-desk", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-        ].map((action) => (
-          <Link key={action.label} to={action.path} className="glass-card p-5 hover:border-brand-500/20 hover:shadow-glow transition-all duration-300 group">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 bg-brand-500/10 rounded-xl flex items-center justify-center text-brand-400 group-hover:bg-brand-500/20 transition-colors flex-shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={action.icon} />
-                </svg>
+        {/* Main Content Grid */}
+        <section className="dashboard-section grid grid-cols-1 gap-6 xl:grid-cols-3">
+          {/* Recent Leads */}
+          <div className="xl:col-span-2">
+            <Card className="dashboard-panel-card min-h-[430px]">
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <div>
+                  <p className="dashboard-kicker">Recent Activity</p>
+                  <h2 className="dashboard-section-title">Recent Leads</h2>
+                </div>
+                <Link to="/lead-desk" className="rounded-full border border-brand-300/20 bg-brand-400/10 px-3 py-1.5 text-sm font-semibold text-brand-200 transition-colors hover:bg-brand-400/15 hover:text-white">View all</Link>
               </div>
-              <div>
-                <p className="text-sm font-medium text-white">{action.label}</p>
-                <p className="text-xs text-navy-400 mt-0.5">{action.desc}</p>
+              <div className="space-y-3">
+                {recentLeads.length > 0 ? recentLeads.map((lead) => (
+                  <div
+                    key={lead.id}
+                    className="dashboard-lead-row group"
+                  >
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.055] text-xs font-black text-cyan-100">
+                      {lead.state}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-white">{lead.name}</p>
+                      <p className="mt-1 font-mono text-xs text-sky-100/35">DOT {lead.dot}</p>
+                    </div>
+                    <Badge variant={lead.type === "New DOT" ? "brand" : "warning"} className="border border-white/10">
+                      {lead.type}
+                    </Badge>
+                    <span className="hidden text-xs font-medium text-sky-100/35 sm:block">{lead.date}</span>
+                  </div>
+                )) : (
+                  loading ? (
+                    <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 text-center">
+                      <ScoutMascot size="md" />
+                      <p className="text-sm text-navy-400">Scout is reviewing recent lead activity...</p>
+                    </div>
+                  ) : (
+                    <ScoutEmptyState
+                      title="No saved leads yet."
+                      message="Scout will surface recent activity here once you start saving carriers."
+                      actionLabel="Open Lead Desk"
+                      onAction={() => window.location.assign("/lead-desk")}
+                      className="py-6"
+                    />
+                  )
+                )}
               </div>
+            </Card>
+          </div>
+
+          {/* Pipeline Overview */}
+          <Card className="dashboard-panel-card min-h-[430px]">
+            <div className="mb-6">
+              <p className="dashboard-kicker">Deal Flow</p>
+              <h2 className="dashboard-section-title">Pipeline</h2>
             </div>
-          </Link>
-        ))}
+            <div className="space-y-5">
+              {pipelineStages.map((stage) => (
+                <div key={stage.label}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-sky-100/72">{stage.label}</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-xs font-bold text-white">{stage.count}</span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-navy-950/80 ring-1 ring-white/5">
+                    <div
+                      className={`h-full ${stage.color} rounded-full shadow-[0_0_18px_rgba(34,211,238,0.22)] transition-all duration-1000`}
+                      style={{ width: `${(stage.count / maxPipeline) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Link
+              to="/crm"
+              className="mt-8 block rounded-2xl border border-brand-300/20 bg-brand-400/10 px-4 py-3 text-center text-sm font-bold text-brand-100 transition-colors hover:bg-brand-400/15 hover:text-white"
+            >
+              Open CRM Pipeline
+            </Link>
+          </Card>
+        </section>
+
+        {/* Quick Actions */}
+        <section className="dashboard-section">
+          <div className="mb-5">
+            <p className="dashboard-kicker">Next Best Actions</p>
+            <h2 className="dashboard-section-title">Move faster from one place</h2>
+          </div>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            {[
+              { label: "Search Carriers", desc: "Look up any carrier by DOT or name", path: "/carrier-search", icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
+              { label: "New DOT Leads", desc: "Recently registered trucking companies", path: "/lead-desk", icon: "M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" },
+              { label: "Renewal Calendar", desc: "Carriers with expiring policies", path: "/lead-desk", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+            ].map((action) => (
+              <Link key={action.label} to={action.path} className="dashboard-action-card group">
+                <div className="dashboard-icon-tile">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={action.icon} />
+                  </svg>
+                </div>
+                <div className="mt-5">
+                  <p className="text-base font-bold text-white">{action.label}</p>
+                  <p className="mt-2 text-sm leading-5 text-sky-100/48">{action.desc}</p>
+                </div>
+                <div className="mt-6 flex items-center text-xs font-bold uppercase tracking-[0.16em] text-brand-200">
+                  Open
+                  <svg className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );
