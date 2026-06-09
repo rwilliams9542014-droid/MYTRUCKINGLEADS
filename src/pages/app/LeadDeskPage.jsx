@@ -78,6 +78,14 @@ function normalizeLead(lead, type) {
   };
 }
 
+function leadSelectionId(lead = {}) {
+  const type = lead.type || "lead";
+  const dot = lead.dot || lead.dotNumber || lead.usdot || lead.usdotNumber;
+  if (dot) return `${type}:dot:${dot}`;
+  const id = lead.id || [lead.name || lead.carrierName, lead.state, lead.phone || lead.phoneNumber].filter(Boolean).join(":");
+  return `${type}:id:${id}`;
+}
+
 function leadForOutreach(lead, activeTab) {
   return {
     ...lead,
@@ -154,6 +162,7 @@ export default function LeadDeskPage() {
   const [leadSourceMeta, setLeadSourceMeta] = useState(savedState.leadSourceMeta || null);
   const [totalResults, setTotalResults] = useState(Number(savedState.totalResults || 0));
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
+  const [selectedLeadsById, setSelectedLeadsById] = useState({});
   const [pageSize, setPageSize] = useState(pageSizeOptions.includes(Number(savedState.pageSize)) ? Number(savedState.pageSize) : 50);
   const [currentPage, setCurrentPage] = useState(Number(savedState.currentPage) > 0 ? Number(savedState.currentPage) : 1);
   const [minPowerUnits, setMinPowerUnits] = useState(savedState.minPowerUnits || "");
@@ -227,11 +236,20 @@ export default function LeadDeskPage() {
     setLeadSourceMeta(null);
     setTotalResults(0);
     setSelectedLeadIds([]);
+    setSelectedLeadsById({});
     setCurrentPage(1);
   }, [activeTab]);
 
   useEffect(() => {
-    setSelectedLeadIds((current) => current.filter((id) => filteredLeads.some((lead) => lead.id === id)));
+    const visibleById = new Map(filteredLeads.map((lead) => [leadSelectionId(lead), lead]));
+    setSelectedLeadIds((current) => current.filter((id) => visibleById.has(id)));
+    setSelectedLeadsById((current) => {
+      const next = {};
+      Object.keys(current).forEach((id) => {
+        if (visibleById.has(id)) next[id] = { ...current[id], ...visibleById.get(id) };
+      });
+      return next;
+    });
   }, [filteredLeads]);
 
   useEffect(() => {
@@ -468,11 +486,26 @@ export default function LeadDeskPage() {
     }));
     const hydrated = rows.map((lead) => ({ ...lead, ...(byDot.get(lead.dot) || {}) }));
     setLeads((current) => current.map((lead) => ({ ...lead, ...(byDot.get(lead.dot) || {}) })));
+    setSelectedLeadsById((current) => {
+      const next = { ...current };
+      hydrated.forEach((lead) => {
+        const key = leadSelectionId(lead);
+        if (next[key]) next[key] = { ...next[key], ...lead };
+      });
+      return next;
+    });
     return hydrated;
   }
 
+  function getSelectedRows() {
+    const currentById = new Map(filteredLeads.map((lead) => [leadSelectionId(lead), lead]));
+    return selectedLeadIds
+      .map((id) => currentById.get(id) || selectedLeadsById[id])
+      .filter(Boolean);
+  }
+
   async function emailSelectedLeads() {
-    const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
+    const selectedRows = getSelectedRows();
 
     if (!selectedRows.length) {
       setSaveMessage("Select at least one lead before emailing.");
@@ -501,15 +534,25 @@ export default function LeadDeskPage() {
   }
 
   function toggleSelectedLead(lead) {
+    const key = leadSelectionId(lead);
+    const isSelected = selectedLeadIds.includes(key);
     setSelectedLeadIds((current) => (
-      current.includes(lead.id)
-        ? current.filter((id) => id !== lead.id)
-        : [...current, lead.id]
+      current.includes(key)
+        ? current.filter((id) => id !== key)
+        : [...current, key]
     ));
+    setSelectedLeadsById((current) => {
+      if (isSelected) {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      }
+      return { ...current, [key]: lead };
+    });
   }
 
   function toggleAllVisibleLeads() {
-    const visibleIds = paginatedLeads.map((lead) => lead.id);
+    const visibleIds = paginatedLeads.map((lead) => leadSelectionId(lead));
     if (!visibleIds.length) return;
     const allSelected = visibleIds.every((id) => selectedLeadIds.includes(id));
     setSelectedLeadIds((current) => (
@@ -517,6 +560,17 @@ export default function LeadDeskPage() {
         ? current.filter((id) => !visibleIds.includes(id))
         : Array.from(new Set([...current, ...visibleIds]))
     ));
+    setSelectedLeadsById((current) => {
+      const next = { ...current };
+      if (allSelected) {
+        visibleIds.forEach((id) => delete next[id]);
+        return next;
+      }
+      paginatedLeads.forEach((lead) => {
+        next[leadSelectionId(lead)] = lead;
+      });
+      return next;
+    });
   }
 
   function csvValue(value) {
@@ -607,7 +661,7 @@ export default function LeadDeskPage() {
   }
 
   async function exportSelectedCsv() {
-    const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
+    const selectedRows = getSelectedRows();
     if (!selectedRows.length) return;
     try {
       exportCsv(await hydrateRows(selectedRows), "selected-leads");
@@ -618,7 +672,7 @@ export default function LeadDeskPage() {
   }
 
   async function copyEmails() {
-    const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
+    const selectedRows = getSelectedRows();
     if (!selectedRows.length) {
       setSaveMessage("Select at least one lead before copying emails.");
       return;
@@ -647,7 +701,7 @@ export default function LeadDeskPage() {
   }
 
   async function copyPhones(mode = "all") {
-    const selectedRows = filteredLeads.filter((lead) => selectedLeadIds.includes(lead.id));
+    const selectedRows = getSelectedRows();
     if (!selectedRows.length) {
       setSaveMessage("Select at least one lead before copying phone numbers.");
       return;
@@ -917,7 +971,7 @@ export default function LeadDeskPage() {
               <button type="button" onClick={() => copyPhones("primary")} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Primary Phones</button>
               <button type="button" onClick={() => copyPhones("fax")} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Fax Numbers</button>
               <button type="button" onClick={emailSelectedLeads} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Email Selected Leads</button>
-              <button type="button" onClick={() => setSelectedLeadIds([])} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Clear Selection</button>
+              <button type="button" onClick={() => { setSelectedLeadIds([]); setSelectedLeadsById({}); }} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Clear Selection</button>
             </div>
           </div>
         </form>
@@ -973,7 +1027,7 @@ export default function LeadDeskPage() {
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-white/20 bg-navy-900"
-                    checked={paginatedLeads.length > 0 && paginatedLeads.every((lead) => selectedLeadIds.includes(lead.id))}
+                    checked={paginatedLeads.length > 0 && paginatedLeads.every((lead) => selectedLeadIds.includes(leadSelectionId(lead)))}
                     onChange={toggleAllVisibleLeads}
                     aria-label="Select all visible leads"
                   />
@@ -984,14 +1038,16 @@ export default function LeadDeskPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedLeads.map((lead) => (
-                <Fragment key={lead.id}>
+              {paginatedLeads.map((lead) => {
+                const selectionId = leadSelectionId(lead);
+                return (
+                <Fragment key={selectionId}>
                   <tr className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-3">
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-white/20 bg-navy-900"
-                        checked={selectedLeadIds.includes(lead.id)}
+                        checked={selectedLeadIds.includes(selectionId)}
                         onChange={() => toggleSelectedLead(lead)}
                         aria-label={`Select ${lead.name}`}
                       />
@@ -1090,7 +1146,8 @@ export default function LeadDeskPage() {
                     </tr>
                   )}
                 </Fragment>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
