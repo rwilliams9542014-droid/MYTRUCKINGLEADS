@@ -66,6 +66,75 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
+function emailCandidatesFromValue(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap(emailCandidatesFromValue);
+  if (typeof value === "object") {
+    return [
+      value.email,
+      value.emailAddress,
+      value.address,
+      value.value,
+      value.contactEmail,
+      value.businessEmail,
+    ].flatMap(emailCandidatesFromValue);
+  }
+  return String(value)
+    .split(/[,;\s]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter(isValidEmail);
+}
+
+function emailsForLead(lead = {}) {
+  return [
+    lead.email,
+    lead.emailAddress,
+    lead.carrierEmail,
+    lead.contactEmail,
+    lead.businessEmail,
+    lead.additionalEmails,
+    lead.additional_emails,
+    lead.emails,
+    lead.raw?.email,
+    lead.raw?.emailAddress,
+    lead.raw?.carrierEmail,
+    lead.raw?.contactEmail,
+    lead.raw?.businessEmail,
+    lead.raw?.additionalEmails,
+    lead.raw?.additional_emails,
+    lead.raw?.emails,
+    lead.raw?.contact?.email,
+  ].flatMap(emailCandidatesFromValue);
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to the textarea copy path below.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 function normalizeLead(lead, type) {
   const normalized = normalizeLeadRecord(lead, type);
   return {
@@ -684,17 +753,18 @@ export default function LeadDeskPage() {
       setSaveMessage(err.message || "Selected carrier details could not be refreshed.");
       return;
     }
-    const emails = hydrated.map((lead) => String(lead.email || "").trim().toLowerCase()).filter(isValidEmail);
+    const emails = hydrated.flatMap(emailsForLead);
     const values = [...new Set(emails)];
-    const missing = selectedRows.length - emails.length;
+    const missing = hydrated.filter((lead) => !emailsForLead(lead).length).length;
     const duplicates = emails.length - values.length;
     if (!values.length) {
       setSaveMessage(`No emails found for ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
       return;
     }
     try {
-      await navigator.clipboard.writeText(values.join("\n"));
-      setSaveMessage(`Selected ${selectedRows.length} carrier${selectedRows.length === 1 ? "" : "s"}. Copied ${values.length} email${values.length === 1 ? "" : "s"}. ${missing} missing email${missing === 1 ? "" : "s"}. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed.`);
+      const copied = await copyTextToClipboard(values.join("; "));
+      if (!copied) throw new Error("Clipboard copy was not allowed.");
+      setSaveMessage(`Selected ${selectedRows.length} carrier${selectedRows.length === 1 ? "" : "s"}. Copied ${values.length} email${values.length === 1 ? "" : "s"} for Outlook. ${missing} carrier${missing === 1 ? "" : "s"} missing email. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed.`);
     } catch {
       setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
     }
@@ -732,7 +802,8 @@ export default function LeadDeskPage() {
       return;
     }
     try {
-      await navigator.clipboard.writeText(values.join("\n"));
+      const copied = await copyTextToClipboard(values.join("\n"));
+      if (!copied) throw new Error("Clipboard copy was not allowed.");
       setSaveMessage(`Copied ${values.length} ${mode === "fax" ? "fax number" : "phone number"}${values.length === 1 ? "" : "s"} from ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed. ${missing} carrier${missing === 1 ? "" : "s"} had no public ${mode === "fax" ? "fax number" : "phone number"}.`);
     } catch {
       setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
