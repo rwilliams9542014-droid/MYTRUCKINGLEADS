@@ -73,6 +73,12 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expandedLeadId, setExpandedLeadId] = useState("");
+  const [toast, setToast] = useState(null);
+
+  function showToast(message, type = "success") {
+    setToast({ message, type, id: Date.now() });
+  }
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -81,14 +87,26 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(null), 2800);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
     let active = true;
     setLoading(true);
     api.getDashboardSummary()
       .then((data) => {
-        if (active) setSummary(data || {});
+        if (active) {
+          setSummary(data || {});
+          showToast("Dashboard updated");
+        }
       })
       .catch((err) => {
-        if (active) setError(err.message || "Dashboard data could not be loaded.");
+        if (active) {
+          setError(err.message || "Dashboard data could not be loaded.");
+          showToast("Dashboard could not be updated", "danger");
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -126,6 +144,12 @@ export default function DashboardPage() {
 
   return (
     <div className="dashboard-premium-surface animate-fade-in">
+      {toast && (
+        <div className={`dashboard-toast ${toast.type === "danger" ? "dashboard-toast-danger" : ""}`} role="status" aria-live="polite">
+          <span className="dashboard-toast-dot" />
+          {toast.message}
+        </div>
+      )}
       <div className="dashboard-content-stack">
         {/* Header */}
         <div className="dashboard-hero-panel flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
@@ -167,24 +191,32 @@ export default function DashboardPage() {
             </div>
             <p className="text-xs text-sky-100/42">Updated from your live account activity</p>
           </div>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
             {metrics.map((m) => (
               <Card key={m.label} className="dashboard-metric-card group">
-                <div className="flex min-h-[150px] flex-col justify-between">
+                <div className="flex min-h-[142px] flex-col justify-between sm:min-h-[150px]">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-100/45">{m.label}</p>
-                      <p className="mt-4 text-3xl font-black tracking-tight text-white">{loading ? "..." : m.value === "undefined" ? "Data unavailable." : <AnimatedNumber value={m.value} />}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-100/45 sm:text-[11px] sm:tracking-[0.16em]">{m.label}</p>
+                      <p className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                        {loading ? (
+                          <span className="dashboard-skeleton mt-1 block h-8 w-20 rounded-lg" />
+                        ) : m.value === "undefined" ? "Data unavailable." : <AnimatedNumber value={m.value} />}
+                      </p>
                     </div>
-                    <div className="dashboard-icon-tile">
+                    <div className="dashboard-icon-tile hidden sm:flex">
                       {m.icon}
                     </div>
                   </div>
-                  <div className="mt-6 flex items-center gap-2 rounded-full border border-accent-300/10 bg-accent-400/[0.055] px-3 py-1.5">
+                  <div className="mt-5 flex items-center gap-2 rounded-full border border-accent-300/10 bg-accent-400/[0.055] px-2.5 py-1.5 sm:mt-6 sm:px-3">
                     <svg className="h-3.5 w-3.5 text-accent-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                     </svg>
-                    <span className="text-xs font-bold text-accent-300">{m.change || "Data unavailable."}</span>
+                    {loading ? (
+                      <span className="dashboard-skeleton h-3 w-16 rounded-full" />
+                    ) : (
+                      <span className="text-[11px] font-bold text-accent-300 sm:text-xs">{m.change || "Data unavailable."}</span>
+                    )}
                     {m.change && <span className="text-xs text-sky-100/38">vs last week</span>}
                   </div>
                 </div>
@@ -209,25 +241,75 @@ export default function DashboardPage() {
                 {recentLeads.length > 0 ? recentLeads.map((lead) => (
                   <div
                     key={lead.id}
-                    className="dashboard-lead-row group"
+                    className={`dashboard-lead-row group ${expandedLeadId === lead.id ? "is-expanded" : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setExpandedLeadId((current) => {
+                        const next = current === lead.id ? "" : lead.id;
+                        showToast(next ? "Lead details opened" : "Lead details collapsed");
+                        return next;
+                      });
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setExpandedLeadId((current) => {
+                          const next = current === lead.id ? "" : lead.id;
+                          showToast(next ? "Lead details opened" : "Lead details collapsed");
+                          return next;
+                        });
+                      }
+                    }}
                   >
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.055] text-xs font-black text-cyan-100">
-                      {lead.state}
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.055] text-xs font-black text-cyan-100">
+                        {lead.state}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-white">{lead.name}</p>
+                        <p className="mt-1 hidden font-mono text-xs text-sky-100/35 sm:block">DOT {lead.dot}</p>
+                      </div>
+                      <Badge variant={lead.type === "New DOT" ? "brand" : "warning"} className="hidden border border-white/10 sm:inline-flex">
+                        {lead.type}
+                      </Badge>
+                      <span className="hidden text-xs font-medium text-sky-100/35 sm:block">{lead.date}</span>
+                      <svg className="h-4 w-4 flex-shrink-0 text-sky-100/38 transition-transform duration-200 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-white">{lead.name}</p>
-                      <p className="mt-1 font-mono text-xs text-sky-100/35">DOT {lead.dot}</p>
+                    <div className="dashboard-lead-details sm:hidden">
+                      <div className="grid grid-cols-2 gap-3 border-t border-cyan-300/10 pt-3">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-100/35">DOT</p>
+                          <p className="mt-1 font-mono text-xs text-white">{lead.dot || "Not available"}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-100/35">Status</p>
+                          <p className="mt-1 text-xs font-semibold text-white">{lead.date || "Recent"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <Badge variant={lead.type === "New DOT" ? "brand" : "warning"} className="border border-white/10">
+                            {lead.type}
+                          </Badge>
+                        </div>
+                      </div>
                     </div>
-                    <Badge variant={lead.type === "New DOT" ? "brand" : "warning"} className="border border-white/10">
-                      {lead.type}
-                    </Badge>
-                    <span className="hidden text-xs font-medium text-sky-100/35 sm:block">{lead.date}</span>
                   </div>
                 )) : (
                   loading ? (
-                    <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 text-center">
-                      <ScoutMascot size="md" />
-                      <p className="text-sm text-navy-400">Scout is reviewing recent lead activity...</p>
+                    <div className="space-y-3">
+                      {[0, 1, 2, 3].map((item) => (
+                        <div key={item} className="dashboard-lead-row">
+                          <div className="flex items-center gap-4">
+                            <span className="dashboard-skeleton h-11 w-11 rounded-2xl" />
+                            <div className="flex-1">
+                              <span className="dashboard-skeleton block h-4 w-3/4 rounded-full" />
+                              <span className="dashboard-skeleton mt-2 block h-3 w-28 rounded-full" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <ScoutEmptyState
@@ -249,9 +331,10 @@ export default function DashboardPage() {
               <p className="dashboard-kicker">Deal Flow</p>
               <h2 className="dashboard-section-title">Pipeline</h2>
             </div>
-            <div className="space-y-5">
+            <div className="dashboard-pipeline-scroll">
+              <div className="dashboard-pipeline-list">
               {pipelineStages.map((stage) => (
-                <div key={stage.label}>
+                <div key={stage.label} className="dashboard-pipeline-stage">
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-sm font-semibold text-sky-100/72">{stage.label}</span>
                     <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-xs font-bold text-white">{stage.count}</span>
@@ -264,6 +347,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+              </div>
             </div>
             <Link
               to="/crm"

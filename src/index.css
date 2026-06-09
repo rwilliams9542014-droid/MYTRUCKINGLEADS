@@ -354,6 +354,13 @@
 
   .dashboard-metric-card {
     @apply transition-all duration-300;
+    padding: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .dashboard-metric-card {
+      padding: 1.5rem;
+    }
   }
 
   .dashboard-metric-card:hover,
@@ -374,15 +381,165 @@
   }
 
   .dashboard-lead-row {
-    @apply flex items-center gap-4 rounded-2xl border p-4 transition-all duration-200;
+    @apply flex flex-col gap-0 rounded-2xl border p-4 transition-all duration-200;
     min-height: 76px;
     background: rgba(5, 13, 26, 0.42);
     border-color: rgba(125, 211, 252, 0.08);
+    cursor: pointer;
   }
 
   .dashboard-lead-row:hover {
     background: rgba(34, 211, 238, 0.045);
     border-color: rgba(125, 211, 252, 0.16);
+  }
+
+  .dashboard-lead-row.is-expanded {
+    background: rgba(34, 211, 238, 0.06);
+    border-color: rgba(125, 211, 252, 0.2);
+  }
+
+  .dashboard-lead-row.is-expanded svg {
+    transform: rotate(180deg);
+  }
+
+  .dashboard-lead-details {
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    opacity: 0;
+    transition: grid-template-rows 220ms ease, opacity 220ms ease, margin-top 220ms ease;
+  }
+
+  .dashboard-lead-details > * {
+    min-height: 0;
+  }
+
+  .dashboard-lead-row.is-expanded .dashboard-lead-details {
+    grid-template-rows: 1fr;
+    margin-top: 0.875rem;
+    opacity: 1;
+  }
+
+  @media (min-width: 640px) {
+    .dashboard-lead-row {
+      cursor: default;
+    }
+  }
+
+  .dashboard-pipeline-scroll {
+    overflow-x: auto;
+    margin-inline: -0.25rem;
+    padding: 0.25rem 0.25rem 0.75rem;
+    scrollbar-width: thin;
+  }
+
+  .dashboard-pipeline-list {
+    display: flex;
+    min-width: 560px;
+    gap: 0.875rem;
+  }
+
+  .dashboard-pipeline-stage {
+    min-width: 150px;
+    flex: 1;
+    border: 1px solid rgba(125, 211, 252, 0.08);
+    border-radius: 1.25rem;
+    background: rgba(5, 13, 26, 0.36);
+    padding: 0.875rem;
+  }
+
+  @media (min-width: 1280px) {
+    .dashboard-pipeline-scroll {
+      overflow: visible;
+      margin-inline: 0;
+      padding: 0;
+    }
+
+    .dashboard-pipeline-list {
+      display: block;
+      min-width: 0;
+    }
+
+    .dashboard-pipeline-stage {
+      min-width: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      padding: 0;
+    }
+
+    .dashboard-pipeline-stage + .dashboard-pipeline-stage {
+      margin-top: 1.25rem;
+    }
+  }
+
+  .dashboard-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: rgba(148, 163, 184, 0.14);
+  }
+
+  .dashboard-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+    animation: dashboard-shimmer 1.35s ease-in-out infinite;
+  }
+
+  .dashboard-toast {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 80;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    max-width: min(22rem, calc(100vw - 2rem));
+    border: 1px solid rgba(52, 211, 153, 0.24);
+    border-radius: 999px;
+    background: rgba(6, 78, 59, 0.86);
+    padding: 0.75rem 1rem;
+    color: #d1fae5;
+    font-size: 0.8125rem;
+    font-weight: 800;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.36), 0 0 30px rgba(16, 185, 129, 0.16);
+    backdrop-filter: blur(18px);
+    animation: dashboard-toast-in 220ms ease-out;
+  }
+
+  .dashboard-toast-danger {
+    border-color: rgba(248, 113, 113, 0.28);
+    background: rgba(127, 29, 29, 0.88);
+    color: #fee2e2;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.36), 0 0 30px rgba(239, 68, 68, 0.16);
+  }
+
+  .dashboard-toast-dot {
+    height: 0.5rem;
+    width: 0.5rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 14px currentColor;
+  }
+
+  @keyframes dashboard-shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes dashboard-toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   .dashboard-action-card {
