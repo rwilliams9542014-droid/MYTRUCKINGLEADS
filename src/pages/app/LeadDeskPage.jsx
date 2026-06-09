@@ -73,10 +73,13 @@ function emailCandidatesFromValue(value) {
     return [
       value.email,
       value.emailAddress,
+      value.email_address,
       value.address,
       value.value,
       value.contactEmail,
+      value.contact_email,
       value.businessEmail,
+      value.business_email,
     ].flatMap(emailCandidatesFromValue);
   }
   return String(value)
@@ -89,17 +92,25 @@ function emailsForLead(lead = {}) {
   return [
     lead.email,
     lead.emailAddress,
+    lead.email_address,
     lead.carrierEmail,
+    lead.carrier_email,
     lead.contactEmail,
+    lead.contact_email,
     lead.businessEmail,
+    lead.business_email,
     lead.additionalEmails,
     lead.additional_emails,
     lead.emails,
     lead.raw?.email,
     lead.raw?.emailAddress,
+    lead.raw?.email_address,
     lead.raw?.carrierEmail,
+    lead.raw?.carrier_email,
     lead.raw?.contactEmail,
+    lead.raw?.contact_email,
     lead.raw?.businessEmail,
+    lead.raw?.business_email,
     lead.raw?.additionalEmails,
     lead.raw?.additional_emails,
     lead.raw?.emails,
@@ -107,16 +118,7 @@ function emailsForLead(lead = {}) {
   ].flatMap(emailCandidatesFromValue);
 }
 
-async function copyTextToClipboard(text) {
-  if (navigator.clipboard?.writeText && window.isSecureContext) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // Fall through to the textarea copy path below.
-    }
-  }
-
+function copyTextToClipboard(text) {
   const textarea = document.createElement("textarea");
   textarea.value = text;
   textarea.setAttribute("readonly", "");
@@ -129,10 +131,12 @@ async function copyTextToClipboard(text) {
   textarea.setSelectionRange(0, textarea.value.length);
 
   try {
-    return document.execCommand("copy");
+    if (document.execCommand("copy")) return true;
   } finally {
     document.body.removeChild(textarea);
   }
+
+  return false;
 }
 
 function normalizeLead(lead, type) {
@@ -740,34 +744,31 @@ export default function LeadDeskPage() {
     }
   }
 
-  async function copyEmails() {
+  function copyEmails() {
     const selectedRows = getSelectedRows();
     if (!selectedRows.length) {
       setSaveMessage("Select at least one lead before copying emails.");
       return;
     }
-    let hydrated;
-    try {
-      hydrated = await hydrateRows(selectedRows);
-    } catch (err) {
-      setSaveMessage(err.message || "Selected carrier details could not be refreshed.");
-      return;
-    }
-    const emails = hydrated.flatMap(emailsForLead);
+    const emails = selectedRows.flatMap(emailsForLead);
     const values = [...new Set(emails)];
-    const missing = hydrated.filter((lead) => !emailsForLead(lead).length).length;
+    const missing = selectedRows.filter((lead) => !emailsForLead(lead).length).length;
     const duplicates = emails.length - values.length;
     if (!values.length) {
       setSaveMessage(`No emails found for ${selectedRows.length} selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
       return;
     }
-    try {
-      const copied = await copyTextToClipboard(values.join("; "));
-      if (!copied) throw new Error("Clipboard copy was not allowed.");
+    const copied = copyTextToClipboard(values.join("; "));
+    if (copied === true) {
       setSaveMessage(`Selected ${selectedRows.length} carrier${selectedRows.length === 1 ? "" : "s"}. Copied ${values.length} email${values.length === 1 ? "" : "s"} for Outlook. ${missing} carrier${missing === 1 ? "" : "s"} missing email. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed.`);
-    } catch {
-      setSaveMessage("Copy failed. Your browser may not allow clipboard access.");
+      return;
     }
+    Promise.resolve(copied)
+      .then((ok) => {
+        setSaveMessage(ok
+          ? `Selected ${selectedRows.length} carrier${selectedRows.length === 1 ? "" : "s"}. Copied ${values.length} email${values.length === 1 ? "" : "s"} for Outlook. ${missing} carrier${missing === 1 ? "" : "s"} missing email. ${duplicates} duplicate${duplicates === 1 ? "" : "s"} removed.`
+          : "Copy failed. Your browser may not allow clipboard access.");
+      });
   }
 
   async function copyPhones(mode = "all") {
