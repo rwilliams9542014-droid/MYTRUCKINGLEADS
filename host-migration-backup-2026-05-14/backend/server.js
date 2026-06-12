@@ -120,11 +120,11 @@ app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
-        "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://js.stripe.com", "https://connect.facebook.net"],
+        "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://js.stripe.com", "https://connect.facebook.net", "https://www.googletagmanager.com"],
         "style-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
         "font-src": ["'self'", "data:", "https://cdn.jsdelivr.net"],
         "img-src": ["'self'", "data:", "https:"],
-        "connect-src": ["'self'", "https://api.stripe.com", "https://www.facebook.com", "https://connect.facebook.net", "http://localhost:4000", "http://127.0.0.1:4000"],
+        "connect-src": ["'self'", "https://api.stripe.com", "https://www.facebook.com", "https://connect.facebook.net", "https://www.googletagmanager.com", "https://www.googleadservices.com", "https://googleads.g.doubleclick.net", "https://www.google.com", "https://www.google-analytics.com", "https://region1.google-analytics.com", "http://localhost:4000", "http://127.0.0.1:4000"],
         "frame-src": ["'self'", "https://js.stripe.com", "https://checkout.stripe.com"]
       }
     }
