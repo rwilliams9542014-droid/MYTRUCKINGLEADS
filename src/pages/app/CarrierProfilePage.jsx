@@ -249,8 +249,21 @@ function hasValue(value) {
   return value || value === 0;
 }
 
-function normalizeAuthorityStatus(value, operation = "") {
-  if (/authorized for hire/i.test(formatCarrierOperation(operation))) return "Authorized";
+function normalizeDotStatus(value) {
+  const text = cleanDisplayValue(value);
+  const upper = text.toUpperCase();
+  if (!text) return "";
+  if (upper === "A" || upper === "ACTIVE") return "Active";
+  if (upper === "I" || upper === "INACTIVE") return "Inactive";
+  if (upper === "P" || upper === "PENDING") return "Pending";
+  return text;
+}
+
+function isDotStatusValue(value) {
+  return /^(a|active|i|inactive|p|pending)$/i.test(cleanDisplayValue(value));
+}
+
+function normalizeAuthorityStatus(value) {
   return formatAuthorityStatus(value);
 }
 
@@ -309,7 +322,28 @@ function normalizeCarrier(data) {
   const basicSummary = normalizeBasicScores(carrier);
   const entityType = pick(carrier.entityType, carrier.entity_type, carrier.carrierEntityType, carrier.carrierType, carrier.carrier?.entityType);
   const operations = pick(carrier.operations, carrier.operationType, carrier.operationsScope, carrier.carrierOperation, carrier.carrier_operation);
-  const operatingStatus = pick(carrier.authorityStatus, carrier.authority_status, carrier.operatingStatus, carrier.operating_status);
+  const rawAuthorityStatus = pick(carrier.authorityStatus, carrier.authority_status);
+  const rawOperatingStatus = pick(carrier.operatingStatus, carrier.operating_status);
+  const dotStatus = pick(
+    carrier.usdotStatus,
+    carrier.usdot_status,
+    carrier.dotStatus,
+    carrier.dot_status,
+    carrier.statusCode,
+    carrier.status_code,
+    carrier.raw?.census?.status_code,
+    carrier.raw?.census?.authorityStatus,
+    isDotStatusValue(rawAuthorityStatus) ? rawAuthorityStatus : "",
+    isDotStatusValue(rawOperatingStatus) ? rawOperatingStatus : ""
+  );
+  const operatingStatus = pick(
+    carrier.operatingAuthorityStatus,
+    carrier.operating_authority_status,
+    !isDotStatusValue(rawAuthorityStatus) ? rawAuthorityStatus : "",
+    !isDotStatusValue(rawOperatingStatus) ? rawOperatingStatus : "",
+    carrier.saferData?.authorityStatus,
+    carrier.raw?.saferData?.authorityStatus
+  );
   const outOfServiceStatus = pick(carrier.outOfServiceStatus, carrier.out_of_service_status, carrier.oosStatus, carrier.isOutOfService, carrier.outOfService);
   const safetyRating = pick(carrier.safetyRating, carrier.safety_rating, safety.safetyRating);
   const mailingAddress = pick(carrier.mailingAddress, carrier.mailing_address, carrier.raw?.census?.mailing_address);
@@ -358,8 +392,10 @@ function normalizeCarrier(data) {
     operations,
     operationsDisplay: normalizeOperations(operations),
     operationClassification: carrier.operationClassification || [],
+    dotStatus,
+    dotStatusDisplay: normalizeDotStatus(dotStatus),
     operatingStatus,
-    operatingStatusDisplay: normalizeAuthorityStatus(operatingStatus, operations),
+    operatingStatusDisplay: normalizeAuthorityStatus(operatingStatus),
     outOfServiceStatus,
     outOfServiceStatusDisplay: normalizeOutOfService(outOfServiceStatus),
     outOfServiceDate: pick(carrier.outOfServiceDate, carrier.out_of_service_date, carrier.outOfServiceDate, carrier.oosDate),
@@ -652,8 +688,8 @@ function BusinessInformationCard({ carrier, onStatus }) {
         <DetailItem label="Physical Address" value={carrier.physicalAddress || carrier.address || [carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", ")} fallback={FMCSA_UNAVAILABLE} />
         <DetailItem label="Mailing Address" value={carrier.mailingAddress} fallback={FMCSA_UNAVAILABLE} />
         <DetailItem label="DOT Number" value={carrier.dot} fallback={FMCSA_UNAVAILABLE} />
+        <DetailItem label="DOT Status" value={carrier.dotStatusDisplay} fallback={FMCSA_UNAVAILABLE} />
         <DetailItem label="MC Number" value={formatMcNumber(carrier.mc)} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Entity Type" value={carrier.entityTypeDisplay} />
         <DetailItem label="Carrier Operation" value={carrier.operationsDisplay} />
         <DetailItem label="Out-of-Service Status" value={carrier.outOfServiceStatusDisplay} />
         <DetailItem label="Out-of-Service Date" value={carrier.outOfServiceDate} />
@@ -691,43 +727,6 @@ function BiennialUpdateCard({ carrier }) {
         <DetailItem label="MCS-150 Form Date" value={formatDate(carrier.mcs150Date)} fallback={FMCSA_UNAVAILABLE} />
         <DetailItem label="MCS-150 Mileage (Year)" value={mileageYear} fallback={FMCSA_UNAVAILABLE} />
         <DetailItem label="Last Updated Date" value={formatDate(carrier.lastUpdated)} fallback={FMCSA_UNAVAILABLE} />
-      </div>
-    </ProfileCard>
-  );
-}
-
-function OperatingDetailsCard({ carrier }) {
-  const operations = [carrier.operationsDisplay, carrier.operatingStatusDisplay].filter(Boolean);
-  const availableDetails = [
-    ["Authorized For Hire", /authorized for hire/i.test(carrier.operationsDisplay) ? "Yes" : ""],
-    ["Exempt For Hire", carrier.exemptForHire],
-    ["Private Property", carrier.privateProperty],
-    ["Private Passenger Business", carrier.privatePassengerBusiness],
-    ["Private Passenger Non-Business", carrier.privatePassengerNonBusiness],
-    ["Migrant", carrier.migrant],
-    ["U.S. Mail", carrier.usMail],
-    ["Federal Government", carrier.federalGovernment],
-    ["State Government", carrier.stateGovernment],
-    ["Local Government", carrier.localGovernment],
-    ["Indian Tribe", carrier.indianTribe],
-  ].filter(([, value]) => value || value === 0);
-
-  return (
-    <ProfileCard title="Operating Details">
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-          <DetailItem label="Operating Status" value={carrier.operatingStatusDisplay} fallback={FMCSA_UNAVAILABLE} />
-          <DetailItem label="Carrier Operation" value={carrier.operationsDisplay} fallback={FMCSA_UNAVAILABLE} />
-        </div>
-        <div>
-          <p className="profile-label mb-3">Operations</p>
-          <TagList items={operations} />
-        </div>
-        {availableDetails.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {availableDetails.map(([label, value]) => <DetailItem key={label} label={label} value={value} />)}
-          </div>
-        )}
       </div>
     </ProfileCard>
   );
@@ -808,41 +807,15 @@ function DriversCard({ carrier }) {
   );
 }
 
-function OperatingAuthorityCard({ carrier }) {
+function OperatingAuthorityStatusCard({ carrier }) {
+  const isNotAuthorized = /not authorized/i.test(carrier.operatingStatusDisplay);
   return (
-    <ProfileCard title="Operating Authority Registration(s)">
-      <div className="grid grid-cols-1 gap-3">
-        <DetailItem label="Authority Type" value={carrier.operationsDisplay} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Authority Status" value={carrier.operatingStatusDisplay} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Docket Number / MC Number" value={formatMcNumber(carrier.mc)} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Common Authority" value={carrier.commonAuthority} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Contract Authority" value={carrier.contractAuthority} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Broker Authority" value={carrier.brokerAuthority} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Property Authority" value={carrier.propertyAuthority} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Passenger Authority" value={carrier.passengerAuthority} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Household Goods Authority" value={carrier.householdGoodsAuthority} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Effective Date" value={formatDate(carrier.authoritySince)} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Revocation Date" value={formatDate(carrier.revocationDate)} fallback={FMCSA_UNAVAILABLE} />
-      </div>
-    </ProfileCard>
-  );
-}
-
-function NewEntrantProgramCard({ carrier }) {
-  const program = carrier.newEntrantProgram || {};
-  const hasProgram = Object.values(program).some(Boolean);
-  return (
-    <ProfileCard title="New Entrant Program">
-      {hasProgram ? (
-        <div className="grid grid-cols-1 gap-3">
-          <DetailItem label="New Entrant Program Status" value={program.status} fallback={FMCSA_UNAVAILABLE} />
-          <DetailItem label="New Entrant Entry Date" value={formatDate(program.entryDate)} fallback={FMCSA_UNAVAILABLE} />
-          <DetailItem label="Safety Audit Date" value={formatDate(program.safetyAuditDate)} fallback={FMCSA_UNAVAILABLE} />
-          <DetailItem label="Safety Audit Result" value={program.safetyAuditResult} fallback={FMCSA_UNAVAILABLE} />
-          <DetailItem label="New Entrant Revocation Date" value={formatDate(program.revocationDate)} fallback={FMCSA_UNAVAILABLE} />
-        </div>
-      ) : (
-        <p className="text-sm text-navy-400">No New Entrant Program information available from public FMCSA data.</p>
+    <ProfileCard title="Operating Authority Status">
+      <DetailItem label="Operating Authority Status" value={carrier.operatingStatusDisplay} fallback={FMCSA_UNAVAILABLE} />
+      {isNotAuthorized && (
+        <p className="mt-3 text-xs leading-relaxed text-warning-100">
+          *Please Note: NOT AUTHORIZED does not apply to Private or Intrastate operations.
+        </p>
       )}
     </ProfileCard>
   );
@@ -1000,9 +973,9 @@ export default function CarrierProfilePage() {
   const showFmcsaDebug = isOwner && carrier.liveFmcsaStatus?.attempted && carrier.liveFmcsaStatus?.success === false;
   const locationDisplay = [carrier.city, carrier.state].filter(Boolean).join(", ");
   const headerBadges = [
-    ["Authority", carrier.operatingStatusDisplay],
+    ["DOT Status", carrier.dotStatusDisplay],
+    ["Operating Authority Status", carrier.operatingStatusDisplay],
     ["Out-of-Service", carrier.outOfServiceStatusDisplay],
-    ["Entity", carrier.entityTypeDisplay],
   ];
 
   return (
@@ -1049,7 +1022,6 @@ export default function CarrierProfilePage() {
         <div className="min-w-0 space-y-6">
           <BusinessInformationCard carrier={carrier} onStatus={setSaveStatus} />
           <CompanyOfficialsCard carrier={carrier} />
-          <OperatingDetailsCard carrier={carrier} />
           <CargoClassificationCard carrier={carrier} />
           <VehiclesCard carrier={carrier} />
           <DriversCard carrier={carrier} />
@@ -1058,9 +1030,8 @@ export default function CarrierProfilePage() {
 
         <aside className="min-w-0 space-y-6">
           <InsuranceFilingCard carrier={carrier} />
-          <OperatingAuthorityCard carrier={carrier} />
+          <OperatingAuthorityStatusCard carrier={carrier} />
           <BiennialUpdateCard carrier={carrier} />
-          <NewEntrantProgramCard carrier={carrier} />
           <SafetyRatingCard carrier={carrier} />
           <CrashHistoryCard crashes={carrier.crashSummary} />
         </aside>
