@@ -6,6 +6,7 @@ import { connectMongo, getMongoUri, isMongoConnected } from "../config/mongo.js"
 import Carrier from "../models/Carrier.js";
 import { cancelSubscriptionForUser, listStripeSignupRecords } from "../services/stripeService.js";
 import { getLatestSubscriptionConsentForUser } from "../services/subscriptionConsentService.js";
+import { isOwnerUser } from "../utils/ownerAccess.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,54 @@ function maskId(value) {
   if (!text) return null;
   if (text.length <= 8) return `${text.slice(0, 2)}...`;
   return `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+const REAL_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due", "unpaid", "canceled", "cancelled"]);
+const NON_SUBSCRIBER_ACCOUNT_STATUSES = new Set(["pending_checkout", "inactive"]);
+const INTERNAL_ROLES = new Set(["owner", "admin", "super_admin", "superadmin"]);
+const INTERNAL_EMAIL_PATTERNS = [
+  /^owner@/i,
+  /^admin@/i,
+  /^test[+._-]/i,
+  /(^|[+._-])test([+._-]|@)/i,
+  /(^|[+._-])demo([+._-]|@)/i,
+  /(^|[+._-])fake([+._-]|@)/i,
+  /(^|[+._-])sample([+._-]|@)/i,
+  /@example\./i,
+  /@test\./i,
+  /@demo\./i
+];
+const INTERNAL_TEXT_PATTERN = /\b(test|demo|fake|sample)\b/i;
+
+function normalizedLower(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function hasStripeBilling(row = {}) {
+  return Boolean(row.stripe_subscription_id || row.stripe_customer_id);
+}
+
+function isInternalOrDemoSubscriber(row = {}) {
+  const role = normalizedLower(row.role);
+  const email = normalizedLower(row.email);
+  const nameFields = [row.name, row.username, row.business_name, row.agency].filter(Boolean).join(" ");
+
+  if (INTERNAL_ROLES.has(role) || isOwnerUser(row)) return true;
+  if (email && INTERNAL_EMAIL_PATTERNS.some((pattern) => pattern.test(email))) return true;
+  if (INTERNAL_TEXT_PATTERN.test(nameFields)) return true;
+  return false;
+}
+
+function isRealSubscriber(row = {}) {
+  const subscriptionStatus = normalizedLower(row.subscription_status);
+  const accountStatus = normalizedLower(row.account_status);
+
+  return (
+    hasStripeBilling(row) &&
+    REAL_SUBSCRIPTION_STATUSES.has(subscriptionStatus) &&
+    !NON_SUBSCRIBER_ACCOUNT_STATUSES.has(accountStatus) &&
+    !isInternalOrDemoSubscriber(row)
+  );
 }
 
 function statusForUser(user = {}) {
@@ -128,19 +177,24 @@ async function loadLocalUsers(limit = 250) {
             END AS has_access
      FROM users u
      LEFT JOIN outreach_usage ou ON ou.user_id = u.id AND ou.month = to_char(NOW(), 'YYYY-MM')
+     WHERE (u.stripe_subscription_id IS NOT NULL OR u.stripe_customer_id IS NOT NULL)
+       AND lower(coalesce(u.subscription_status, '')) IN ('active', 'trialing', 'past_due', 'unpaid', 'canceled', 'cancelled')
+       AND lower(coalesce(u.account_status, 'active')) NOT IN ('pending_checkout', 'inactive')
+       AND lower(coalesce(u.role, '')) NOT IN ('owner', 'admin', 'super_admin', 'superadmin')
      ORDER BY u.created_at DESC
      LIMIT $1`,
     [Math.max(1, Math.min(500, limit))],
     []
   );
-  return rows.map((row) => ({ ...row, source: "local" }));
+  return rows.map((row) => ({ ...row, source: "local" })).filter(isRealSubscriber);
 }
 
 async function loadSubscribers(limit = 250) {
-  const [localRows, stripeRows] = await Promise.all([
+  const [localRows, rawStripeRows] = await Promise.all([
     loadLocalUsers(limit),
     listStripeSignupRecords({ limit, backfillLocalUsers: false })
   ]);
+  const stripeRows = rawStripeRows.filter(isRealSubscriber);
 
   const stripeBySubscription = new Map(
     stripeRows
@@ -175,7 +229,7 @@ async function loadSubscribers(limit = 250) {
 }
 
 async function loadRevenue() {
-  const stripeRows = await listStripeSignupRecords({ limit: 100, backfillLocalUsers: false });
+  const stripeRows = (await listStripeSignupRecords({ limit: 100, backfillLocalUsers: false })).filter(isRealSubscriber);
   const active = stripeRows.filter((row) => ["active", "trialing"].includes(String(row.subscription_status || "").toLowerCase()));
   const mrr = active.reduce((sum, row) => sum + Number(row.monthly_price || 0), 0);
   const failedRows = await safeQuery(
@@ -509,6 +563,7 @@ export async function getOwnerSubscriber(req, res, next) {
       []
     );
     if (!rows[0]) return res.status(404).json({ error: "Subscriber not found" });
+    if (!isRealSubscriber(rows[0])) return res.status(404).json({ error: "Subscriber not found" });
     const subscriber = safeUser(rows[0]);
     const [notes, actionHistory, purchaseRows, quoteRows, consentRecord] = await Promise.all([
       loadAdminNotes(userId),
