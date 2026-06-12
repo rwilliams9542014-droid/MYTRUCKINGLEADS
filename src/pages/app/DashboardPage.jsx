@@ -5,6 +5,7 @@ import ScoutEmptyState from "@/components/ScoutEmptyState";
 import ScoutMascot from "@/components/ScoutMascot";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
+import { trackPurchaseConversion } from "@/lib/googleAds";
 
 function AnimatedNumber({ value, duration = 1000 }) {
   const [display, setDisplay] = useState("0");
@@ -84,6 +85,18 @@ export default function DashboardPage() {
     const hour = new Date().getHours();
     if (hour >= 17) setGreeting("Good evening");
     else if (hour >= 12) setGreeting("Good afternoon");
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id") || params.get("sessionId");
+    if (!sessionId) return;
+
+    trackPurchaseConversion({
+      transactionId: sessionId,
+      value: 1.0,
+      currency: "USD",
+    });
   }, []);
 
   useEffect(() => {
