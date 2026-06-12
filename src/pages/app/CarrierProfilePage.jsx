@@ -42,23 +42,86 @@ function asArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [value];
 }
 
-function normalizeLimit(value) {
-  if (!value && value !== 0) return "";
-  const text = String(value).trim();
-  if (!text) return "";
-  if (/coverage|limit|\$|source value/i.test(text)) return text;
-  return `Max Coverage: ${text} (source value)`;
+function numberFromValue(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(String(value).replace(/[$,\s]/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function dedupeFilings(filings = []) {
+function normalizeFilingType(value) {
+  const text = String(value || "").split(/\s+-\s+Max coverage/i)[0].trim();
+  if (!text) return "";
+  return text.replace(/\s*\/\s*/g, " / ");
+}
+
+function coverageFromText(value) {
+  const text = String(value || "");
+  const match = text.match(/max\s+coverage\s+\$?([\d,]+)/i);
+  return match ? numberFromValue(match[1]) : null;
+}
+
+function normalizeCoverageAmount(rawFiling = {}) {
+  const explicitCoverage = numberFromValue(rawFiling.maxCoverage);
+  if (explicitCoverage !== null && explicitCoverage >= 1000) return explicitCoverage;
+
+  const rawMaxCoverage = numberFromValue(rawFiling.rawMaxCoverage);
+  const sourceField = rawFiling.coverageSourceField || rawFiling.sourceField;
+  const sourceUnit = rawFiling.coverageSourceUnit || rawFiling.sourceUnit;
+  if (rawMaxCoverage !== null && sourceField === "max_cov_amount" && sourceUnit === "thousands") {
+    return rawMaxCoverage * 1000;
+  }
+
+  const textCoverage = coverageFromText(rawFiling.coverageInfo || rawFiling.limit || rawFiling.coverageLimit);
+  if (textCoverage !== null && /max\s+coverage/i.test(String(rawFiling.coverageInfo || rawFiling.limit || ""))) {
+    return textCoverage < 1000 ? textCoverage * 1000 : textCoverage;
+  }
+
+  return explicitCoverage;
+}
+
+function formatCoverageAmount(value, rawFieldInfo = {}) {
+  const coverage = numberFromValue(value);
+  if (coverage !== null && coverage >= 1000) {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(coverage);
+  }
+
+  const rawMaxCoverage = numberFromValue(rawFieldInfo.rawMaxCoverage);
+  const sourceField = rawFieldInfo.coverageSourceField || rawFieldInfo.sourceField;
+  const sourceUnit = rawFieldInfo.coverageSourceUnit || rawFieldInfo.sourceUnit;
+  if (rawMaxCoverage !== null && sourceField === "max_cov_amount" && sourceUnit === "thousands") {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(rawMaxCoverage * 1000);
+  }
+
+  if (coverage !== null) return String(coverage);
+  if (rawMaxCoverage !== null) return String(rawMaxCoverage);
+  return FMCSA_UNAVAILABLE;
+}
+
+function formatFilingDate(value) {
+  if (!value) return FMCSA_UNAVAILABLE;
+  const text = String(value).trim();
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return `${iso[2]}/${iso[3]}/${iso[1]}`;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return FMCSA_UNAVAILABLE;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function dedupeInsuranceFilings(filings = []) {
   const seen = new Set();
   return filings.filter((filing) => {
     const key = [
-      filing.title,
-      filing.company,
-      filing.reference,
+      filing.carrierName,
+      filing.policyNumber,
+      filing.filingType,
+      filing.status,
       filing.effectiveDate,
-      filing.cancelDate || filing.expirationDate,
+      filing.maxCoverage,
     ].map((value) => String(value || "").trim().toLowerCase()).join("|");
     if (seen.has(key)) return false;
     seen.add(key);
@@ -66,63 +129,92 @@ function dedupeFilings(filings = []) {
   });
 }
 
-function normalizeInsuranceFilings(carrier, lead) {
+function normalizeInsuranceFiling(rawFiling = {}, fallback = {}) {
+  const coverageInfo = pick(rawFiling.coverageInfo, rawFiling.limit, rawFiling.coverageLimit);
+  const filingType = normalizeFilingType(pick(
+    rawFiling.filingType,
+    rawFiling.insuranceType,
+    rawFiling.form,
+    rawFiling.type,
+    coverageInfo,
+    fallback.filingType
+  ));
+  const rawMaxCoverage = numberFromValue(rawFiling.rawMaxCoverage) ?? coverageFromText(coverageInfo);
+  const sourceField = rawFiling.coverageSourceField || rawFiling.sourceField || (rawMaxCoverage !== null && /max\s+coverage/i.test(String(coverageInfo)) ? "max_cov_amount" : "");
+  const sourceUnit = rawFiling.coverageSourceUnit || rawFiling.sourceUnit || (sourceField === "max_cov_amount" ? "thousands" : "");
+  const maxCoverage = normalizeCoverageAmount({
+    ...rawFiling,
+    rawMaxCoverage,
+    coverageSourceField: sourceField,
+    coverageSourceUnit: sourceUnit,
+  });
+  const cancellationDate = pick(
+    rawFiling.cancellationDate,
+    rawFiling.insuranceCancellationDate,
+    rawFiling.cancelDate,
+    rawFiling.canclEffectiveDate,
+    fallback.cancellationDate
+  );
+
+  return {
+    filingType,
+    coverageType: filingType.split("/")[0]?.trim() || "",
+    carrierName: pick(rawFiling.carrierName, rawFiling.insuranceCompany, rawFiling.company, fallback.carrierName),
+    policyNumber: pick(rawFiling.policyNumber, rawFiling.formNumber, rawFiling.docketNumber, fallback.policyNumber),
+    status: pick(rawFiling.status, rawFiling.insuranceFilingStatus, rawFiling.formCode, fallback.status),
+    effectiveDate: pick(rawFiling.effectiveDate, rawFiling.insuranceEffectiveDate, fallback.effectiveDate),
+    cancellationDate,
+    expirationDate: pick(rawFiling.expirationDate, fallback.expirationDate),
+    maxCoverage,
+    rawMaxCoverage,
+    source: rawFiling.source || fallback.source || "FMCSA",
+    sourceField,
+    sourceUnit,
+    isActive: cancellationDate ? false : null,
+  };
+}
+
+function normalizeInsuranceFilings(rawCarrier, lead) {
   const filings = [];
+  const carrier = rawCarrier || {};
   const insuranceFilings = carrier.insuranceFilings || carrier.insurance_filings || {};
   const publicLiability = insuranceFilings.publicLiability || insuranceFilings.public_liability || carrier.licensingInsurance || {};
   const cargo = insuranceFilings.cargo || carrier.cargoInsurance || {};
   const bmcFilings = asArray(carrier.bmcFilings || carrier.bmc_filings || carrier.licensingInsurance?.bmcFilings);
 
   if (Object.keys(publicLiability).length || lead.insuranceCompany || lead.filingType || lead.insuranceEffectiveDate || lead.insuranceCancelDate) {
-    filings.push({
-      title: pick(lead.filingType, publicLiability.filingType, publicLiability.coverageInfo, "BIPD Liability"),
-      company: pick(lead.insuranceCompany, publicLiability.insuranceCompany, publicLiability.company),
-      reference: pick(carrier.insurancePolicyNumber, carrier.insurance_policy_number, publicLiability.policyNumber, publicLiability.formNumber),
-      limit: normalizeLimit(pick(publicLiability.limit, publicLiability.coverageLimit, publicLiability.coverageInfo, carrier.insuranceLimit)),
-      effectiveDate: lead.insuranceEffectiveDate,
-      cancelDate: lead.insuranceCancelDate,
-      expirationDate: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration, publicLiability.insuranceExpirationDate),
+    filings.push(normalizeInsuranceFiling(publicLiability, {
+      filingType: pick(lead.filingType, publicLiability.coverageInfo, "BIPD / Primary"),
+      carrierName: pick(lead.insuranceCompany, publicLiability.insuranceCompany, publicLiability.company),
+      policyNumber: pick(carrier.insurancePolicyNumber, carrier.insurance_policy_number, publicLiability.policyNumber, publicLiability.formNumber),
       status: lead.insuranceFilingStatus,
-    });
+      effectiveDate: lead.insuranceEffectiveDate,
+      cancellationDate: pick(
+        carrier.insuranceCancellationDate,
+        carrier.fmcsaInsuranceCancellationDate,
+        publicLiability.insuranceCancellationDate,
+        publicLiability.cancellationDate,
+        publicLiability.cancelDate
+      ),
+      expirationDate: pick(carrier.insuranceExpiration, carrier.insuranceExpirationDate, carrier.insurance_expiration, publicLiability.insuranceExpirationDate),
+      source: "FMCSA",
+    }));
   }
 
   if (Object.keys(cargo).length || typeof cargo === "string") {
-    filings.push({
-      title: "Cargo",
-      company: pick(cargo.insuranceCompany, cargo.company),
-      reference: pick(cargo.policyNumber, cargo.formNumber, typeof cargo === "string" ? cargo : ""),
-      limit: normalizeLimit(pick(cargo.limit, cargo.coverageLimit, cargo.coverageInfo)),
-      effectiveDate: pick(cargo.effectiveDate, cargo.insuranceEffectiveDate),
-      cancelDate: pick(cargo.cancelDate, cargo.cancellationDate),
-      expirationDate: pick(cargo.expirationDate, cargo.insuranceExpirationDate),
-      status: pick(cargo.status, cargo.insuranceFilingStatus),
-    });
+    filings.push(normalizeInsuranceFiling(typeof cargo === "string" ? { coverageInfo: cargo } : cargo, { filingType: "Cargo" }));
   }
 
-  bmcFilings.forEach((filing, index) => {
-    filings.push({
-      title: pick(filing.filingType, filing.form, filing.type, `Filing ${index + 1}`),
-      company: pick(filing.insuranceCompany, filing.company),
-      reference: pick(filing.policyNumber, filing.formNumber, filing.docketNumber),
-      limit: normalizeLimit(pick(filing.limit, filing.coverageLimit, filing.coverageInfo)),
-      effectiveDate: pick(filing.effectiveDate, filing.insuranceEffectiveDate),
-      cancelDate: pick(filing.cancelDate, filing.cancellationDate),
-      expirationDate: pick(filing.expirationDate, filing.insuranceExpirationDate),
-      status: pick(filing.status, filing.insuranceFilingStatus),
-    });
-  });
+  bmcFilings.forEach((filing) => filings.push(normalizeInsuranceFiling(filing)));
 
-  const deduped = dedupeFilings(filings);
-  return deduped.length ? deduped : [{
-    title: "Insurance Filing",
-    company: "",
-    reference: "",
-    limit: "",
-    effectiveDate: "",
-    cancelDate: "",
-    expirationDate: "",
-    status: "",
-  }];
+  return dedupeInsuranceFilings(filings).filter((filing) => (
+    filing.filingType ||
+    filing.carrierName ||
+    filing.policyNumber ||
+    filing.status ||
+    filing.effectiveDate ||
+    filing.maxCoverage
+  ));
 }
 
 function normalizeCrashes(carrier, lead) {
@@ -375,28 +467,32 @@ function InspectionHistoryCard({ carrier }) {
 }
 
 function InsuranceFilingCard({ carrier }) {
+  const filings = carrier.insuranceFilings || [];
+  const multipleFilings = filings.length > 1;
+
   return (
-    <ProfileCard title="Insurance Filing">
-      <div className="space-y-3">
-        {carrier.insuranceFilings.map((filing, index) => (
-          <div key={`${filing.title}-${index}`} className="profile-card-muted">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="profile-label">{valueOrUnavailable(filing.title, "Filing")}</p>
-                <p className="profile-value">{valueOrUnavailable(filing.company, FMCSA_UNAVAILABLE)}</p>
-                <p className="mt-1 text-xs font-mono text-sky-100/35">Policy/Filing Number: {valueOrUnavailable(filing.reference, FMCSA_UNAVAILABLE)}</p>
-              </div>
-              {filing.limit && <Badge variant="success">{filing.limit}</Badge>}
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 border-t border-white/[0.06] pt-3">
+    <ProfileCard title={multipleFilings ? "Insurance Filings" : "Insurance Filing"}>
+      {filings.length ? (
+        <div className="space-y-3">
+          {filings.map((filing, index) => (
+          <div key={`${filing.policyNumber || filing.filingType || "filing"}-${index}`} className="profile-card-muted">
+            {multipleFilings && <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-sky-100/45">Filing {index + 1}</p>}
+            <div className="grid grid-cols-1 gap-3">
+              <DetailItem label="Carrier" value={filing.carrierName} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Filing Type" value={filing.filingType} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Policy/Filing Number" value={filing.policyNumber} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Max Coverage" value={formatCoverageAmount(filing.maxCoverage, filing)} fallback={FMCSA_UNAVAILABLE} />
               <DetailItem label="Filing Status" value={filing.status} fallback={FMCSA_UNAVAILABLE} />
-              <DetailItem label="Filing Effective Date" value={filing.effectiveDate} fallback={FMCSA_UNAVAILABLE} />
-              <DetailItem label="Filing Cancellation Date" value={filing.cancelDate} fallback={FMCSA_UNAVAILABLE} />
-              <DetailItem label="Expiration Date" value={filing.expirationDate} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Filing Effective Date" value={formatFilingDate(filing.effectiveDate)} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Filing Cancellation Date" value={formatFilingDate(filing.cancellationDate)} fallback={FMCSA_UNAVAILABLE} />
+              <DetailItem label="Expiration Date" value={formatFilingDate(filing.expirationDate)} fallback={FMCSA_UNAVAILABLE} />
             </div>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-navy-400">{FMCSA_UNAVAILABLE}</p>
+      )}
     </ProfileCard>
   );
 }

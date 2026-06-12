@@ -470,19 +470,35 @@ function insuranceLimitText(row = {}) {
   return parts.join(" / ");
 }
 
+function coverageAmount(value) {
+  const parsed = numberOrNull(value);
+  return parsed === null ? null : parsed * 1000;
+}
+
 function mapInsuranceFiling(row = {}) {
   if (!row) return null;
+  const rawMaxCoverage = numberOrNull(row.max_cov_amount);
+  const rawUnderlyingLimit = numberOrNull(row.underl_lim_amount);
+  const cancellationDate = formatUsDate(row.cancl_effective_date);
   return {
     insuranceCompany: clean(row.name_company),
     insuranceFilingStatus: clean(row.ins_form_code),
     policyNumber: clean(row.policy_no),
     coverageInfo: [clean(row.mod_col_1), insuranceLimitText(row)].filter(Boolean).join(" - "),
     insuranceEffectiveDate: formatUsDate(row.effective_date),
-    insuranceExpirationDate: formatUsDate(row.cancl_effective_date),
+    insuranceCancellationDate: cancellationDate,
+    insuranceExpirationDate: cancellationDate,
     transactionDate: formatUsDate(row.trans_date),
     docketNumber: clean(row.docket_number),
     formCode: clean(row.ins_form_code),
+    filingType: clean(row.mod_col_1),
     insuranceType: clean(row.mod_col_1),
+    maxCoverage: coverageAmount(row.max_cov_amount),
+    rawMaxCoverage,
+    underlyingLimit: coverageAmount(row.underl_lim_amount),
+    rawUnderlyingLimit,
+    coverageSourceUnit: "thousands",
+    coverageSourceField: "max_cov_amount",
     statusLabel: clean(row.cancl_effective_date) ? "Cancellation/expiration on file" : "Current filing on file",
     source: "FMCSA Licensing & Insurance public filing"
   };
