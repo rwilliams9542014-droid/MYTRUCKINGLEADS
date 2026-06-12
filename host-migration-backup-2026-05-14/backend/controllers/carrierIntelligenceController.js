@@ -754,8 +754,8 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
   const inspectionSummary = normalizeInspectionSummary({ qcmobileOos, smsSafety, saferData, carrier });
   const snapshotDates = basicScores.map(score => score.snapshotDate).filter(Boolean).sort();
   const smsSnapshotDate = snapshotDates[snapshotDates.length - 1] || formatDate(firstValue(smsSafety?.smsSnapshotDate, qcmobileDetails?.basics?.snapShotDate));
-  const liveAuthorityStatus = clean(qcmobileAuthority.authorityStatus || saferData?.authorityStatus);
-  const liveOperatingStatus = clean(qcmobileAuthority.operatingStatus || saferData?.operatingStatus);
+  const liveAuthorityStatus = clean(saferData?.authorityStatus || qcmobileAuthority.authorityStatus);
+  const liveOperatingStatus = clean(saferData?.operatingStatus || qcmobileAuthority.operatingStatus);
 
   return {
     dotNumber,
