@@ -126,11 +126,11 @@
   }
 
   .profile-label {
-    @apply text-[11px] font-semibold uppercase tracking-wide text-sky-200/35;
+    @apply text-xs font-semibold uppercase tracking-wide text-sky-200/45;
   }
 
   .profile-value {
-    @apply mt-1 text-sm font-semibold text-slate-100;
+    @apply mt-1 text-[15px] font-semibold leading-snug text-slate-100;
   }
 
   .profile-score-row {

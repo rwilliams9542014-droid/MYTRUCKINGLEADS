@@ -102,15 +102,22 @@ export default function SafetyBarsPanel({ record = {}, compact = false, mode = "
   }
 
   if (mode === "inspection") {
-    if (!hasValue(totalInspections) && bars.length === 0) {
+    const inspectionBars = bars
+      .filter((bar) => ["Driver OOS", "Vehicle OOS"].includes(bar.label))
+      .map((bar) => ({
+        ...bar,
+        label: bar.label === "Driver OOS" ? "Driver OOS Rate" : "Vehicle OOS Rate",
+      }));
+    if (!hasValue(totalInspections) && inspectionBars.length === 0) {
       return <p className="text-sm text-navy-400">{INSPECTION_UNAVAILABLE}</p>;
     }
+    if (inspectionBars.length === 0) return null;
     return (
       <div className="space-y-3">
-        {bars.map((bar) => (
+        {inspectionBars.map((bar) => (
           <div key={bar.label}>
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-navy-300">{bar.label}</span>
+            <div className="flex items-center justify-between text-sm mb-1.5">
+              <span className="text-navy-300 font-medium">{bar.label}</span>
               <span className="text-white font-semibold">{Math.round(bar.value)}%</span>
             </div>
             <div className="h-2 rounded-full bg-navy-800 overflow-hidden">

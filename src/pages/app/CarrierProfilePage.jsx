@@ -24,6 +24,10 @@ import {
 
 const NOT_AVAILABLE = "Not available";
 const FMCSA_UNAVAILABLE = "Not available from public FMCSA data.";
+function displayUnavailable(short = false) {
+  return short ? NOT_AVAILABLE : FMCSA_UNAVAILABLE;
+}
+
 function valueOrUnavailable(value, fallback = NOT_AVAILABLE) {
   return value || value === 0 ? value : fallback;
 }
@@ -31,6 +35,11 @@ function valueOrUnavailable(value, fallback = NOT_AVAILABLE) {
 function formatMc(value) {
   if (!value) return "";
   return String(value).toUpperCase().startsWith("MC") ? value : `MC-${value}`;
+}
+
+function formatMcDisplay(value) {
+  const text = String(value || "").trim().replace(/^(MC|MX|FF)\s*-?\s*/i, "");
+  return text ? `MC ${text}` : "";
 }
 
 function firstObject(...items) {
@@ -243,6 +252,62 @@ function hasValue(value) {
   return value || value === 0;
 }
 
+function cleanDisplayText(value) {
+  const text = String(value ?? "").trim();
+  if (!text || /^(unknown|n\/a|na|null|undefined|not available)$/i.test(text)) return "";
+  return text;
+}
+
+function normalizeAuthorityStatus(value) {
+  const text = cleanDisplayText(value);
+  const upper = text.toUpperCase();
+  if (!text) return "";
+  if (upper === "N") return "Not Authorized";
+  if (upper === "Y" || upper === "A") return "Authorized";
+  if (upper === "P") return "Pending";
+  if (upper.includes("AUTHORIZED")) return text.replace(/^authorized$/i, "Authorized");
+  if (upper.includes("NOT AUTH")) return "Not Authorized";
+  if (/^[A-Z]$/.test(upper)) return "";
+  return text;
+}
+
+function normalizeEntityType(value) {
+  const text = cleanDisplayText(value);
+  const upper = text.toUpperCase();
+  if (!text) return "";
+  if (upper === "A" || upper === "C") return "Carrier";
+  if (upper.includes("CARRIER")) return "Carrier";
+  if (/^[A-Z]$/.test(upper)) return "";
+  return text;
+}
+
+function normalizeOutOfService(value) {
+  const text = cleanDisplayText(value);
+  const upper = text.toUpperCase();
+  if (!text) return "";
+  if (upper === "Y") return "Yes";
+  if (upper === "N") return "No";
+  if (/^[A-Z]$/.test(upper)) return "";
+  return text;
+}
+
+function normalizeOperations(value) {
+  const text = cleanDisplayText(value).replace(/^\d+\s*,\s*/, "").trim();
+  if (!text || /^[A-Z0-9]$/i.test(text)) return "";
+  return text;
+}
+
+function normalizeSafetyRatingDisplay(value) {
+  const text = cleanDisplayText(value);
+  if (!text || /^unknown$/i.test(text)) return "";
+  if (/^not\s+rated$/i.test(text)) return "Not Rated";
+  return text;
+}
+
+function hasPublicBasicScores(carrier = {}) {
+  return Array.isArray(carrier.basicScores) && carrier.basicScores.some((score) => score?.hasRealValue === true);
+}
+
 function normalizeCarrier(data) {
   const carrier = data?.carrier || data?.profile || data?.result || data || {};
   const lead = normalizeLeadRecord(carrier, "profile");
@@ -277,6 +342,11 @@ function normalizeCarrier(data) {
   const safety = firstObject(carrier.safety);
   const inspectionSummary = normalizeInspectionSummary(firstObject(carrier.inspectionSummary, safety.inspectionSummary, carrier.inspection_summary));
   const basicSummary = normalizeBasicScores(carrier);
+  const entityType = pick(carrier.entityType, carrier.entity_type, carrier.carrierEntityType, carrier.carrierType, carrier.carrier?.entityType);
+  const operations = pick(carrier.operations, carrier.operationType, carrier.operationsScope, carrier.carrierOperation, carrier.carrier_operation);
+  const operatingStatus = pick(carrier.authorityStatus, carrier.authority_status, carrier.operatingStatus, carrier.operating_status);
+  const outOfServiceStatus = pick(carrier.outOfServiceStatus, carrier.out_of_service_status, carrier.oosStatus, carrier.isOutOfService, carrier.outOfService);
+  const safetyRating = pick(carrier.safetyRating, carrier.safety_rating, safety.safetyRating);
 
   return {
     raw: carrier,
@@ -293,13 +363,18 @@ function normalizeCarrier(data) {
     phoneNumber: primaryContact?.number || "",
     contactNumbers,
     email,
-    entityType: pick(carrier.entityType, carrier.entity_type, carrier.carrierEntityType, carrier.carrierType, carrier.carrier?.entityType),
-    operations: pick(carrier.operations, carrier.operationType, carrier.operationsScope, carrier.carrierOperation, carrier.carrier_operation),
+    entityType,
+    entityTypeDisplay: normalizeEntityType(entityType),
+    operations,
+    operationsDisplay: normalizeOperations(operations),
     operationClassification: carrier.operationClassification || [],
-    operatingStatus: pick(carrier.authorityStatus, carrier.authority_status, carrier.operatingStatus, carrier.operating_status, "Unknown"),
-    outOfServiceStatus: pick(carrier.outOfServiceStatus, carrier.out_of_service_status, carrier.oosStatus, carrier.isOutOfService, carrier.outOfService),
+    operatingStatus,
+    operatingStatusDisplay: normalizeAuthorityStatus(operatingStatus),
+    outOfServiceStatus,
+    outOfServiceStatusDisplay: normalizeOutOfService(outOfServiceStatus),
     outOfServiceDate: pick(carrier.outOfServiceDate, carrier.out_of_service_date, carrier.outOfServiceDate, carrier.oosDate),
-    safetyRating: pick(carrier.safetyRating, carrier.safety_rating, safety.safetyRating, "Not Rated"),
+    safetyRating,
+    safetyRatingDisplay: normalizeSafetyRatingDisplay(safetyRating),
     safetyRatingDate: pick(carrier.safetyRatingDate, carrier.safety_rating_date, safety.safetyRatingDate),
     mcs150Date: pick(carrier.mcs150Date, carrier.mcs_150_date, carrier.mcs150_date),
     addDate: pick(carrier.addDate, carrier.add_date, carrier.dateCreated),
@@ -370,32 +445,37 @@ function DetailItem({ label, value, fallback = NOT_AVAILABLE }) {
 
 function statusVariant(status) {
   const value = String(status || "").toUpperCase();
+  if (value.includes("NOT AUTH") || value.includes("REVOKED") || value.includes("INACTIVE")) return "danger";
   if (value.includes("AUTHORIZED") || value.includes("ACTIVE") || value.includes("SATISFACTORY")) return "success";
   if (value.includes("CONDITIONAL") || value.includes("PENDING")) return "warning";
-  if (value.includes("UNSAT") || value.includes("REVOKED") || value.includes("INACTIVE")) return "danger";
+  if (value.includes("UNSAT")) return "danger";
   return "outline";
 }
 
 function SafetyRatingCard({ carrier }) {
-  const rating = valueOrUnavailable(carrier.safetyRating);
+  const rating = carrier.safetyRatingDisplay;
   return (
     <ProfileCard title="Safety Rating">
-      <div className="flex items-center gap-4">
-        <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
-          statusVariant(rating) === "success" ? "bg-accent-500/15 text-accent-300" :
-          statusVariant(rating) === "warning" ? "bg-warning-500/15 text-warning-300" :
-          statusVariant(rating) === "danger" ? "bg-danger-500/15 text-danger-300" :
-          "bg-white/5 text-navy-300"
-        }`}>
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75l2 2 4-5.5m5-3.5A11.5 11.5 0 0112 3 11.5 11.5 0 014 5.75v5.5c0 5 3.4 9.3 8 10.5 4.6-1.2 8-5.5 8-10.5v-5.5z" />
-          </svg>
+      {rating ? (
+        <div className="flex items-center gap-4">
+          <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+            statusVariant(rating) === "success" ? "bg-accent-500/15 text-accent-300" :
+            statusVariant(rating) === "warning" ? "bg-warning-500/15 text-warning-300" :
+            statusVariant(rating) === "danger" ? "bg-danger-500/15 text-danger-300" :
+            "bg-white/5 text-navy-300"
+          }`}>
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75l2 2 4-5.5m5-3.5A11.5 11.5 0 0112 3 11.5 11.5 0 014 5.75v5.5c0 5 3.4 9.3 8 10.5 4.6-1.2 8-5.5 8-10.5v-5.5z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-base font-bold text-white">{rating}</p>
+            {carrier.safetyRatingDate && <p className="text-sm text-navy-400">Rated {carrier.safetyRatingDate}</p>}
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-bold text-white">{rating}</p>
-          <p className="text-xs text-navy-400">Rated {valueOrUnavailable(carrier.safetyRatingDate)}</p>
-        </div>
-      </div>
+      ) : (
+        <p className="text-sm font-semibold text-navy-300">{displayUnavailable()}</p>
+      )}
     </ProfileCard>
   );
 }
@@ -404,10 +484,10 @@ function CrashHistoryCard({ crashes }) {
   const safeCrashes = crashes && typeof crashes === "object" ? crashes : {};
   const hasCrashData = [safeCrashes.total, safeCrashes.fatal, safeCrashes.injury, safeCrashes.tow].some(hasValue);
   const tiles = [
-    ["Total", safeCrashes.total],
-    ["Fatal", safeCrashes.fatal],
-    ["Injury", safeCrashes.injury],
-    ["Tow", safeCrashes.tow],
+    ["Total Crashes", safeCrashes.total],
+    ["Fatal Crashes", safeCrashes.fatal],
+    ["Injury Crashes", safeCrashes.injury],
+    ["Towaway Crashes", safeCrashes.tow],
   ];
   return (
     <ProfileCard title="Crash History">
@@ -433,12 +513,17 @@ function InspectionHistoryCard({ carrier }) {
     ["Total Inspections", safeCarrier.totalInspections],
     ["Vehicle Inspections", safeCarrier.vehicleInspections],
     ["Driver Inspections", safeCarrier.driverInspections],
-    ["Hazmat Inspections", safeCarrier.hazmatInspections],
     ["Vehicle OOS", safeCarrier.vehicleOos],
     ["Driver OOS", safeCarrier.driverOos],
-    ["Hazmat OOS", safeCarrier.hazmatOos],
     ["Vehicle OOS Rate", formatRate(safeCarrier.vehicleOosRate)],
     ["Driver OOS Rate", formatRate(safeCarrier.driverOosRate)],
+  ].filter(([, value]) => hasValue(value));
+  const additionalTiles = [
+    ["Hazmat Inspections", safeCarrier.hazmatInspections],
+    ["Hazmat OOS", safeCarrier.hazmatOos],
+    ["Hazmat OOS Rate", formatRate(safeCarrier.hazmatOosRate)],
+    ["Total Violations", safeCarrier.totalViolations],
+    ["OOS Violations", safeCarrier.oosViolations],
   ].filter(([, value]) => hasValue(value));
   return (
     <ProfileCard title="Inspection History">
@@ -457,11 +542,16 @@ function InspectionHistoryCard({ carrier }) {
       <div className="mt-5">
         <SafetyBarsPanel record={safeCarrier} mode="inspection" />
       </div>
-      <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <DetailItem label="Hazmat OOS Rate" value={formatRate(safeCarrier.hazmatOosRate)} />
-        <DetailItem label="Total Violations" value={safeCarrier.totalViolations} />
-        <DetailItem label="OOS Violations" value={safeCarrier.oosViolations} />
-      </div>
+      {additionalTiles.length > 0 && (
+        <div className="mt-5 border-t border-white/[0.06] pt-4">
+          <p className="profile-label mb-3">Additional Inspection Data</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {additionalTiles.map(([label, value]) => (
+              <DetailItem key={label} label={label} value={value} />
+            ))}
+          </div>
+        </div>
+      )}
     </ProfileCard>
   );
 }
@@ -508,15 +598,15 @@ function ContactNumbersSection({ numbers = [], onStatus }) {
   }
 
   return (
-    <div className="sm:col-span-2">
+    <div>
       <p className="profile-label">Contact Numbers</p>
       {numbers.length ? (
         <div className="mt-2 space-y-2">
           {numbers.map((entry) => (
-            <div key={`${entry.type}-${entry.digits}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.025] px-3 py-2">
+            <div key={`${entry.type}-${entry.digits}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.025] px-3 py-2.5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">{entry.label}</p>
-                <p className="text-sm font-semibold text-white">{entry.number}</p>
+                <p className="text-[15px] font-semibold text-white">{entry.number}</p>
               </div>
               <button type="button" onClick={() => copyValue(entry.number, entry.label || "Phone number")} className="btn-secondary rounded-lg border border-white/10 px-3 py-1.5 text-xs">Copy</button>
             </div>
@@ -542,16 +632,16 @@ function CompanyDetailsCard({ carrier, onStatus }) {
   ].filter(Boolean).join(", ");
   return (
     <ProfileCard title="Company Details">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
         <ContactNumbersSection numbers={carrier.contactNumbers} onStatus={onStatus} />
         <DetailItem label="Email" value={carrier.email} />
         <DetailItem label="Address" value={carrier.address || [carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", ")} />
-        <DetailItem label="Entity Type" value={carrier.entityType} />
+        <DetailItem label="Entity Type" value={carrier.entityTypeDisplay} />
         <DetailItem label="Owner / Company Officer" value={[carrier.companyRep, carrier.companyOfficerTitle].filter(Boolean).join(" - ")} />
         <DetailItem label="Fleet Size" value={fleet} />
-        <DetailItem label="Operations" value={carrier.operations} />
-        <DetailItem label="Authority Status" value={carrier.operatingStatus} />
-        <DetailItem label="Out-of-Service Status" value={carrier.outOfServiceStatus} />
+        <DetailItem label="Operations" value={carrier.operationsDisplay} />
+        <DetailItem label="Authority Status" value={carrier.operatingStatusDisplay} />
+        <DetailItem label="Out-of-Service Status" value={carrier.outOfServiceStatusDisplay} />
         <DetailItem label="Out-of-Service Date" value={carrier.outOfServiceDate} />
       </div>
       <div className="mt-6 border-t border-white/[0.06] pt-5">
@@ -722,26 +812,35 @@ export default function CarrierProfilePage() {
   }
   const isOwner = user?.isOwner || user?.role === "owner" || user?.role === "admin" || user?.email === "owner@mytruckingleads.com";
   const showFmcsaDebug = isOwner && carrier.liveFmcsaStatus?.attempted && carrier.liveFmcsaStatus?.success === false;
+  const locationDisplay = [carrier.city, carrier.state].filter(Boolean).join(", ");
+  const hasBasicScores = hasPublicBasicScores(carrier);
+  const headerBadges = [
+    ["Authority", carrier.operatingStatusDisplay],
+    ["Out-of-Service", carrier.outOfServiceStatusDisplay],
+    ["Entity", carrier.entityTypeDisplay],
+  ];
 
   return (
     <div className="carrier-profile-page min-w-0 space-y-6 animate-fade-in">
       <div className="flex items-center gap-2 text-sm">
         <button type="button" onClick={() => navigate(backTo)} className="text-sky-100/45 hover:text-white transition-colors">{backLabel}</button>
-        <span className="text-sky-100/30">/</span>
-        <span className="font-semibold text-sky-100">{carrier.name}</span>
       </div>
 
       <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
         <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">{carrier.name}</h1>
-            <Badge variant={statusVariant(carrier.operatingStatus)} className="uppercase">{carrier.operatingStatus}</Badge>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">{carrier.name}</h1>
           {carrier.dbaName && <p className="mt-2 text-sm text-navy-400">DBA: {carrier.dbaName}</p>}
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold text-sky-100/45">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-sky-100/65">
             {carrier.dot && <span className="font-mono">DOT {carrier.dot}</span>}
-            {carrier.mcNumber && <span className="font-mono">{carrier.mcNumber}</span>}
-            <span>{valueOrUnavailable([carrier.city, carrier.state, carrier.zip].filter(Boolean).join(", "))}</span>
+            {carrier.mc && <><span className="text-sky-100/30">•</span><span className="font-mono">{formatMcDisplay(carrier.mc)}</span></>}
+          </div>
+          {locationDisplay && <p className="mt-2 text-sm font-medium text-navy-300">{locationDisplay}</p>}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {headerBadges.map(([label, value]) => (
+              <Badge key={label} variant={statusVariant(value)} className="normal-case">
+                {label}: {value || displayUnavailable(true)}
+              </Badge>
+            ))}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -766,11 +865,17 @@ export default function CarrierProfilePage() {
           <CompanyDetailsCard carrier={carrier} onStatus={setSaveStatus} />
 
           <ProfileCard title="BASIC Safety Scores">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/45">SMS Snapshot Date</p>
-              <p className="text-sm font-bold text-white">{valueOrUnavailable(carrier.smsSnapshotDate)}</p>
-            </div>
-            <SafetyBarsPanel record={carrier} mode="basic" />
+            {hasBasicScores ? (
+              <>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/45">SMS Snapshot Date</p>
+                  <p className="text-sm font-bold text-white">{valueOrUnavailable(carrier.smsSnapshotDate)}</p>
+                </div>
+                <SafetyBarsPanel record={carrier} mode="basic" />
+              </>
+            ) : (
+              <p className="text-sm font-semibold text-navy-300">Public SMS BASIC scores are not available for this carrier right now.</p>
+            )}
           </ProfileCard>
 
           <InspectionHistoryCard carrier={carrier} />
