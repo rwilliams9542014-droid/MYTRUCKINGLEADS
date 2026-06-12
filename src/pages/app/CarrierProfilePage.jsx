@@ -324,6 +324,8 @@ function normalizeCarrier(data) {
   const operations = pick(carrier.operations, carrier.operationType, carrier.operationsScope, carrier.carrierOperation, carrier.carrier_operation);
   const rawAuthorityStatus = pick(carrier.authorityStatus, carrier.authority_status);
   const rawOperatingStatus = pick(carrier.operatingStatus, carrier.operating_status);
+  const liveAuthority = firstObject(carrier.qcmobileDetails?.authority, carrier.raw?.liveCarrier?.qcmobileDetails?.authority, carrier.raw?.qcmobileDetails?.authority);
+  const liveSaferData = firstObject(carrier.saferData, carrier.raw?.saferData, carrier.raw?.liveCarrier?.saferData);
   const dotStatus = pick(
     carrier.usdotStatus,
     carrier.usdot_status,
@@ -339,10 +341,8 @@ function normalizeCarrier(data) {
   const operatingStatus = pick(
     carrier.operatingAuthorityStatus,
     carrier.operating_authority_status,
-    !isDotStatusValue(rawAuthorityStatus) ? rawAuthorityStatus : "",
-    !isDotStatusValue(rawOperatingStatus) ? rawOperatingStatus : "",
-    carrier.saferData?.authorityStatus,
-    carrier.raw?.saferData?.authorityStatus
+    liveAuthority.authorityStatus,
+    liveSaferData.authorityStatus
   );
   const outOfServiceStatus = pick(carrier.outOfServiceStatus, carrier.out_of_service_status, carrier.oosStatus, carrier.isOutOfService, carrier.outOfService);
   const safetyRating = pick(carrier.safetyRating, carrier.safety_rating, safety.safetyRating);

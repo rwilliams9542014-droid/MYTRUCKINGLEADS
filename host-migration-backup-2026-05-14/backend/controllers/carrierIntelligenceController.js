@@ -754,6 +754,8 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
   const inspectionSummary = normalizeInspectionSummary({ qcmobileOos, smsSafety, saferData, carrier });
   const snapshotDates = basicScores.map(score => score.snapshotDate).filter(Boolean).sort();
   const smsSnapshotDate = snapshotDates[snapshotDates.length - 1] || formatDate(firstValue(smsSafety?.smsSnapshotDate, qcmobileDetails?.basics?.snapShotDate));
+  const liveAuthorityStatus = clean(qcmobileAuthority.authorityStatus || saferData?.authorityStatus);
+  const liveOperatingStatus = clean(qcmobileAuthority.operatingStatus || saferData?.operatingStatus);
 
   return {
     dotNumber,
@@ -761,7 +763,7 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     dbaName,
     companyOverview: overviewText({
       legalName,
-      authorityStatus: clean(carrier.authorityStatus || saferData?.authorityStatus || census.status_code),
+      authorityStatus: liveAuthorityStatus,
       entityType: clean(carrier.entityType || census.business_org_desc || census.carrier_operation || carrier.carrierOperation),
       physicalAddress,
       fleetSize,
@@ -779,8 +781,8 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     companyOfficerTitle: clean(carrier.companyOfficerTitle),
     docketNumber: clean(carrier.docketNumber || carrier.mc || qcmobileDockets[0] || census.docket1 || census.docket_number),
     docketNumbers: qcmobileDockets,
-    operatingStatus: clean(qcmobileAuthority.operatingStatus || carrier.operatingStatus || carrier.operatingAuthority || census.status_code, "Not available"),
-    authorityStatus: clean(qcmobileAuthority.authorityStatus || carrier.authorityStatus || saferData?.authorityStatus || census.status_code, "Not available"),
+    operatingStatus: liveOperatingStatus,
+    authorityStatus: liveAuthorityStatus,
     outOfServiceStatus: clean(qcmobileAuthority.outOfServiceStatus || carrier.outOfServiceStatus),
     outOfServiceDate: clean(qcmobileAuthority.outOfServiceDate || carrier.outOfServiceDate),
     entityType: clean(firstValue(carrier.entityType, carrier.entity_type, carrier.carrierEntityType, carrier.carrierType, carrier.carrier?.entityType, census.business_org_desc, census.carrier_operation, carrier.carrierOperation), "Not available"),
@@ -867,12 +869,12 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
     },
     licensingInsurance: {
       insuranceCompany: clean(carrier.insuranceCompany),
-      insuranceFilingStatus: clean(carrier.insuranceFilingStatus || carrier.insuranceFormCode || carrier.authorityStatus, "Not available"),
+      insuranceFilingStatus: clean(carrier.insuranceFilingStatus || carrier.insuranceFormCode, "Not available"),
       policyNumber: clean(carrier.insurancePolicyNumber),
       coverageInfo: clean(carrier.insuranceType || carrier.cargoInsurance),
       insuranceEffectiveDate: formatDate(carrier.insuranceEffectiveDate),
       insuranceExpirationDate: formatDate(carrier.insuranceExpirationDate || carrier.insuranceExpiration),
-      authorityStatus: clean(carrier.authorityStatus || saferData?.authorityStatus, "Not available"),
+      authorityStatus: liveAuthorityStatus,
       bmcFilings: carrier.bmcFilings || []
     },
     lastUpdated: formatDate(carrier.lastUpdated || carrier.updatedAt || carrier.sourceLastSeenAt || new Date()),
