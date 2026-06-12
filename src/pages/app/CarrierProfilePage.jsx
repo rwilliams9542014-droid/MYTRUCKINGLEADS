@@ -36,7 +36,7 @@ import {
 } from "@/lib/leadMapping";
 
 const NOT_AVAILABLE = "Not available";
-const FMCSA_UNAVAILABLE = "Not available from public FMCSA data.";
+const FMCSA_UNAVAILABLE = "None Shown";
 function displayUnavailable(short = false) {
   return formatUnavailable("", short);
 }
@@ -249,7 +249,8 @@ function hasValue(value) {
   return value || value === 0;
 }
 
-function normalizeAuthorityStatus(value) {
+function normalizeAuthorityStatus(value, operation = "") {
+  if (/authorized for hire/i.test(formatCarrierOperation(operation))) return "Authorized";
   return formatAuthorityStatus(value);
 }
 
@@ -270,10 +271,6 @@ function normalizeSafetyRatingDisplay(value) {
   if (!text || /^unknown$/i.test(text)) return "";
   if (/^not\s+rated$/i.test(text)) return "Not Rated";
   return text;
-}
-
-function hasPublicBasicScores(carrier = {}) {
-  return Array.isArray(carrier.basicScores) && carrier.basicScores.some((score) => score?.hasRealValue === true);
 }
 
 function normalizeCarrier(data) {
@@ -362,7 +359,7 @@ function normalizeCarrier(data) {
     operationsDisplay: normalizeOperations(operations),
     operationClassification: carrier.operationClassification || [],
     operatingStatus,
-    operatingStatusDisplay: normalizeAuthorityStatus(operatingStatus),
+    operatingStatusDisplay: normalizeAuthorityStatus(operatingStatus, operations),
     outOfServiceStatus,
     outOfServiceStatusDisplay: normalizeOutOfService(outOfServiceStatus),
     outOfServiceDate: pick(carrier.outOfServiceDate, carrier.out_of_service_date, carrier.outOfServiceDate, carrier.oosDate),
@@ -673,31 +670,27 @@ function CompanyOfficialsCard({ carrier }) {
           {carrier.companyOfficials.map((official) => (
             <div key={official.name} className="profile-card-muted">
               <p className="profile-value">{official.name}</p>
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <DetailItem label="Title" value={official.title} fallback={FMCSA_UNAVAILABLE} />
-                <DetailItem label="Officer Type / Role" value={official.role} fallback={FMCSA_UNAVAILABLE} />
-                <DetailItem label="Phone" value={official.phone} fallback={FMCSA_UNAVAILABLE} />
-                <DetailItem label="Email" value={official.email} fallback={FMCSA_UNAVAILABLE} />
-              </div>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-sm text-navy-400">No company official information available from public FMCSA data.</p>
+        <p className="text-sm text-navy-400">None Shown</p>
       )}
     </ProfileCard>
   );
 }
 
 function BiennialUpdateCard({ carrier }) {
+  const mileageYear = [
+    carrier.mcs150Mileage,
+    carrier.mcs150MileageYear ? `(${carrier.mcs150MileageYear})` : "",
+  ].filter(Boolean).join(" ");
   return (
     <ProfileCard title="Biennial Update Information">
       <div className="grid grid-cols-1 gap-3">
         <DetailItem label="MCS-150 Form Date" value={formatDate(carrier.mcs150Date)} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="MCS-150 Mileage Year" value={carrier.mcs150MileageYear} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Reported Mileage" value={carrier.mcs150Mileage} fallback={FMCSA_UNAVAILABLE} />
+        <DetailItem label="MCS-150 Mileage (Year)" value={mileageYear} fallback={FMCSA_UNAVAILABLE} />
         <DetailItem label="Last Updated Date" value={formatDate(carrier.lastUpdated)} fallback={FMCSA_UNAVAILABLE} />
-        <DetailItem label="Next Update Due" value={formatDate(carrier.nextUpdateDue)} fallback={FMCSA_UNAVAILABLE} />
       </div>
     </ProfileCard>
   );
@@ -850,25 +843,6 @@ function NewEntrantProgramCard({ carrier }) {
         </div>
       ) : (
         <p className="text-sm text-navy-400">No New Entrant Program information available from public FMCSA data.</p>
-      )}
-    </ProfileCard>
-  );
-}
-
-function BasicSafetyScoresCard({ carrier }) {
-  const hasBasicScores = hasPublicBasicScores(carrier);
-  return (
-    <ProfileCard title="BASIC Safety Scores">
-      {hasBasicScores ? (
-        <>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/45">SMS Snapshot Date</p>
-            <p className="text-sm font-bold text-white">{valueOrUnavailable(formatDate(carrier.smsSnapshotDate), NOT_AVAILABLE)}</p>
-          </div>
-          <SafetyBarsPanel record={carrier} mode="basic" />
-        </>
-      ) : (
-        <p className="text-sm font-semibold text-navy-300">Public SMS BASIC scores are not available for this carrier right now.</p>
       )}
     </ProfileCard>
   );
@@ -1079,7 +1053,6 @@ export default function CarrierProfilePage() {
           <CargoClassificationCard carrier={carrier} />
           <VehiclesCard carrier={carrier} />
           <DriversCard carrier={carrier} />
-          <BasicSafetyScoresCard carrier={carrier} />
           <InspectionHistoryCard carrier={carrier} />
         </div>
 

@@ -2,7 +2,7 @@ const UNAVAILABLE_PATTERN = /^(unknown|n\/a|na|none|null|undefined|not available
 
 export function formatUnavailable(value, short = false) {
   if (value || value === 0) return value;
-  return short ? "Not available" : "Not available from public FMCSA data.";
+  return short ? "None Shown" : "None Shown";
 }
 
 export function cleanDisplayValue(value) {
