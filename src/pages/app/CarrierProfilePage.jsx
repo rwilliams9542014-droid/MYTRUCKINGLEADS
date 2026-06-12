@@ -342,7 +342,9 @@ function normalizeCarrier(data) {
     carrier.operatingAuthorityStatus,
     carrier.operating_authority_status,
     liveSaferData.authorityStatus,
-    liveAuthority.authorityStatus
+    liveAuthority.authorityStatus,
+    !isDotStatusValue(rawAuthorityStatus) ? rawAuthorityStatus : "",
+    !isDotStatusValue(rawOperatingStatus) ? rawOperatingStatus : ""
   );
   const outOfServiceStatus = pick(carrier.outOfServiceStatus, carrier.out_of_service_status, carrier.oosStatus, carrier.isOutOfService, carrier.outOfService);
   const safetyRating = pick(carrier.safetyRating, carrier.safety_rating, safety.safetyRating);

@@ -40,6 +40,15 @@ function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "") ?? "";
 }
 
+function displayDotStatus(value) {
+  const status = clean(value).toUpperCase();
+  if (status === "A" || status === "ACTIVE") return "Active";
+  if (status === "I" || status === "INACTIVE") return "Inactive";
+  if (status === "P" || status === "PENDING") return "Pending";
+  if (status === "O" || status === "OUT-OF-SERVICE" || status === "OUT OF SERVICE") return "Out-of-Service";
+  return clean(value);
+}
+
 function formatDate(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -756,9 +765,12 @@ function mapProfile(carrier = {}, { sourceType = "cached", liveUnavailable = fal
   const smsSnapshotDate = snapshotDates[snapshotDates.length - 1] || formatDate(firstValue(smsSafety?.smsSnapshotDate, qcmobileDetails?.basics?.snapShotDate));
   const liveAuthorityStatus = clean(saferData?.authorityStatus || qcmobileAuthority.authorityStatus);
   const liveOperatingStatus = clean(saferData?.operatingStatus || qcmobileAuthority.operatingStatus);
+  const dotStatus = displayDotStatus(firstValue(saferData?.usdotStatus, saferData?.dotStatus, carrier.usdotStatus, carrier.dotStatus, census.status_code));
 
   return {
     dotNumber,
+    dotStatus,
+    usdotStatus: dotStatus,
     legalName,
     dbaName,
     companyOverview: overviewText({
