@@ -155,6 +155,7 @@ export const api = {
     method: "POST",
     body: JSON.stringify(typeof payload === "string" ? { plan: payload } : payload),
   }),
+  getCheckoutStatus: (sessionId) => apiRequest(`/api/billing/checkout-status?${queryString({ sessionId })}`),
   cancelSubscription: () => apiRequest("/api/billing/cancel", {
     method: "POST",
   }),

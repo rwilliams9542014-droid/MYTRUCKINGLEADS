@@ -2,7 +2,6 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { query } from "../config/db.js";
 import { createCheckoutSession, syncUserSubscriptionFromStripe } from "../services/stripeService.js";
-import { sendTrialStartedEmail } from "../services/emailService.js";
 import { validateEmail, validateLeadState, validatePassword, validatePhone, validatePlan, validateString, validateUsername } from "../utils/validators.js";
 import { ValidationError, ConflictError, AuthenticationError } from "../middleware/errorHandler.js";
 import { getTrialUsage } from "../utils/trialAccess.js";
@@ -201,9 +200,10 @@ export async function signup(req, res, next) {
          lead_state, lead_states, subscription_status, subscription_expires_at,
          trial_ends_at, daily_profile_views, daily_contact_views,
          daily_saved_prospects, last_usage_reset_at,
-         monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at
+         monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
+         account_status
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'incomplete', NULL, NULL, 0, 0, 0, NOW(), 0, NOW(), 0, NOW())
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'incomplete', NULL, NULL, 0, 0, 0, NOW(), 0, NOW(), 0, NOW(), 'pending_checkout')
        RETURNING id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, plan, subscription_status, subscription_expires_at,
                  trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
                  monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at, created_at`,
@@ -245,24 +245,15 @@ export async function signup(req, res, next) {
       consentRecord
     });
     await attachCheckoutSessionToConsent(consentRecord.id, checkoutSession.id);
-    sendTrialStartedEmail({
-      email: validatedEmail,
-      userName: validatedName,
-      planName: consentRecord.plan_name,
-      trialEndAt: consentRecord.trial_end_at,
-      planPrice: consentRecord.plan_price,
-      billingInterval: consentRecord.billing_interval
-    }).catch((err) => console.warn("Trial started email skipped:", err.message));
-
     const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, {
       expiresIn: "7d"
     });
 
-    // Set httpOnly cookie
+    // Keep a temporary auth cookie for the Stripe return, but do not expose a
+    // signed-in user until Stripe confirms the checkout/subscription.
     setAuthCookie(res, token);
 
     res.status(201).json({
-      user: publicUser(user),
       checkoutUrl: checkoutSession.url,
       checkoutSessionId: checkoutSession.id
     });
@@ -307,6 +298,17 @@ export async function login(req, res, next) {
     if (String(user.account_status || "").toLowerCase() === "frozen") {
       return next(new AuthenticationError("Your account is currently frozen. Please contact support."));
     }
+    if (!["active", "trialing"].includes(String(user.subscription_status || "").toLowerCase())) {
+      await syncUserSubscriptionFromStripe(user.id).catch(() => null);
+      const refreshed = await query(
+        `SELECT id, subscription_status FROM users WHERE id = $1`,
+        [user.id]
+      );
+      const refreshedStatus = String(refreshed.rows[0]?.subscription_status || user.subscription_status || "").toLowerCase();
+      if (!["active", "trialing"].includes(refreshedStatus)) {
+        return next(new AuthenticationError("Complete Stripe checkout before signing in."));
+      }
+    }
     
     // Verify password
     const match = await bcrypt.compare(password, user.password_hash);
@@ -327,7 +329,7 @@ export async function login(req, res, next) {
     res.json({
       user: publicUser(effectiveUser)
     });
-    } catch (err) {
+  } catch (err) {
     next(err);
   }
 }
@@ -362,6 +364,12 @@ export async function getCurrentUser(req, res, next) {
 
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    const syncedStatus = String(userResult.rows[0].subscription_status || "").toLowerCase();
+    if (!["active", "trialing"].includes(syncedStatus)) {
+      clearAuthCookie(res);
+      return res.status(401).json({ error: "Complete Stripe checkout before accessing your account." });
     }
 
     const effectiveUser = await loadEffectiveTeamUser(userResult.rows[0]);

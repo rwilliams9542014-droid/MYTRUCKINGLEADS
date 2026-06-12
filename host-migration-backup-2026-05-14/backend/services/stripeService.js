@@ -144,6 +144,7 @@ async function ensureLocalUserForSubscription(subscription, fallbackUserId = nul
              plan = $5,
              subscription_status = $6,
              subscription_expires_at = $7,
+             account_status = CASE WHEN lower(COALESCE($6, '')) IN ('active', 'trialing') THEN 'active' ELSE account_status END,
              updated_at = NOW()
          WHERE id = $8
          RETURNING id, email, plan, subscription_status`,
@@ -171,6 +172,7 @@ async function ensureLocalUserForSubscription(subscription, fallbackUserId = nul
              plan = $4,
              subscription_status = $5,
              subscription_expires_at = $6,
+             account_status = CASE WHEN lower(COALESCE($5, '')) IN ('active', 'trialing') THEN 'active' ELSE account_status END,
              updated_at = NOW()
          WHERE id = $7
          RETURNING id, email, plan, subscription_status`,
@@ -203,6 +205,7 @@ async function ensureLocalUserForSubscription(subscription, fallbackUserId = nul
            plan = $5,
            subscription_status = $6,
            subscription_expires_at = $7,
+           account_status = CASE WHEN lower(COALESCE($6, '')) IN ('active', 'trialing') THEN 'active' ELSE account_status END,
            updated_at = NOW()
        WHERE id = $8
        RETURNING id, email, plan, subscription_status`,
@@ -845,6 +848,7 @@ async function updateUserPlan(userId, plan, subscriptionId, subscriptionStatus, 
            subscription_status = $3,
            subscription_expires_at = $4,
            trial_ends_at = $5,
+           account_status = CASE WHEN lower(COALESCE($3, '')) IN ('active', 'trialing') THEN 'active' ELSE account_status END,
            updated_at = NOW()
        WHERE id = $6
        RETURNING id, email, plan, subscription_status`,

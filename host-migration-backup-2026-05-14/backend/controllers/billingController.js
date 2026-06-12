@@ -47,6 +47,7 @@ export async function getCheckoutStatus(req, res) {
       : await getSessionDetails(sessionId);
     res.json({
       status: session.payment_status,
+      checkoutStatus: session.status,
       plan: session.metadata?.plan,
       customer: session.customer_email,
       amountTotal: session.amount_total

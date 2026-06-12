@@ -5,7 +5,7 @@ import ScoutEmptyState from "@/components/ScoutEmptyState";
 import ScoutMascot from "@/components/ScoutMascot";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
-import { trackPurchaseConversion } from "@/lib/googleAds";
+import { trackFreeTrialStartedConversion } from "@/lib/googleAds";
 
 function AnimatedNumber({ value, duration = 1000 }) {
   const [display, setDisplay] = useState("0");
@@ -92,11 +92,22 @@ export default function DashboardPage() {
     const sessionId = params.get("session_id") || params.get("sessionId");
     if (!sessionId) return;
 
-    trackPurchaseConversion({
-      transactionId: sessionId,
-      value: 1.0,
-      currency: "USD",
-    });
+    let cancelled = false;
+    api.getCheckoutStatus(sessionId)
+      .then((checkout) => {
+        if (cancelled) return;
+        if (String(checkout?.checkoutStatus || "").toLowerCase() !== "complete") return;
+        trackFreeTrialStartedConversion({
+          transactionId: sessionId,
+        });
+      })
+      .catch((err) => {
+        console.warn("Stripe checkout verification failed:", err.message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

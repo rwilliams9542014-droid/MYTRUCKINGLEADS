@@ -1,20 +1,98 @@
 export const GOOGLE_ADS_ID = "AW-18211312936";
-export const GOOGLE_ADS_PURCHASE_SEND_TO = "AW-18211312936/2Z6KCLj1yrgcEKiq6utD";
+
+export const GOOGLE_ADS_CONVERSIONS = {
+  freeTrialStarted: {
+    name: "Free Trial Started",
+    label: "PD4CCLHt_r0cEKiq6utD",
+    value: 1.0,
+    currency: "USD",
+  },
+  purchase: {
+    name: "Purchase",
+    label: "",
+    value: 1.0,
+    currency: "USD",
+    enabled: false,
+  },
+};
 
 const CONVERSION_STORAGE_PREFIX = "mtl_google_ads_conversion:";
 
-function getStorageKey(transactionId) {
-  return `${CONVERSION_STORAGE_PREFIX}${transactionId || "unknown"}`;
+function isDebugEnabled() {
+  if (typeof import.meta !== "undefined" && import.meta.env?.DEV) return true;
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1"].includes(window.location.hostname);
 }
 
-export function trackPurchaseConversion({ transactionId = "", value = 1.0, currency = "USD" } = {}) {
-  if (typeof window === "undefined" || typeof window.gtag !== "function") {
+function debugLog(message, details) {
+  if (!isDebugEnabled()) return;
+  if (details !== undefined) {
+    console.info(`[Google Ads] ${message}`, details);
+    return;
+  }
+  console.info(`[Google Ads] ${message}`);
+}
+
+function sendTo(label) {
+  return `${GOOGLE_ADS_ID}/${label}`;
+}
+
+function getStorageKey(conversionKey, transactionId) {
+  return `${CONVERSION_STORAGE_PREFIX}${conversionKey}:${transactionId || "unknown"}`;
+}
+
+function isConfigured(conversion) {
+  return Boolean(conversion?.label && !conversion.label.includes("REPLACE_WITH"));
+}
+
+export function logGoogleAdsTagLoaded() {
+  if (typeof window === "undefined") return false;
+  const loaded = typeof window.gtag === "function";
+  if (loaded) {
+    debugLog("Google Ads Tag Loaded", { id: GOOGLE_ADS_ID });
+  }
+  return loaded;
+}
+
+export function trackGoogleAdsConversion(conversionKey, { transactionId = "" } = {}) {
+  const conversion = GOOGLE_ADS_CONVERSIONS[conversionKey];
+  if (!conversion) {
+    debugLog("Conversion not found", { conversionKey });
     return false;
   }
 
-  const storageKey = getStorageKey(transactionId);
+  if (conversion.enabled === false) {
+    debugLog("Conversion disabled", { conversionKey, name: conversion.name });
+    return false;
+  }
+
+  if (!transactionId) {
+    debugLog("Conversion skipped: missing Stripe session ID", { conversionKey });
+    return false;
+  }
+
+  debugLog("Stripe Session ID Detected", { conversionKey, transactionId });
+
+  if (typeof window === "undefined" || typeof window.gtag !== "function") {
+    debugLog("Conversion skipped: gtag unavailable", { conversionKey });
+    return false;
+  }
+
+  if (!isConfigured(conversion)) {
+    debugLog("Conversion skipped: Google Ads conversion label is not configured", {
+      conversionKey,
+      name: conversion.name,
+    });
+    return false;
+  }
+
+  const storageKey = getStorageKey(conversionKey, transactionId);
   try {
     if (transactionId && window.localStorage.getItem(storageKey)) {
+      debugLog("Conversion skipped: already fired for this Stripe session", {
+        conversionKey,
+        transactionId,
+      });
       return false;
     }
   } catch {
@@ -22,10 +100,16 @@ export function trackPurchaseConversion({ transactionId = "", value = 1.0, curre
   }
 
   window.gtag("event", "conversion", {
-    send_to: GOOGLE_ADS_PURCHASE_SEND_TO,
-    value,
-    currency,
+    send_to: sendTo(conversion.label),
+    value: conversion.value,
+    currency: conversion.currency,
     transaction_id: transactionId,
+  });
+
+  debugLog("Google Ads Conversion Fired", {
+    conversionKey,
+    name: conversion.name,
+    transactionId,
   });
 
   try {
@@ -37,4 +121,8 @@ export function trackPurchaseConversion({ transactionId = "", value = 1.0, curre
   }
 
   return true;
+}
+
+export function trackFreeTrialStartedConversion(options) {
+  return trackGoogleAdsConversion("freeTrialStarted", options);
 }

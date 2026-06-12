@@ -1,9 +1,10 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
 import { PublicLayout } from "@/layouts/PublicLayout";
 import { AppLayout } from "@/layouts/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Spinner } from "@/components/ui";
+import { logGoogleAdsTagLoaded } from "@/lib/googleAds";
 
 const HomePage = lazy(() => import("@/pages/public/HomePage"));
 const PricingPage = lazy(() => import("@/pages/public/PricingPage"));
@@ -42,6 +43,10 @@ function PageLoader() {
 }
 
 export default function App() {
+  useEffect(() => {
+    logGoogleAdsTagLoaded();
+  }, []);
+
   return (
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>

@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button, Input } from "@/components/ui";
 
 const plans = [
-  { value: "basic", label: "Starter - $79/mo", name: "Starter", price: 79, trialDays: 3, stateLimit: 1 },
-  { value: "pro", label: "Pro - $199/mo (Most Popular)", name: "Pro", price: 199, trialDays: 3, stateLimit: 1 },
-  { value: "premium", label: "Agency - $499/mo", name: "Agency Unlimited", price: 499, trialDays: 3, stateLimit: 3 },
+  { value: "basic", label: "Starter", price: 79, trialDays: 3, stateLimit: 1, description: "One state, core lead access." },
+  { value: "pro", label: "Pro", price: 199, trialDays: 3, stateLimit: 1, description: "One state plus expanded workflow tools." },
+  { value: "premium", label: "Agency", price: 499, trialDays: 3, stateLimit: 3, description: "Up to three included states for agency teams." },
 ];
 
 const US_STATES = [
@@ -15,20 +15,21 @@ const US_STATES = [
 
 export default function SignupPage() {
   const { signUp } = useAuth();
-  const navigate = useNavigate();
   const [form, setForm] = useState({
-    email: "",
-    password: "",
-    fullName: "",
-    username: "",
-    phone: "",
+    firstName: "",
+    lastName: "",
     agencyName: "",
-    plan: "pro",
-    states: [],
+    email: "",
+    phone: "",
     billingAddressLine1: "",
+    billingAddressLine2: "",
     billingCity: "",
     billingState: "",
     billingPostalCode: "",
+    username: "",
+    password: "",
+    plan: "pro",
+    states: [],
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,10 @@ export default function SignupPage() {
 
   function updateField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function selectPlan(plan) {
+    setForm((prev) => ({ ...prev, plan, states: [] }));
   }
 
   function toggleState(state) {
@@ -62,11 +67,21 @@ export default function SignupPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    const nameParts = form.fullName.trim().split(/\s+/);
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
-    if (!firstName || !lastName) {
+
+    if (!form.firstName.trim() || !form.lastName.trim()) {
       setError("Enter your first and last name.");
+      return;
+    }
+    if (!form.agencyName.trim()) {
+      setError("Enter your agency name.");
+      return;
+    }
+    if (!form.phone.trim()) {
+      setError("Enter a phone number.");
+      return;
+    }
+    if (!form.billingAddressLine1 || !form.billingCity || !form.billingState || !form.billingPostalCode) {
+      setError("Enter your address.");
       return;
     }
     if (!form.username.trim()) {
@@ -77,20 +92,12 @@ export default function SignupPage() {
       setError("Password must be at least 8 characters and include one uppercase letter and one number.");
       return;
     }
-    if (!form.phone.trim()) {
-      setError("Enter a phone number.");
+    if (!currentPlan) {
+      setError("Plan billing details are unavailable. Please try again.");
       return;
     }
     if (form.states.length === 0) {
       setError("Please select at least one state for your lead territory.");
-      return;
-    }
-    if (!form.billingAddressLine1 || !form.billingCity || !form.billingState || !form.billingPostalCode) {
-      setError("Enter your billing address so the account can be created.");
-      return;
-    }
-    if (!currentPlan) {
-      setError("Plan billing details are unavailable. Please try again.");
       return;
     }
     if (!agreedSubscription) {
@@ -101,11 +108,12 @@ export default function SignupPage() {
       setError("You must agree to the Communication Compliance terms.");
       return;
     }
+
     setLoading(true);
     try {
       const result = await signUp({
-        firstName,
-        lastName,
+        firstName: form.firstName,
+        lastName: form.lastName,
         username: form.username,
         email: form.email,
         phone: form.phone,
@@ -115,6 +123,7 @@ export default function SignupPage() {
         leadState: form.states[0],
         leadStates: form.states,
         billingAddressLine1: form.billingAddressLine1,
+        billingAddressLine2: form.billingAddressLine2,
         billingCity: form.billingCity,
         billingState: form.billingState,
         billingPostalCode: form.billingPostalCode,
@@ -123,11 +132,13 @@ export default function SignupPage() {
         acceptedPrivacy: true,
         acceptedSubscriptionAgreement: true,
       });
+
       if (result?.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
         return;
       }
-      navigate("/dashboard");
+
+      setError("Stripe checkout could not be started. Please try again.");
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -136,9 +147,9 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 pt-24 pb-12">
-      <div className="w-full max-w-lg">
-        <div className="text-center mb-8">
+    <div className="min-h-screen px-6 pt-24 pb-12">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mb-8 text-center">
           <Link to="/" className="inline-flex justify-center mb-5">
             <img
               src="/assets/homepage-logo-floating.png"
@@ -146,223 +157,173 @@ export default function SignupPage() {
               className="h-16 w-auto max-w-[320px] object-contain drop-shadow-[0_0_26px_rgba(56,189,248,0.34)]"
             />
           </Link>
-          <h1 className="text-2xl font-bold text-white">Create your account</h1>
-          <p className="text-navy-400 mt-2 text-sm">Start your 3-day free trial. Payment details are collected securely by Stripe; you will not be charged during the trial.</p>
+          <h1 className="text-2xl font-bold text-white">Start your free trial</h1>
+          <p className="mx-auto mt-2 max-w-2xl text-sm text-navy-400">
+            Create your login, choose your lead territory, then complete secure Stripe checkout. Your account is activated only after Stripe confirms the trial.
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="glass-card p-8 space-y-5">
+        <form onSubmit={handleSubmit} className="glass-card p-6 sm:p-8">
           {error && (
-            <div className="bg-danger-500/10 border border-danger-500/20 rounded-xl p-3 text-sm text-danger-300">
+            <div className="mb-6 rounded-xl border border-danger-500/20 bg-danger-500/10 p-3 text-sm text-danger-300">
               {error}
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Full Name"
-              type="text"
-              placeholder="John Smith"
-              value={form.fullName}
-              onChange={(e) => updateField("fullName", e.target.value)}
-              required
-            />
-            <Input
-              label="Agency Name"
-              type="text"
-              placeholder="Your Insurance Agency"
-              value={form.agencyName}
-              onChange={(e) => updateField("agencyName", e.target.value)}
-            />
-          </div>
+          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            <div className="space-y-6">
+              <section className="space-y-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-300">Contact</p>
+                  <h2 className="mt-1 text-lg font-semibold text-white">Your agency details</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input label="First Name" value={form.firstName} onChange={(e) => updateField("firstName", e.target.value)} required />
+                  <Input label="Last Name" value={form.lastName} onChange={(e) => updateField("lastName", e.target.value)} required />
+                  <Input label="Agency Name" value={form.agencyName} onChange={(e) => updateField("agencyName", e.target.value)} required />
+                  <Input label="Phone Number" type="tel" placeholder="(555) 123-4567" value={form.phone} onChange={(e) => updateField("phone", e.target.value)} required />
+                </div>
+                <Input label="Email" type="email" placeholder="you@agency.com" value={form.email} onChange={(e) => updateField("email", e.target.value)} required />
+              </section>
 
-          <Input
-            label="Email"
-            type="email"
-            placeholder="you@agency.com"
-            value={form.email}
-            onChange={(e) => updateField("email", e.target.value)}
-            required
-          />
+              <section className="space-y-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-300">Address</p>
+                  <h2 className="mt-1 text-lg font-semibold text-white">Business address</h2>
+                </div>
+                <Input label="Street Address" value={form.billingAddressLine1} onChange={(e) => updateField("billingAddressLine1", e.target.value)} required />
+                <Input label="Apartment, Suite, or Unit" value={form.billingAddressLine2} onChange={(e) => updateField("billingAddressLine2", e.target.value)} />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <Input label="City" value={form.billingCity} onChange={(e) => updateField("billingCity", e.target.value)} required />
+                  <div>
+                    <label className="block text-sm font-medium text-navy-200 mb-2">State</label>
+                    <select className="input-field" value={form.billingState} onChange={(e) => updateField("billingState", e.target.value)} required>
+                      <option value="" className="bg-navy-900">Select</option>
+                      {US_STATES.map((state) => <option key={state} value={state} className="bg-navy-900">{state}</option>)}
+                    </select>
+                  </div>
+                  <Input label="ZIP" value={form.billingPostalCode} onChange={(e) => updateField("billingPostalCode", e.target.value)} required />
+                </div>
+              </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Username"
-              type="text"
-              placeholder="youragency"
-              value={form.username}
-              onChange={(e) => updateField("username", e.target.value)}
-              required
-            />
-            <Input
-              label="Phone"
-              type="tel"
-              placeholder="(555) 123-4567"
-              value={form.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
-              required
-            />
-          </div>
+              <section className="space-y-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-300">Login</p>
+                  <h2 className="mt-1 text-lg font-semibold text-white">Choose your credentials</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Input label="Username" value={form.username} onChange={(e) => updateField("username", e.target.value)} required />
+                  <Input label="Password" type="password" placeholder="8+ chars, uppercase, number" value={form.password} onChange={(e) => updateField("password", e.target.value)} required />
+                </div>
+              </section>
 
-          <Input
-            label="Password"
-            type="password"
-            placeholder="8+ chars, uppercase, number"
-            value={form.password}
-            onChange={(e) => updateField("password", e.target.value)}
-            required
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-navy-200 mb-2">Select Plan</label>
-            <select
-              className="input-field"
-              value={form.plan}
-              onChange={(e) => { updateField("plan", e.target.value); setForm((prev) => ({ ...prev, states: [] })); }}
-            >
-              {plans.map((p) => (
-                <option key={p.value} value={p.value} className="bg-navy-900">
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {currentPlan ? (
-            <div className="rounded-2xl border border-brand-500/20 bg-brand-500/10 p-4">
-              <p className="text-sm font-semibold text-white">Subscription disclosure</p>
-              <div className="mt-3 space-y-2 text-xs leading-relaxed text-navy-200">
-                <p><span className="text-white">Selected plan:</span> {currentPlan.name}</p>
-                <p><span className="text-white">Free trial:</span> {currentPlan.trialDays} days</p>
-                <p><span className="text-white">Price after trial:</span> ${currentPlan.price}/month</p>
-                <p><span className="text-white">First billing date:</span> {firstBillingDate}</p>
-                <p>Your free trial lasts {currentPlan.trialDays} days. After the trial, your selected plan will automatically renew at ${currentPlan.price} per month unless you cancel before the trial ends.</p>
-                <p>You can cancel from Settings &gt; Subscription before your trial ends to avoid future charges. Refunds are reviewed case by case and are not guaranteed after a billing period begins.</p>
-                <p>Support: <a href="mailto:mytruckingleads@gmail.com" className="text-brand-300 underline">mytruckingleads@gmail.com</a></p>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-danger-500/20 bg-danger-500/10 p-3 text-sm text-danger-300">
-              Plan billing details are unavailable. Please try again.
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <Input
-              label="Billing Address"
-              type="text"
-              placeholder="123 Main St"
-              value={form.billingAddressLine1}
-              onChange={(e) => updateField("billingAddressLine1", e.target.value)}
-              required
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input
-                label="City"
-                type="text"
-                placeholder="Dallas"
-                value={form.billingCity}
-                onChange={(e) => updateField("billingCity", e.target.value)}
-                required
-              />
-              <div>
-                <label className="block text-sm font-medium text-navy-200 mb-2">State</label>
-                <select
-                  className="input-field"
-                  value={form.billingState}
-                  onChange={(e) => updateField("billingState", e.target.value)}
-                  required
-                >
-                  <option value="" className="bg-navy-900">State</option>
+              <section className="space-y-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-300">Lead Territory</p>
+                  <h2 className="mt-1 text-lg font-semibold text-white">
+                    Select {stateLimit === 1 ? "one state" : `up to ${stateLimit} states`}
+                  </h2>
+                </div>
+                <div className="grid max-h-44 grid-cols-5 gap-1.5 overflow-y-auto rounded-xl border border-white/5 bg-navy-900/50 p-3 sm:grid-cols-10">
                   {US_STATES.map((state) => (
-                    <option key={state} value={state} className="bg-navy-900">{state}</option>
+                    <button
+                      key={state}
+                      type="button"
+                      onClick={() => toggleState(state)}
+                      className={`rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
+                        form.states.includes(state)
+                          ? "bg-brand-500 text-white shadow-sm"
+                          : "bg-navy-800 text-navy-400 hover:bg-navy-700 hover:text-white"
+                      }`}
+                    >
+                      {state}
+                    </button>
                   ))}
-                </select>
-              </div>
-              <Input
-                label="ZIP"
-                type="text"
-                placeholder="75001"
-                value={form.billingPostalCode}
-                onChange={(e) => updateField("billingPostalCode", e.target.value)}
-                required
-              />
+                </div>
+                <p className="text-xs text-brand-400">
+                  {form.states.length ? `Selected: ${form.states.join(", ")} (${form.states.length}/${stateLimit})` : "No lead state selected yet."}
+                </p>
+              </section>
             </div>
-          </div>
 
-          {/* State Selection */}
-          <div>
-            <label className="block text-sm font-medium text-navy-200 mb-2">
-              Lead Territory {stateLimit === 1 ? "(Select 1 state)" : `(Select up to ${stateLimit} states)`}
-            </label>
-            <p className="text-xs text-navy-500 mb-3">
-              {stateLimit === 1
-                ? "Your plan includes leads from one state. Upgrade to Agency for multi-state coverage."
-                : "Agency plan: choose up to 3 states for your included lead territories. Extra states can be added for $49/month per state."
-              }
-            </p>
-            <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 max-h-40 overflow-y-auto p-3 bg-navy-900/50 rounded-xl border border-white/5">
-              {US_STATES.map((state) => (
-                <button
-                  key={state}
-                  type="button"
-                  onClick={() => toggleState(state)}
-                  className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                    form.states.includes(state)
-                      ? "bg-brand-500 text-white shadow-sm"
-                      : "bg-navy-800 text-navy-400 hover:bg-navy-700 hover:text-white"
-                  }`}
-                >
-                  {state}
-                </button>
-              ))}
-            </div>
-            {form.states.length > 0 && (
-              <p className="text-xs text-brand-400 mt-2">
-                Selected: {form.states.join(", ")} ({form.states.length}/{stateLimit})
-              </p>
-            )}
-          </div>
+            <aside className="space-y-5">
+              <section className="rounded-2xl border border-white/10 bg-navy-950/50 p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-300">Plan</p>
+                <div className="mt-4 space-y-3">
+                  {plans.map((plan) => (
+                    <button
+                      key={plan.value}
+                      type="button"
+                      onClick={() => selectPlan(plan.value)}
+                      className={`w-full rounded-xl border p-4 text-left transition-all ${
+                        form.plan === plan.value
+                          ? "border-brand-400 bg-brand-500/15 shadow-[0_0_22px_rgba(20,124,255,0.16)]"
+                          : "border-white/10 bg-white/[0.03] hover:border-brand-400/50"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-white">{plan.label}</p>
+                          <p className="mt-1 text-xs text-navy-400">{plan.description}</p>
+                        </div>
+                        <p className="text-sm font-bold text-white">${plan.price}/mo</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
 
-          {/* Legal Agreements */}
-          <div className="space-y-3 pt-2">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={agreedSubscription}
-                onChange={(e) => setAgreedSubscription(e.target.checked)}
-                className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30 mt-0.5"
-              />
-              <span className="text-xs text-navy-300">
-                I agree to the{" "}
-                <Link to="/terms" className="text-brand-400 underline" target="_blank">Terms of Service</Link>,{" "}
-                <Link to="/privacy" className="text-brand-400 underline" target="_blank">Privacy Policy</Link>, and{" "}
-                <Link to="/subscription-agreement" className="text-brand-400 underline" target="_blank">Subscription Agreement</Link>.
-                I understand that my free trial will convert to a paid subscription unless I cancel before the trial ends.
-              </span>
-            </label>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={agreedCompliance}
-                onChange={(e) => setAgreedCompliance(e.target.checked)}
-                className="rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30 mt-0.5"
-              />
-              <span className="text-xs text-navy-300">
-                I agree to comply with the <Link to="/terms#communication-compliance" className="text-brand-400 underline" target="_blank">Communication Compliance Policy</Link>,
-                including TCPA regulations, CAN-SPAM Act, and the National Do Not Call Registry.
-                I will not contact any individual or business that has opted out of communications.
-              </span>
-            </label>
-          </div>
+              {currentPlan && (
+                <section className="rounded-2xl border border-brand-500/20 bg-brand-500/10 p-5">
+                  <p className="text-sm font-semibold text-white">Trial summary</p>
+                  <div className="mt-3 space-y-2 text-xs leading-relaxed text-navy-200">
+                    <p><span className="text-white">Selected plan:</span> {currentPlan.label}</p>
+                    <p><span className="text-white">Free trial:</span> {currentPlan.trialDays} days</p>
+                    <p><span className="text-white">After trial:</span> ${currentPlan.price}/month</p>
+                    <p><span className="text-white">First billing date:</span> {firstBillingDate}</p>
+                    <p>Stripe securely collects payment details. You can cancel before the trial ends to avoid future charges.</p>
+                  </div>
+                </section>
+              )}
 
-          <Button type="submit" loading={loading} className="w-full" disabled={!agreedSubscription || !agreedCompliance || !currentPlan}>
-            Create Account
-          </Button>
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-navy-950/50 p-5">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={agreedSubscription}
+                    onChange={(e) => setAgreedSubscription(e.target.checked)}
+                    className="mt-0.5 rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30"
+                  />
+                  <span className="text-xs text-navy-300">
+                    I agree to the{" "}
+                    <Link to="/terms" className="text-brand-400 underline" target="_blank">Terms</Link>,{" "}
+                    <Link to="/privacy" className="text-brand-400 underline" target="_blank">Privacy Policy</Link>, and{" "}
+                    <Link to="/subscription-agreement" className="text-brand-400 underline" target="_blank">Subscription Agreement</Link>.
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={agreedCompliance}
+                    onChange={(e) => setAgreedCompliance(e.target.checked)}
+                    className="mt-0.5 rounded border-navy-600 bg-navy-800 text-brand-500 focus:ring-brand-500/30"
+                  />
+                  <span className="text-xs text-navy-300">
+                    I agree to follow TCPA, CAN-SPAM, Do Not Call, and opt-out requirements when contacting leads.
+                  </span>
+                </label>
+              </section>
+
+              <Button type="submit" loading={loading} className="w-full" disabled={!agreedSubscription || !agreedCompliance || !currentPlan}>
+                Continue to Stripe
+              </Button>
+            </aside>
+          </div>
         </form>
 
-        <p className="text-center text-sm text-navy-400 mt-6">
+        <p className="mt-6 text-center text-sm text-navy-400">
           Already have an account?{" "}
-          <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium">
+          <Link to="/login" className="font-medium text-brand-400 hover:text-brand-300">
             Sign in
           </Link>
         </p>
