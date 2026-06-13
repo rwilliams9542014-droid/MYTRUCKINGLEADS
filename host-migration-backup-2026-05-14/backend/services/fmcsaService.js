@@ -681,9 +681,15 @@ function parseSmsSafetyPage(pageText) {
 function parseSaferSnapshotPage(pageHtml) {
   const pageText = htmlToText(pageHtml);
   const cargoTypes = extractSaferCargoTypes(pageHtml);
+  const usdotStatus = textMatch(
+    pageText,
+    /USDOT Status:\s*(ACTIVE|INACTIVE|PENDING|OUT-OF-SERVICE|OUT OF SERVICE|NOT ACTIVE)/i
+  );
 
   if (/Record Inactive/i.test(pageText) || /is INACTIVE in the SAFER database/i.test(pageText)) {
     return {
+      usdotStatus: usdotStatus || "Inactive",
+      dotStatus: usdotStatus || "Inactive",
       authorityStatus: "Inactive",
       operatingStatus: "Inactive",
       cargo: cargoTypes.join(", "),
@@ -714,6 +720,8 @@ function parseSaferSnapshotPage(pageHtml) {
   }
 
   return {
+    usdotStatus,
+    dotStatus: usdotStatus,
     authorityStatus: authorityStatus || operatingStatus || "",
     operatingStatus,
     safetyRating: safetyMatch?.[2] || "",
@@ -1214,6 +1222,8 @@ function mergeCarrierData(apiCarrier, censusCarrier, smsSafety, saferData, qcmob
   if (!apiCarrier && !censusCarrier) {
     return {
       ...saferData,
+      dotStatus: saferData?.dotStatus || saferData?.usdotStatus || "",
+      usdotStatus: saferData?.usdotStatus || saferData?.dotStatus || "",
       safetyRating: mergedSmsSafety?.safetyRating || saferData?.safetyRating || "Unknown",
       safetyRatingDate: mergedSmsSafety?.safetyRatingDate || saferData?.safetyRatingDate || "",
       authorityStatus: authority.authorityStatus || saferData?.authorityStatus || "",
@@ -1231,6 +1241,8 @@ function mergeCarrierData(apiCarrier, censusCarrier, smsSafety, saferData, qcmob
   if (!apiCarrier) {
     return {
       ...censusCarrier,
+      dotStatus: saferData?.dotStatus || saferData?.usdotStatus || censusCarrier.dotStatus || censusCarrier.usdotStatus || "",
+      usdotStatus: saferData?.usdotStatus || saferData?.dotStatus || censusCarrier.usdotStatus || censusCarrier.dotStatus || "",
       safetyRating: mergedSmsSafety?.safetyRating || saferData?.safetyRating || censusCarrier.safetyRating,
       safetyRatingDate: mergedSmsSafety?.safetyRatingDate || saferData?.safetyRatingDate || censusCarrier.safetyRatingDate,
       authorityStatus: authority.authorityStatus || saferData?.authorityStatus || censusCarrier.authorityStatus,
@@ -1254,6 +1266,8 @@ function mergeCarrierData(apiCarrier, censusCarrier, smsSafety, saferData, qcmob
   if (!censusCarrier) {
     return {
       ...apiCarrier,
+      dotStatus: saferData?.dotStatus || saferData?.usdotStatus || apiCarrier.dotStatus || apiCarrier.usdotStatus || "",
+      usdotStatus: saferData?.usdotStatus || saferData?.dotStatus || apiCarrier.usdotStatus || apiCarrier.dotStatus || "",
       safetyRating: mergedSmsSafety?.safetyRating || saferData?.safetyRating || apiCarrier.safetyRating,
       safetyRatingDate: mergedSmsSafety?.safetyRatingDate || saferData?.safetyRatingDate || apiCarrier.safetyRatingDate,
       authorityStatus: authority.authorityStatus || saferData?.authorityStatus || apiCarrier.authorityStatus || "",
@@ -1277,6 +1291,8 @@ function mergeCarrierData(apiCarrier, censusCarrier, smsSafety, saferData, qcmob
 
   return {
     ...apiCarrier,
+    dotStatus: saferData?.dotStatus || saferData?.usdotStatus || censusCarrier.dotStatus || censusCarrier.usdotStatus || apiCarrier.dotStatus || apiCarrier.usdotStatus || "",
+    usdotStatus: saferData?.usdotStatus || saferData?.dotStatus || censusCarrier.usdotStatus || censusCarrier.dotStatus || apiCarrier.usdotStatus || apiCarrier.dotStatus || "",
     carrierName: censusCarrier.carrierName || apiCarrier.carrierName,
     dot: censusCarrier.dot || apiCarrier.dot,
     mc: censusCarrier.mc || apiCarrier.mc,
