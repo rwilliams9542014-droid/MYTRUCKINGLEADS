@@ -470,6 +470,21 @@ function hasQcmobileSafetyDetail(carrier = {}) {
   );
 }
 
+function hasDotStatusData(carrier = {}) {
+  return Boolean(clean(firstValue(
+    carrier.dotStatus,
+    carrier.usdotStatus,
+    carrier.saferData?.dotStatus,
+    carrier.saferData?.usdotStatus,
+    carrier.raw?.saferData?.dotStatus,
+    carrier.raw?.saferData?.usdotStatus,
+    carrier.raw?.liveCarrier?.dotStatus,
+    carrier.raw?.liveCarrier?.usdotStatus,
+    carrier.raw?.liveCarrier?.saferData?.dotStatus,
+    carrier.raw?.liveCarrier?.saferData?.usdotStatus
+  )));
+}
+
 function insuranceLimitText(row = {}) {
   const max = clean(row.max_cov_amount);
   const underlying = clean(row.underl_lim_amount);
@@ -1639,7 +1654,7 @@ export async function getCarrierIntelligenceProfile(req, res) {
   try {
     let profile = null;
     const cached = await findCachedCarrier(dotNumber);
-    if (cached && hasCargoData(cached) && hasQcmobileSafetyDetail(cached)) {
+    if (cached && hasCargoData(cached) && hasQcmobileSafetyDetail(cached) && hasDotStatusData(cached)) {
       profile = mapProfile(cached, { sourceType: "cached" });
       mergeInsurance(profile, await loadInsuranceSnapshot(dotNumber));
     } else {
