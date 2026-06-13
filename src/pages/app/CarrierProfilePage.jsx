@@ -977,7 +977,6 @@ export default function CarrierProfilePage() {
   const headerBadges = [
     ["DOT Status", carrier.dotStatusDisplay],
     ["Operating Authority Status", carrier.operatingStatusDisplay],
-    ["Out-of-Service", carrier.outOfServiceStatusDisplay],
   ];
 
   return (
