@@ -1101,7 +1101,7 @@ async function fetchSaferSnapshotByDot(dot) {
   if (!dot) return null;
 
   return withFmcsaCache(
-    { source: "fmcsa-safer-snapshot-v3", identifier: dot, dotNumber: dot },
+    { source: "fmcsa-safer-snapshot-v4", identifier: dot, dotNumber: dot },
     async () => {
       const response = await axios.get(FMCSA_SAFER_URL, {
         params: {
