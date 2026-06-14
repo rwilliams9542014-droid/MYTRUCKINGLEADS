@@ -793,6 +793,8 @@ async function handlePaymentSucceeded(invoice) {
     const context = await getInvoiceUserContext(invoice);
     if (!context) return;
 
+    await handleSubscriptionEvent(context.subscription, context.user.id);
+
     const periodEnd = getSubscriptionPeriodEnd(context.subscription);
     const renewalDate = periodEnd ? new Date(periodEnd).toLocaleDateString("en-US", {
       year: "numeric",
@@ -819,6 +821,8 @@ async function handlePaymentFailed(invoice) {
   try {
     const context = await getInvoiceUserContext(invoice);
     if (!context) return;
+
+    await handleSubscriptionEvent(context.subscription, context.user.id);
 
     const failureReason =
       invoice.last_payment_error?.message ||
