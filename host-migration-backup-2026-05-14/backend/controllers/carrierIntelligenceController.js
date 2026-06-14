@@ -19,8 +19,10 @@ import {
   incrementTrialUsage,
   maskTrialCarrierContacts
 } from "../utils/trialAccess.js";
+import { isPaidPlan } from "../utils/planAccess.js";
 
 const PUBLIC_CONTACT_LOCK_MESSAGE = "Create an account to reveal carrier phone and email.";
+const PAYMENT_REQUIRED_MESSAGE = "Update your billing to restore carrier search and profile access.";
 const LIVE_FMCSA_FALLBACK_MESSAGE = "Live FMCSA request failed. Showing saved carrier data where available.";
 const SAVED_PROFILE_REFRESH_MESSAGE = "Saved carrier profile loaded. Live FMCSA request failed.";
 
@@ -1429,6 +1431,12 @@ async function resolveLiveNameSearch({ name, state = "", city = "", limit = 5 } 
 }
 
 export async function searchCarrierIntelligence(req, res) {
+  if (req.user && !isPaidPlan(req.user)) {
+    return res.status(403).json({
+      error: PAYMENT_REQUIRED_MESSAGE
+    });
+  }
+
   const searchInput = parseCarrierSearchInput(req.query);
   const { dot, mc, name, queryText, preferLiveLookup } = searchInput;
   const query = queryText;
@@ -1648,6 +1656,12 @@ export async function searchCarrierIntelligence(req, res) {
 }
 
 export async function getCarrierIntelligenceProfile(req, res) {
+  if (req.user && !isPaidPlan(req.user)) {
+    return res.status(403).json({
+      error: PAYMENT_REQUIRED_MESSAGE
+    });
+  }
+
   const dotNumber = clean(req.params.dotNumber || req.params.dot);
   if (!dotNumber) return res.status(400).json({ error: "DOT number is required" });
 

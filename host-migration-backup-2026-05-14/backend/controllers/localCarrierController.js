@@ -1009,6 +1009,8 @@ async function fetchAndStoreLiveRenewals({ from, to, state, limit }) {
 }
 
 async function listPostgresCarriers(req, res) {
+  if (!requirePaidPlan(req, res)) return;
+
   const page = Math.max(parseInteger(req.query.page, 1), 1);
   const limit = Math.min(Math.max(parseInteger(req.query.limit, 25), 1), 250);
   const skip = (page - 1) * limit;
@@ -1332,6 +1334,8 @@ async function enforceLeadPlanState(req, res, leadType) {
 
 export async function listLocalCarriers(req, res) {
   try {
+    if (!requirePaidPlan(req, res)) return;
+
     if (!isMongoConnected()) {
       return listPostgresCarriers(req, res);
     }
