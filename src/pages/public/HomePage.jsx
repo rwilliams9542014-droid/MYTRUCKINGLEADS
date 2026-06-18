@@ -934,7 +934,7 @@ export default function HomePage() {
 
       <section className="mtl-cta">
         <h2>Ready to work trucking leads with better timing?</h2>
-        <p>Start Producer Pro for $149.99/month. Trial access is intentionally limited to 10 Lead Desk exports per day, renewals 15 days out, and New DOT leads 15 days back.</p>
+        <p>Start Producer Pro for $149.99/month. Paid accounts can export up to 100 carriers per day and 1,000 per month. Trial access is limited to 10 Lead Desk exports per day, renewals 15 days out, and New DOT leads 15 days back.</p>
         <div className="mtl-actions">
           <Link to="/signup" className="mtl-btn-primary">Start Free Trial</Link>
           <Link to="/quote-request" className="mtl-btn-secondary">Truckers: Get a Quote</Link>

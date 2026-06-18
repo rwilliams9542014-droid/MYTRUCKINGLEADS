@@ -1,3 +1,5 @@
+import { isOwnerUser } from "./ownerAccess.js";
+
 const PLAN_ALIASES = {
   basic: "pro",
   starter: "pro",
@@ -12,11 +14,11 @@ const RENEWAL_WINDOWS = {
 };
 
 const MONTHLY_EXPORT_LIMITS = {
-  pro: null
+  pro: 1000
 };
 
 const DAILY_EXPORT_LIMITS = {
-  pro: null
+  pro: 100
 };
 
 export const PLAN_DETAILS = {
@@ -25,7 +27,7 @@ export const PLAN_DETAILS = {
     price: 149.99,
     annualPrice: 1499.90,
     trialDays: 3,
-    description: "Simple trucking lead workspace with one included state, renewal opportunities up to 60 days out, New DOT lead history up to 30 days back, carrier intelligence, CRM, and CSV exports. Additional states are $49.99/month each and additional users are $19.99/month each."
+    description: "Simple trucking lead workspace with one included state, renewal opportunities up to 60 days out, New DOT lead history up to 30 days back, carrier intelligence, Kanban and table CRM views, and CSV exports up to 100 per day and 1,000 per month. Additional states are $49.99/month each and additional users are $19.99/month each."
   }
 };
 
@@ -91,6 +93,7 @@ export function hasActiveSubscription(user) {
 }
 
 export function isPaidPlan(user) {
+  if (hasOwnerAccess(user)) return true;
   const plan = getUserPlan(user);
   return plan === "pro" && hasActiveSubscription(user);
 }
@@ -103,12 +106,16 @@ export function isActiveTrial(user = {}) {
   return String(user?.subscription_status || user?.subscriptionStatus || "").toLowerCase() === "trialing";
 }
 
+export function hasOwnerAccess(user = {}) {
+  return isOwnerUser(user) || ["owner", "admin", "super_admin", "superadmin"].includes(String(user?.role || "").toLowerCase());
+}
+
 export function canUseTextMessaging(user) {
   return false;
 }
 
 export function canSendEmail(user) {
-  return getUserPlan(user) === "pro" && hasActiveSubscription(user);
+  return hasOwnerAccess(user) || (getUserPlan(user) === "pro" && hasActiveSubscription(user));
 }
 
 export function canSendSms(user) {
@@ -130,6 +137,7 @@ export function getMonthlySmsLimit(user) {
 }
 
 export function getMonthlyExportLimit(user) {
+  if (hasOwnerAccess(user)) return null;
   if (isActiveTrial(user)) return null;
   const plan = getUserPlan(user);
   return Object.prototype.hasOwnProperty.call(MONTHLY_EXPORT_LIMITS, plan)
@@ -138,6 +146,7 @@ export function getMonthlyExportLimit(user) {
 }
 
 export function getDailyExportLimit(user) {
+  if (hasOwnerAccess(user)) return null;
   if (isActiveTrial(user)) return TRIAL_DAILY_EXPORT_LIMIT;
   const plan = getUserPlan(user);
   return Object.prototype.hasOwnProperty.call(DAILY_EXPORT_LIMITS, plan)
@@ -180,12 +189,14 @@ export function getDailyExportUsage(user, now = new Date()) {
 }
 
 export function getRenewalWindowDays(user) {
+  if (hasOwnerAccess(user)) return null;
   if (!isPaidPlan(user)) return 0;
   if (isActiveTrial(user)) return TRIAL_RENEWAL_WINDOW_DAYS;
   return RENEWAL_WINDOWS[getUserPlan(user)] || 0;
 }
 
 export function getLeadHistoryDays(user) {
+  if (hasOwnerAccess(user)) return null;
   if (!isPaidPlan(user)) return 0;
   if (isActiveTrial(user)) return TRIAL_LEAD_HISTORY_DAYS;
   const plan = getUserPlan(user);
@@ -212,6 +223,7 @@ export function getPlanAccessSummary(user) {
   const exportUsage = getMonthlyExportUsage(user);
   const dailyExportUsage = getDailyExportUsage(user);
   const subscriptionActive = hasActiveSubscription(user);
+  const ownerAccess = hasOwnerAccess(user);
 
   return {
     plan,
@@ -223,8 +235,8 @@ export function getPlanAccessSummary(user) {
     annualPrice: PLAN_DETAILS[plan]?.annualPrice || 0,
     trialDays: PLAN_DETAILS[plan]?.trialDays || 0,
     leadHistoryDays: getLeadHistoryDays(user),
-    canUseCrm: isPaidPlan(user),
-    canViewContacts: isPaidPlan(user),
+    canUseCrm: ownerAccess || isPaidPlan(user),
+    canViewContacts: ownerAccess || isPaidPlan(user),
     canUseTextMessaging: canUseTextMessaging(user),
     canSendEmail: canSendEmail(user),
     canSendSms: canSendSms(user),
@@ -232,10 +244,10 @@ export function getPlanAccessSummary(user) {
     bulkSmsAllowed: canUseBulkMessaging(user),
     monthlyEmailLimit: getMonthlyEmailLimit(user),
     monthlySmsLimit: getMonthlySmsLimit(user),
-    canUseNewVentures: isPaidPlan(user),
-    canUseRenewalLeads: isPaidPlan(user),
-    canUseAdvancedFilters: plan === "pro" && hasActiveSubscription(user),
-    canExportCsv: isPaidPlan(user),
+    canUseNewVentures: ownerAccess || isPaidPlan(user),
+    canUseRenewalLeads: ownerAccess || isPaidPlan(user),
+    canUseAdvancedFilters: ownerAccess || (plan === "pro" && hasActiveSubscription(user)),
+    canExportCsv: ownerAccess || isPaidPlan(user),
     monthlyExportLimit: exportUsage.limit,
     monthlyExportsUsed: exportUsage.used,
     monthlyExportRemaining: exportUsage.remaining,
@@ -245,14 +257,14 @@ export function getPlanAccessSummary(user) {
     canUseMarketInsights: false,
     canUseCarrierIntelligenceAssistant: false,
     requiresSingleState: false,
-    canSearchAllStates: false,
+    canSearchAllStates: ownerAccess,
     userLimit: Object.prototype.hasOwnProperty.call(USER_LIMITS, plan) ? USER_LIMITS[plan] : 1,
     savedLeadLimit: Object.prototype.hasOwnProperty.call(SAVED_LEAD_LIMITS, plan) ? SAVED_LEAD_LIMITS[plan] : 0,
     canAccessLeadMarketplace: isPaidPlan(user),
     canPurchaseMarketplaceLeads: isPaidPlan(user),
     marketplaceFreeLeadCreditsPerMonth: MARKETPLACE_FREE_LEAD_CREDITS[plan] ?? 0,
     marketplaceLeadPricing: MARKETPLACE_LEAD_PRICING[plan] || MARKETPLACE_LEAD_PRICING.pro,
-    receivesPriorityLeadNotifications: plan === "pro" && subscriptionActive,
+    receivesPriorityLeadNotifications: ownerAccess || (plan === "pro" && subscriptionActive),
     receivesEliteGoldLeadAlerts: false,
     additionalStatePrice: 49.99,
     additionalUserPrice: 19.99

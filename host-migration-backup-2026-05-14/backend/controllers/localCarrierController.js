@@ -1281,6 +1281,11 @@ async function enforceLeadPlanState(req, res, leadType) {
     return false;
   }
 
+  if (access.canSearchAllStates) {
+    applyLeadDateWindowForPlan(req, leadType);
+    return true;
+  }
+
   if (access.requiresSingleState) {
     if (!accountState && requestedState) {
       await dbQuery(

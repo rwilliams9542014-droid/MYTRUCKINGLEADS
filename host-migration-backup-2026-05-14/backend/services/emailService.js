@@ -305,9 +305,9 @@ export async function sendEmailMessage({ to, subject, html, text, replyTo = null
 const emailTemplates = {
   subscriptionConfirmation: (userName, plan, renewalDate, appName, appUrl) => {
     const planDetails = {
-      basic: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "CRM pipeline", "Lead Desk CSV exports"] },
-      pro: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Additional states at $49.99/month each", "Additional users at $19.99/month each", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "CRM pipeline", "Lead Desk CSV exports"] },
-      premium: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "CRM pipeline", "Lead Desk CSV exports"] }
+      basic: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "Kanban and table CRM views", "Lead Desk CSV exports up to 100/day and 1,000/month"] },
+      pro: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Additional states at $49.99/month each", "Additional users at $19.99/month each", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "Kanban and table CRM views", "Lead Desk CSV exports up to 100/day and 1,000/month"] },
+      premium: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "Kanban and table CRM views", "Lead Desk CSV exports up to 100/day and 1,000/month"] }
     };
 
     const details = planDetails[plan] || planDetails.basic;

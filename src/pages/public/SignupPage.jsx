@@ -284,6 +284,7 @@ export default function SignupPage() {
                     <p><span className="text-white">Included state:</span> 1</p>
                     <p><span className="text-white">Additional states:</span> {additionalStateCount} x $49.99/month</p>
                     <p><span className="text-white">Additional users:</span> $19.99/month each after signup</p>
+                    <p><span className="text-white">Paid export limit:</span> 100 carriers/day and 1,000/month</p>
                     <p><span className="text-white">Trial limits:</span> 10 Lead Desk exports/day, renewals 15 days out, New DOT leads 15 days back</p>
                     <p><span className="text-white">First billing date:</span> {firstBillingDate}</p>
                     <p>Stripe securely collects payment details. You can cancel before the trial ends to avoid future charges.</p>
