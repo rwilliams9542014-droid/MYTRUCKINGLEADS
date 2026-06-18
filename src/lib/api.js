@@ -124,6 +124,10 @@ export const api = {
     method: "POST",
     body: JSON.stringify({ dotNumbers, mode }),
   }),
+  claimExportQuota: (payload) => apiRequest("/api/carriers/exports/claim", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
 
   getNewDotLeads: (params) => {
     const search = queryString(params);

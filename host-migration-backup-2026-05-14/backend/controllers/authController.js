@@ -25,11 +25,9 @@ function effectiveSubscriptionStatus(user) {
 
 function publicPlan(plan, subscriptionStatus) {
   const normalizedPlan = String(plan || "").toLowerCase();
-  if (normalizedPlan === "basic") return "starter";
-  if (normalizedPlan === "premium") return "agency";
   if (normalizedPlan === "trial") return "trial";
   if (!normalizedPlan && String(subscriptionStatus || "").toLowerCase() === "trialing") return "trial";
-  return normalizedPlan || "starter";
+  return "producer-pro";
 }
 
 function publicUser(user) {
@@ -163,15 +161,15 @@ export async function signup(req, res, next) {
     const validatedBillingPostalCode = validateString(billingPostalCode, "Billing ZIP/postal code", 3, 20);
     const validatedBillingCountry = validateString(billingCountry || "US", "Billing country", 2, 80);
     const validatedPassword = validatePassword(password);
-    const validatedPlan = validatePlan(plan || "basic");
+    const validatedPlan = validatePlan(plan || "pro");
     const submittedLeadStates = Array.isArray(leadStates) ? leadStates : (leadState ? [leadState] : []);
     const validatedLeadStates = Array.from(new Set(submittedLeadStates.map((state) => validateLeadState(state))));
-    const maxStates = validatedPlan === "premium" ? 3 : 1;
+    const maxStates = 50;
     if (!validatedLeadStates.length) {
       return next(new ValidationError("Select at least one lead state."));
     }
     if (validatedLeadStates.length > maxStates) {
-      return next(new ValidationError(`${validatedPlan === "premium" ? "Agency" : "This"} plan includes ${maxStates} lead state${maxStates === 1 ? "" : "s"}.`));
+      return next(new ValidationError(`Select ${maxStates} or fewer lead states.`));
     }
     const validatedLeadState = validatedLeadStates[0];
 
@@ -242,6 +240,8 @@ export async function signup(req, res, next) {
       customerEmail: validatedEmail,
       userId: user.id,
       billingCycle: "monthly",
+      additionalStates: Math.max(validatedLeadStates.length - 1, 0),
+      additionalUsers: 0,
       consentRecord
     });
     await attachCheckoutSessionToConsent(consentRecord.id, checkoutSession.id);

@@ -8,12 +8,12 @@ import {
 } from "./planAccess.js";
 
 function exportLimitMessage(access, monthlyUsage, dailyUsage) {
-  if (access.monthlyExportLimit === null) {
-    return "";
-  }
-
   if (access.dailyExportLimit !== null && (dailyUsage?.remaining ?? 0) <= 0) {
     return `Daily export limit reached. ${access.planName} includes up to ${access.dailyExportLimit} exported records per day.`;
+  }
+
+  if (access.monthlyExportLimit === null) {
+    return "";
   }
 
   if ((monthlyUsage?.remaining ?? 0) <= 0) {

@@ -1,94 +1,68 @@
 const PLAN_ALIASES = {
-  starter: "basic",
-  agency: "premium"
+  basic: "pro",
+  starter: "pro",
+  agency: "pro",
+  premium: "pro",
+  growth: "pro",
+  professional: "pro"
 };
 
 const RENEWAL_WINDOWS = {
-  basic: 30,
-  pro: 365,
-  premium: 365
+  pro: 60
 };
 
 const MONTHLY_EXPORT_LIMITS = {
-  basic: 300,
-  pro: 1000,
-  premium: null
+  pro: null
 };
 
 const DAILY_EXPORT_LIMITS = {
-  basic: 100,
-  pro: 250,
-  premium: null
+  pro: null
 };
 
 export const PLAN_DETAILS = {
-  basic: {
-    name: "Starter",
-    price: 79,
-    annualPrice: 790,
-    trialDays: 3,
-    description: "Solo producer plan with one state, new DOT leads, basic renewals, carrier profiles, FMCSA data, basic CRM, 300 exported records per month, and 30-day lead history."
-  },
   pro: {
-    name: "Pro",
-    price: 199,
-    annualPrice: 1990,
+    name: "Producer Pro",
+    price: 149.99,
+    annualPrice: 1499.90,
     trialDays: 3,
-    description: "Full one-state SaaS workspace with unlimited lead searches, renewal intelligence, FMCSA/SMS, licensing and insurance, CRM pipeline, 1,000 exported records per month, advanced filters, cargo filters, follow-up tracking, lead freshness, and 90-day lead history."
-  },
-  premium: {
-    name: "Agency Unlimited",
-    price: 499,
-    annualPrice: 4990,
-    trialDays: 3,
-    description: "Agency plan with every Pro feature plus multiple users, team CRM, shared pipeline, unlimited exports, future API access, alerts, integrations, and premium support."
+    description: "Simple trucking lead workspace with one included state, renewal opportunities up to 60 days out, New DOT lead history up to 30 days back, carrier intelligence, CRM, and CSV exports. Additional states are $49.99/month each and additional users are $19.99/month each."
   }
 };
 
 const USER_LIMITS = {
-  basic: 1,
-  pro: 1,
-  premium: null
+  pro: 1
 };
 
 const LEAD_HISTORY_DAYS = {
-  basic: 30,
-  pro: 90,
-  premium: null
+  pro: 30
 };
 
 const SAVED_LEAD_LIMITS = {
-  basic: 50,
-  pro: 500,
-  premium: null
+  pro: null
 };
 
 const MARKETPLACE_FREE_LEAD_CREDITS = {
-  basic: 0,
-  pro: 0,
-  premium: 10
+  pro: 0
 };
 
 const MARKETPLACE_LEAD_PRICING = {
-  basic: { Bronze: 20, Silver: 40, Gold: "75-100" },
-  pro: { Bronze: 20, Silver: 40, Gold: "75-100" },
-  premium: { Bronze: 10, Silver: 15, Gold: 20 }
+  pro: { Bronze: 20, Silver: 40, Gold: "75-100" }
 };
 
 const MONTHLY_EMAIL_LIMITS = {
-  basic: 0,
-  pro: 500,
-  premium: 2500
+  pro: 500
 };
 
 const MONTHLY_SMS_LIMITS = {
-  basic: 0,
-  pro: 250,
-  premium: 1500
+  pro: 250
 };
 
+const TRIAL_RENEWAL_WINDOW_DAYS = 15;
+const TRIAL_LEAD_HISTORY_DAYS = 15;
+const TRIAL_DAILY_EXPORT_LIMIT = 10;
+
 export function normalizePlan(plan) {
-  const value = String(plan || "basic").toLowerCase();
+  const value = String(plan || "pro").toLowerCase();
   return PLAN_ALIASES[value] || value;
 }
 
@@ -118,11 +92,15 @@ export function hasActiveSubscription(user) {
 
 export function isPaidPlan(user) {
   const plan = getUserPlan(user);
-  return ["basic", "pro", "premium"].includes(plan) && hasActiveSubscription(user);
+  return plan === "pro" && hasActiveSubscription(user);
 }
 
 export function isPremiumPlan(user) {
-  return getUserPlan(user) === "premium" && hasActiveSubscription(user);
+  return false;
+}
+
+export function isActiveTrial(user = {}) {
+  return String(user?.subscription_status || user?.subscriptionStatus || "").toLowerCase() === "trialing";
 }
 
 export function canUseTextMessaging(user) {
@@ -130,7 +108,7 @@ export function canUseTextMessaging(user) {
 }
 
 export function canSendEmail(user) {
-  return ["pro", "premium"].includes(getUserPlan(user)) && hasActiveSubscription(user);
+  return getUserPlan(user) === "pro" && hasActiveSubscription(user);
 }
 
 export function canSendSms(user) {
@@ -152,6 +130,7 @@ export function getMonthlySmsLimit(user) {
 }
 
 export function getMonthlyExportLimit(user) {
+  if (isActiveTrial(user)) return null;
   const plan = getUserPlan(user);
   return Object.prototype.hasOwnProperty.call(MONTHLY_EXPORT_LIMITS, plan)
     ? MONTHLY_EXPORT_LIMITS[plan]
@@ -159,6 +138,7 @@ export function getMonthlyExportLimit(user) {
 }
 
 export function getDailyExportLimit(user) {
+  if (isActiveTrial(user)) return TRIAL_DAILY_EXPORT_LIMIT;
   const plan = getUserPlan(user);
   return Object.prototype.hasOwnProperty.call(DAILY_EXPORT_LIMITS, plan)
     ? DAILY_EXPORT_LIMITS[plan]
@@ -201,7 +181,15 @@ export function getDailyExportUsage(user, now = new Date()) {
 
 export function getRenewalWindowDays(user) {
   if (!isPaidPlan(user)) return 0;
+  if (isActiveTrial(user)) return TRIAL_RENEWAL_WINDOW_DAYS;
   return RENEWAL_WINDOWS[getUserPlan(user)] || 0;
+}
+
+export function getLeadHistoryDays(user) {
+  if (!isPaidPlan(user)) return 0;
+  if (isActiveTrial(user)) return TRIAL_LEAD_HISTORY_DAYS;
+  const plan = getUserPlan(user);
+  return Object.prototype.hasOwnProperty.call(LEAD_HISTORY_DAYS, plan) ? LEAD_HISTORY_DAYS[plan] : 0;
 }
 
 export function getRenewalWindowEndDate(user) {
@@ -230,11 +218,11 @@ export function getPlanAccessSummary(user) {
     leadState,
     leadStates,
     renewalWindowDays,
-    planName: PLAN_DETAILS[plan]?.name || "New DOT Leads",
+    planName: PLAN_DETAILS[plan]?.name || "Producer Pro",
     monthlyPrice: PLAN_DETAILS[plan]?.price || 0,
     annualPrice: PLAN_DETAILS[plan]?.annualPrice || 0,
     trialDays: PLAN_DETAILS[plan]?.trialDays || 0,
-    leadHistoryDays: Object.prototype.hasOwnProperty.call(LEAD_HISTORY_DAYS, plan) ? LEAD_HISTORY_DAYS[plan] : 0,
+    leadHistoryDays: getLeadHistoryDays(user),
     canUseCrm: isPaidPlan(user),
     canViewContacts: isPaidPlan(user),
     canUseTextMessaging: canUseTextMessaging(user),
@@ -246,7 +234,7 @@ export function getPlanAccessSummary(user) {
     monthlySmsLimit: getMonthlySmsLimit(user),
     canUseNewVentures: isPaidPlan(user),
     canUseRenewalLeads: isPaidPlan(user),
-    canUseAdvancedFilters: ["pro", "premium"].includes(plan) && hasActiveSubscription(user),
+    canUseAdvancedFilters: plan === "pro" && hasActiveSubscription(user),
     canExportCsv: isPaidPlan(user),
     monthlyExportLimit: exportUsage.limit,
     monthlyExportsUsed: exportUsage.used,
@@ -254,18 +242,20 @@ export function getPlanAccessSummary(user) {
     dailyExportLimit: dailyExportUsage.limit,
     dailyExportsUsed: dailyExportUsage.used,
     dailyExportRemaining: dailyExportUsage.remaining,
-    canUseMarketInsights: isPremiumPlan(user),
-    canUseCarrierIntelligenceAssistant: isPremiumPlan(user),
-    requiresSingleState: ["basic", "pro"].includes(plan),
-    canSearchAllStates: isPremiumPlan(user),
+    canUseMarketInsights: false,
+    canUseCarrierIntelligenceAssistant: false,
+    requiresSingleState: false,
+    canSearchAllStates: false,
     userLimit: Object.prototype.hasOwnProperty.call(USER_LIMITS, plan) ? USER_LIMITS[plan] : 1,
     savedLeadLimit: Object.prototype.hasOwnProperty.call(SAVED_LEAD_LIMITS, plan) ? SAVED_LEAD_LIMITS[plan] : 0,
     canAccessLeadMarketplace: isPaidPlan(user),
     canPurchaseMarketplaceLeads: isPaidPlan(user),
     marketplaceFreeLeadCreditsPerMonth: MARKETPLACE_FREE_LEAD_CREDITS[plan] ?? 0,
-    marketplaceLeadPricing: MARKETPLACE_LEAD_PRICING[plan] || MARKETPLACE_LEAD_PRICING.basic,
-    receivesPriorityLeadNotifications: ["pro", "premium"].includes(plan) && subscriptionActive,
-    receivesEliteGoldLeadAlerts: plan === "premium" && subscriptionActive
+    marketplaceLeadPricing: MARKETPLACE_LEAD_PRICING[plan] || MARKETPLACE_LEAD_PRICING.pro,
+    receivesPriorityLeadNotifications: plan === "pro" && subscriptionActive,
+    receivesEliteGoldLeadAlerts: false,
+    additionalStatePrice: 49.99,
+    additionalUserPrice: 19.99
   };
 }
 
@@ -283,7 +273,7 @@ export function requirePaidPlan(req, res) {
 export function requirePremiumPlan(req, res) {
   if (!isPremiumPlan(req.user)) {
     res.status(403).json({
-      error: "Upgrade to Agency Unlimited to use service lead tools.",
+      error: "This feature is not included in the current Producer Pro workspace.",
       access: getPlanAccessSummary(req.user)
     });
     return false;

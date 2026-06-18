@@ -8,7 +8,7 @@ import {
 
 export async function createCheckout(req, res) {
   try {
-    const { plan, email, customerEmail, billingCycle, acceptedTerms, acceptedPrivacy, acceptedSubscriptionAgreement } = req.body;
+    const { plan, email, customerEmail, billingCycle, additionalStates, additionalUsers, acceptedTerms, acceptedPrivacy, acceptedSubscriptionAgreement } = req.body;
     const checkoutEmail = email || customerEmail;
     const userId = req.user?.id;
 
@@ -25,7 +25,7 @@ export async function createCheckout(req, res) {
       consent: { acceptedTerms, acceptedPrivacy, acceptedSubscriptionAgreement },
       req
     });
-    const session = await createCheckoutSession({ plan, customerEmail: checkoutEmail, userId, billingCycle, consentRecord });
+    const session = await createCheckoutSession({ plan, customerEmail: checkoutEmail, userId, billingCycle, additionalStates, additionalUsers, consentRecord });
     await attachCheckoutSessionToConsent(consentRecord.id, session.id);
     res.json({ url: session.url, sessionId: session.id });
   } catch (err) {

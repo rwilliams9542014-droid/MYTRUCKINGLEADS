@@ -60,7 +60,7 @@ router.get("/new-entrants", authRequired, getNewEntrants);
 // Search/export saved prospect data using DOT Leads-style filters (requires auth)
 router.get("/prospects/search", authRequired, enforceTrialSearchLimit, searchProspectLeads);
 router.get("/prospects/export", authRequired, blockTrialCsvExport, exportProspectLeads);
-router.post("/exports/claim", authRequired, blockTrialCsvExport, claimExportQuota);
+router.post("/exports/claim", authRequired, claimExportQuota);
 
 // New applicant/new venture motor carrier leads from FMCSA census data
 router.get("/new-ventures/search", authRequired, enforceTrialSearchLimit, searchNewVentures);

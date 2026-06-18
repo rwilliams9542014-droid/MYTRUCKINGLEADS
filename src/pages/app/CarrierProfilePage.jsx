@@ -895,7 +895,7 @@ export default function CarrierProfilePage() {
 
   async function copyDraft() {
     if (!aiDraftAllowed) {
-      setSaveStatus("AI draft assistance is available on Pro and Agency plans.");
+      setSaveStatus("AI draft assistance is available on Producer Pro.");
       return;
     }
     try {

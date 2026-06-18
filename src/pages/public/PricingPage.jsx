@@ -3,70 +3,35 @@ import { Badge } from "@/components/ui";
 
 const plans = [
   {
-    name: "Starter",
-    price: "$79",
+    name: "Producer Pro",
+    price: "$149.99",
     period: "/month",
-    description: "For individual agents getting started with trucking leads.",
+    description: "One simple workspace for insurance producers building a trucking book.",
+    badge: "Simple Plan",
     features: [
-      "New DOT alerts (24hr delay)",
-      "Basic carrier profiles",
-      "Carrier search",
-      "Lead Desk with basic filters",
+      "1 lead state included",
+      "Additional states: $49.99/month each",
+      "Additional users: $19.99/month each",
+      "Renewal opportunities up to 60 days out",
+      "New DOT leads from the last 30 days",
+      "Carrier intelligence profiles",
       "CRM pipeline (table view)",
-      "CSV export limited to 300 rows/month",
-      "Daily export limit of 100 rows",
+      "CSV exports included on paid accounts",
       "Email support",
     ],
     cta: "Start Free Trial",
-    highlighted: false,
-  },
-  {
-    name: "Pro",
-    price: "$199",
-    period: "/month",
-    description: "For serious producers ready to scale their trucking book.",
-    badge: "Most Popular",
-    features: [
-      "Unlimited leads",
-      "Real-time New DOT alerts",
-      "Full carrier intelligence profiles",
-      "Insurance renewal calendar",
-      "Advanced search (cargo, rating, fleet size)",
-      "CRM pipeline (Kanban + Table views)",
-      "CSV export limited to 1,000 rows/month",
-      "Daily export limit of 250 rows",
-      "Priority support",
-    ],
-    cta: "Start Free Trial",
     highlighted: true,
-  },
-  {
-    name: "Agency",
-    price: "$499",
-    period: "/month",
-    description: "For teams and agencies dominating their market.",
-    features: [
-      "Everything in Pro",
-      "Up to 10 team seats",
-      "Unlimited CSV exports",
-      "Dedicated account manager",
-      "Custom integrations & API access",
-      "White-label reports",
-      "Early access to new features",
-    ],
-    cta: "Contact Sales",
-    highlighted: false,
   },
 ];
 
 const faqs = [
   {
     q: "How does the free trial work?",
-    a: "You get full access to your selected plan for 3 days. Payment details are collected securely by Stripe, but you are not charged during the trial. Cancel before the trial ends to avoid future billing.",
+    a: "You can preview the workspace for 3 days. Trial accounts can export up to 10 carriers per day from Lead Desk, search renewals up to 15 days out, and search New DOT leads from the last 15 days.",
   },
   {
     q: "What are 'hot leads' from truckers?",
-    a: "Trucking companies actively requesting insurance quotes through our platform. These are pre-qualified prospects who need coverage now -- delivered exclusively to Pro and Agency subscribers.",
+    a: "Trucking companies actively requesting insurance quotes through our platform. These are pre-qualified prospects who need coverage now when marketplace inventory is available.",
   },
   {
     q: "Can I cancel anytime?",
@@ -74,7 +39,7 @@ const faqs = [
   },
   {
     q: "Do you offer volume discounts?",
-    a: "Agency plans include team seats. For larger organizations or custom needs, reach out to our sales team for enterprise pricing.",
+    a: "The plan starts with one state and one user. Add states for $49.99/month each and users for $19.99/month each.",
   },
 ];
 
@@ -86,15 +51,15 @@ export default function PricingPage() {
         <div className="text-center mb-16">
           <Badge variant="brand" className="mb-4">Simple, Transparent Pricing</Badge>
           <h1 className="text-4xl lg:text-5xl font-bold text-white mb-4">
-            Choose Your Plan
+            One Simple Plan
           </h1>
           <p className="text-lg text-navy-300 max-w-xl mx-auto">
-            Every plan includes a 3-day free trial. Payment details are collected securely by Stripe. Cancel anytime.
+            Producer Pro is $149.99/month with a focused trial, one included state, and clean add-ons as you grow.
           </p>
         </div>
 
         {/* Plans Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-24">
+        <div className="grid grid-cols-1 gap-6 max-w-xl mx-auto mb-24">
           {plans.map((plan) => (
             <div
               key={plan.name}

@@ -4,9 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button, Input } from "@/components/ui";
 
 const plans = [
-  { value: "basic", label: "Starter", price: 79, trialDays: 3, stateLimit: 1, description: "One state, core lead access." },
-  { value: "pro", label: "Pro", price: 199, trialDays: 3, stateLimit: 1, description: "One state plus expanded workflow tools." },
-  { value: "premium", label: "Agency", price: 499, trialDays: 3, stateLimit: 3, description: "Up to three included states for agency teams." },
+  { value: "pro", label: "Producer Pro", price: 149.99, trialDays: 3, stateLimit: 50, description: "One included state, focused lead windows, and scalable add-ons." },
 ];
 
 const US_STATES = [
@@ -35,11 +33,14 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [agreedSubscription, setAgreedSubscription] = useState(false);
   const [agreedCompliance, setAgreedCompliance] = useState(false);
+  const [trialStartTime] = useState(() => Date.now());
 
   const currentPlan = plans.find((p) => p.value === form.plan);
   const stateLimit = currentPlan?.stateLimit || 1;
+  const additionalStateCount = Math.max(form.states.length - 1, 0);
+  const monthlyTotal = currentPlan ? currentPlan.price + additionalStateCount * 49.99 : 0;
   const firstBillingDate = currentPlan
-    ? new Date(Date.now() + currentPlan.trialDays * 24 * 60 * 60 * 1000).toLocaleDateString()
+    ? new Date(trialStartTime + currentPlan.trialDays * 24 * 60 * 60 * 1000).toLocaleDateString()
     : "";
 
   function updateField(field, value) {
@@ -221,7 +222,7 @@ export default function SignupPage() {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-300">Lead Territory</p>
                   <h2 className="mt-1 text-lg font-semibold text-white">
-                    Select {stateLimit === 1 ? "one state" : `up to ${stateLimit} states`}
+                    Select your lead state territory
                   </h2>
                 </div>
                 <div className="grid max-h-44 grid-cols-5 gap-1.5 overflow-y-auto rounded-xl border border-white/5 bg-navy-900/50 p-3 sm:grid-cols-10">
@@ -241,7 +242,7 @@ export default function SignupPage() {
                   ))}
                 </div>
                 <p className="text-xs text-brand-400">
-                  {form.states.length ? `Selected: ${form.states.join(", ")} (${form.states.length}/${stateLimit})` : "No lead state selected yet."}
+                  {form.states.length ? `Selected: ${form.states.join(", ")}. First state included, ${additionalStateCount} additional.` : "No lead state selected yet."}
                 </p>
               </section>
             </div>
@@ -266,7 +267,7 @@ export default function SignupPage() {
                           <p className="font-semibold text-white">{plan.label}</p>
                           <p className="mt-1 text-xs text-navy-400">{plan.description}</p>
                         </div>
-                        <p className="text-sm font-bold text-white">${plan.price}/mo</p>
+                    <p className="text-sm font-bold text-white">${plan.price.toFixed(2)}/mo</p>
                       </div>
                     </button>
                   ))}
@@ -279,7 +280,11 @@ export default function SignupPage() {
                   <div className="mt-3 space-y-2 text-xs leading-relaxed text-navy-200">
                     <p><span className="text-white">Selected plan:</span> {currentPlan.label}</p>
                     <p><span className="text-white">Free trial:</span> {currentPlan.trialDays} days</p>
-                    <p><span className="text-white">After trial:</span> ${currentPlan.price}/month</p>
+                    <p><span className="text-white">After trial:</span> ${monthlyTotal.toFixed(2)}/month</p>
+                    <p><span className="text-white">Included state:</span> 1</p>
+                    <p><span className="text-white">Additional states:</span> {additionalStateCount} x $49.99/month</p>
+                    <p><span className="text-white">Additional users:</span> $19.99/month each after signup</p>
+                    <p><span className="text-white">Trial limits:</span> 10 Lead Desk exports/day, renewals 15 days out, New DOT leads 15 days back</p>
                     <p><span className="text-white">First billing date:</span> {firstBillingDate}</p>
                     <p>Stripe securely collects payment details. You can cancel before the trial ends to avoid future charges.</p>
                   </div>

@@ -52,13 +52,12 @@ export function validateString(value, fieldName, minLength = 1, maxLength = 255)
 }
 
 export function validatePlan(plan) {
-  const validPlans = ["basic", "pro", "premium", "starter", "agency", "trial"];
+  const validPlans = ["basic", "pro", "premium", "starter", "agency", "growth", "trial"];
   if (!plan || !validPlans.includes(plan)) {
-    throw new ValidationError("Invalid plan. Must be: trial, starter, pro, or agency", "plan");
+    throw new ValidationError("Invalid plan. Must be: trial or Producer Pro", "plan");
   }
 
-  if (plan === "starter") return "basic";
-  if (plan === "agency") return "premium";
+  if (["basic", "starter", "premium", "agency", "growth"].includes(plan)) return "pro";
   return plan;
 }
 

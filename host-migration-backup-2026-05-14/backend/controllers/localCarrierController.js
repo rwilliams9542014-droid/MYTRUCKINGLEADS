@@ -1275,7 +1275,7 @@ async function enforceLeadPlanState(req, res, leadType) {
 
   if (leadType === "renewal" && !access.canUseRenewalLeads) {
     res.status(403).json({
-      error: "Choose an active Starter, Pro, or Agency Unlimited plan to search renewal leads.",
+      error: "Choose an active Producer Pro plan to search renewal leads.",
       access
     });
     return false;
@@ -1301,7 +1301,7 @@ async function enforceLeadPlanState(req, res, leadType) {
 
     if (requestedState && requestedState !== accountState) {
       res.status(403).json({
-        error: `${access.planName} is locked to ${accountState}. Upgrade to Agency Unlimited to search all states.`,
+        error: `${access.planName} is locked to ${accountState}. Add another state from billing to search it.`,
         access: { ...access, leadState: accountState }
       });
       return false;
@@ -1311,12 +1311,41 @@ async function enforceLeadPlanState(req, res, leadType) {
       ...req.query,
       state: accountState
     };
-  } else if (access.plan === "premium" && allowedStates.length > 0) {
-    const selectedState = requestedState || allowedStates[0];
-    if (!allowedStates.includes(selectedState)) {
+  } else {
+    const effectiveAllowedStates = allowedStates.length
+      ? allowedStates
+      : accountState
+        ? [accountState]
+        : [];
+
+    if (!effectiveAllowedStates.length) {
+      if (requestedState) {
+        await dbQuery(
+          "UPDATE users SET lead_state = $1, lead_states = ARRAY[$1]::text[], updated_at = NOW() WHERE id = $2 AND lead_state IS NULL",
+          [requestedState, req.user.id]
+        );
+        req.user.lead_state = requestedState;
+        req.user.lead_states = [requestedState];
+        req.query = {
+          ...req.query,
+          state: requestedState
+        };
+        applyLeadDateWindowForPlan(req, leadType);
+        return true;
+      }
+
       res.status(403).json({
-        error: `Agency lead desk is limited to your selected states: ${allowedStates.join(", ")}. Add another state from billing to search it.`,
-        access: { ...access, leadStates: allowedStates }
+        error: `${access.planName} includes one state. Choose your lead state before searching.`,
+        access
+      });
+      return false;
+    }
+
+    const selectedState = requestedState || effectiveAllowedStates[0];
+    if (!effectiveAllowedStates.includes(selectedState)) {
+      res.status(403).json({
+        error: `Lead Desk is limited to your selected states: ${effectiveAllowedStates.join(", ")}. Add another state from billing to search it.`,
+        access: { ...access, leadStates: effectiveAllowedStates }
       });
       return false;
     }

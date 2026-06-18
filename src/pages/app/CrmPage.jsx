@@ -197,7 +197,7 @@ export default function CrmPage() {
 
   async function copyDraftForLead(lead) {
     if (!aiDraftAllowed) {
-      setError("AI draft assistance is available on Pro and Agency plans.");
+      setError("AI draft assistance is available on Producer Pro.");
       return;
     }
     try {

@@ -22,7 +22,7 @@ export async function updateLocalDevSubscriptionPlan(req, res) {
   }
 
   const plan = normalizePlan(req.body?.plan);
-  if (!["basic", "pro", "premium", "trial"].includes(plan)) {
+  if (!["pro", "trial"].includes(plan)) {
     return res.status(400).json({ error: "Invalid plan" });
   }
 

@@ -4,6 +4,9 @@ export const TRIAL_LIMIT_MESSAGE = "Free trial limit reached. Upgrade to unlock 
 
 export const TRIAL_LIMITS = {
   searchResults: 25,
+  renewalWindowDays: 15,
+  newLeadHistoryDays: 15,
+  csvExportsPerDay: 10,
   profileViewsPerDay: 10,
   contactViewsPerDay: 3,
   savedProspectsPerDay: 5
@@ -91,10 +94,13 @@ export function getTrialUsage(user = {}) {
     trialEndsAt: trialEndsAtForUser(user),
     limits: {
       searchResults: TRIAL_LIMITS.searchResults,
+      renewalWindowDays: TRIAL_LIMITS.renewalWindowDays,
+      newLeadHistoryDays: TRIAL_LIMITS.newLeadHistoryDays,
+      csvExportsPerDay: TRIAL_LIMITS.csvExportsPerDay,
       profileViewsPerDay: TRIAL_LIMITS.profileViewsPerDay,
       contactViewsPerDay: TRIAL_LIMITS.contactViewsPerDay,
       savedProspectsPerDay: TRIAL_LIMITS.savedProspectsPerDay,
-      csvExportAllowed: !active,
+      csvExportAllowed: true,
       unlimitedResultsAllowed: !active
     },
     usage: {

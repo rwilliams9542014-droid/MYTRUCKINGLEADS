@@ -13,15 +13,16 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const PRICE_IDS = {
   monthly: {
-    basic: process.env.STRIPE_PRICE_BASIC_MONTHLY || process.env.STRIPE_PRICE_BASIC || process.env.STRIPE_PRICE_NEW_DOT || process.env.STRIPE_PRICE_STARTER || "price_basic_7900",
-    pro: process.env.STRIPE_PRICE_PRO_MONTHLY || process.env.STRIPE_PRICE_PRO || process.env.STRIPE_PRICE_STATE_PROSPECTING || "price_pro_19900",
-    premium: process.env.STRIPE_PRICE_PREMIUM_MONTHLY || process.env.STRIPE_PRICE_PREMIUM || process.env.STRIPE_PRICE_AGENCY || "price_premium_49900"
+    pro: process.env.STRIPE_PRICE_PRODUCER_PRO_MONTHLY || process.env.STRIPE_PRICE_PRO_MONTHLY || process.env.STRIPE_PRICE_PRO || process.env.STRIPE_PRICE_STATE_PROSPECTING || "price_1TjmGEBnjyIb4922bRdHbYyE"
   },
   annual: {
-    basic: process.env.STRIPE_PRICE_BASIC_ANNUAL || "price_basic_79000",
-    pro: process.env.STRIPE_PRICE_PRO_ANNUAL || "price_pro_199000",
-    premium: process.env.STRIPE_PRICE_PREMIUM_ANNUAL || process.env.STRIPE_PRICE_AGENCY_ANNUAL || "price_premium_499000"
+    pro: process.env.STRIPE_PRICE_PRODUCER_PRO_ANNUAL || process.env.STRIPE_PRICE_PRO_ANNUAL || "price_producer_pro_149990"
   }
+};
+
+const ADD_ON_PRICE_IDS = {
+  additionalState: process.env.STRIPE_PRICE_ADDITIONAL_STATE_MONTHLY || process.env.STRIPE_PRICE_ADDITIONAL_STATE || "price_1TjmHyBnjyIb4922OR209gG3",
+  additionalUser: process.env.STRIPE_PRICE_ADDITIONAL_USER_MONTHLY || process.env.STRIPE_PRICE_ADDITIONAL_USER || "price_1TjmIQBnjyIb4922R35OllOb"
 };
 
 async function getWebhookEventStatus(eventId) {
@@ -274,10 +275,12 @@ async function ensureLocalUserForSubscription(subscription, fallbackUserId = nul
   return inserted.rows[0] || null;
 }
 
-export async function createCheckoutSession({ plan, customerEmail, userId, billingCycle, consentRecord }) {
+export async function createCheckoutSession({ plan, customerEmail, userId, billingCycle, additionalStates = 0, additionalUsers = 0, consentRecord }) {
   plan = normalizePlan(plan);
   const cycle = normalizeBillingCycle(billingCycle);
   const priceId = PRICE_IDS[cycle]?.[plan];
+  const extraStateCount = Math.max(Number.parseInt(additionalStates, 10) || 0, 0);
+  const extraUserCount = Math.max(Number.parseInt(additionalUsers, 10) || 0, 0);
 
   if (!plan || !priceId) {
     const error = new Error("Invalid plan");
@@ -303,11 +306,46 @@ export async function createCheckoutSession({ plan, customerEmail, userId, billi
     throw error;
   }
 
+  if (extraStateCount > 0 && !ADD_ON_PRICE_IDS.additionalState) {
+    const error = new Error("Stripe additional-state price is not configured.");
+    error.statusCode = 503;
+    throw error;
+  }
+
+  if (extraUserCount > 0 && !ADD_ON_PRICE_IDS.additionalUser) {
+    const error = new Error("Stripe additional-user price is not configured.");
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const lineItems = [
+    {
+      price: priceId,
+      quantity: 1
+    }
+  ];
+
+  if (extraStateCount > 0) {
+    lineItems.push({
+      price: ADD_ON_PRICE_IDS.additionalState,
+      quantity: extraStateCount
+    });
+  }
+
+  if (extraUserCount > 0) {
+    lineItems.push({
+      price: ADD_ON_PRICE_IDS.additionalUser,
+      quantity: extraUserCount
+    });
+  }
+
   const metadata = {
     userId: userId.toString(),
     planId: plan,
     plan,
     billingCycle: cycle,
+    additionalStates: String(extraStateCount),
+    additionalUsers: String(extraUserCount),
     customerEmail: String(customerEmail).trim().toLowerCase(),
     ...consentMetadata(consentRecord)
   };
@@ -315,12 +353,7 @@ export async function createCheckoutSession({ plan, customerEmail, userId, billi
   try {
     return await stripe.checkout.sessions.create({
       mode: "subscription",
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1
-        }
-      ],
+      line_items: lineItems,
       customer_email: customerEmail,
       payment_method_collection: "always",
       client_reference_id: userId.toString(),
@@ -873,17 +906,17 @@ async function updateUserPlan(userId, plan, subscriptionId, subscriptionStatus, 
 
 function getPlanFromPriceId(priceId) {
   const reverseMap = {
-    [PRICE_IDS.monthly.basic]: "basic",
     [PRICE_IDS.monthly.pro]: "pro",
-    [PRICE_IDS.monthly.premium]: "premium",
-    [PRICE_IDS.annual.basic]: "basic",
     [PRICE_IDS.annual.pro]: "pro",
-    [PRICE_IDS.annual.premium]: "premium",
-    [process.env.STRIPE_PRICE_AGENCY]: "premium",
-    [process.env.STRIPE_PRICE_AGENCY_ANNUAL]: "premium",
+    [process.env.STRIPE_PRICE_BASIC_MONTHLY]: "pro",
+    [process.env.STRIPE_PRICE_BASIC]: "pro",
+    [process.env.STRIPE_PRICE_NEW_DOT]: "pro",
+    [process.env.STRIPE_PRICE_STARTER]: "pro",
+    [process.env.STRIPE_PRICE_PREMIUM_MONTHLY]: "pro",
+    [process.env.STRIPE_PRICE_PREMIUM]: "pro",
+    [process.env.STRIPE_PRICE_AGENCY]: "pro",
+    [process.env.STRIPE_PRICE_AGENCY_ANNUAL]: "pro",
     [process.env.STRIPE_PRICE_STATE_PROSPECTING]: "pro",
-    [process.env.STRIPE_PRICE_NEW_DOT]: "basic",
-    [process.env.STRIPE_PRICE_STARTER]: "basic"
   };
-  return reverseMap[priceId] || "basic";
+  return reverseMap[priceId] || "pro";
 }

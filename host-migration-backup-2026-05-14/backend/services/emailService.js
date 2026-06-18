@@ -305,9 +305,9 @@ export async function sendEmailMessage({ to, subject, html, text, replyTo = null
 const emailTemplates = {
   subscriptionConfirmation: (userName, plan, renewalDate, appName, appUrl) => {
     const planDetails = {
-      basic: { price: "$79/month after a 3-day trial", features: ["1 user", "1 state", "New DOT leads", "Basic renewal access", "Carrier profile and FMCSA data", "Basic CRM", "Limited exports", "30-day lead history"] },
-      pro: { price: "$199/month after a 3-day trial", features: ["1 state", "Unlimited lead searches", "Renewal intelligence", "FMCSA/SMS", "Licensing and insurance", "CRM pipeline", "Exports", "Advanced and cargo filters", "Follow-up tracking", "90-day lead history"] },
-      premium: { price: "$499/month after a 3-day trial", features: ["Everything in Pro", "Multiple users", "Team CRM", "Shared pipeline", "Unlimited exports", "Future API access", "Future alerts and integrations", "Premium support"] }
+      basic: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "CRM pipeline", "Lead Desk CSV exports"] },
+      pro: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Additional states at $49.99/month each", "Additional users at $19.99/month each", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "CRM pipeline", "Lead Desk CSV exports"] },
+      premium: { price: "$149.99/month after a 3-day trial", features: ["1 included state", "Renewal leads up to 60 days out", "New DOT leads from the last 30 days", "Carrier intelligence", "CRM pipeline", "Lead Desk CSV exports"] }
     };
 
     const details = planDetails[plan] || planDetails.basic;

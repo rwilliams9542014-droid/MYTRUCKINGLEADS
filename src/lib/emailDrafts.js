@@ -68,6 +68,6 @@ export async function copyAiEmailDraft(lead = {}) {
 }
 
 export function canUseAiEmailDraft(user = {}) {
-  const plan = String(user?.plan || user?.access?.plan || "").toLowerCase();
-  return plan === "pro" || plan === "premium" || plan === "agency";
+  const plan = String(user?.access?.plan || user?.plan || "").toLowerCase();
+  return ["pro", "producer-pro", "premium", "agency"].includes(plan);
 }

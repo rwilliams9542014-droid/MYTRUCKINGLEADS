@@ -26,14 +26,15 @@ const pageSizeOptions = [10, 50, 100, 250];
 const newDotDateOptions = [
   { value: "last_7", label: "Last 7 days" },
   { value: "last_14", label: "Last 14 days" },
+  { value: "last_15", label: "Last 15 days" },
   { value: "last_30", label: "Last 30 days" },
   { value: "custom", label: "Custom range" },
 ];
 const renewalDateOptions = [
   { value: "next_7", label: "Next 7 days" },
+  { value: "next_15", label: "Next 15 days" },
   { value: "next_30", label: "Next 30 days" },
   { value: "next_60", label: "Next 60 days" },
-  { value: "next_90", label: "Next 90 days" },
   { value: "custom", label: "Custom range" },
 ];
 
@@ -245,8 +246,6 @@ export default function LeadDeskPage() {
   const [sortBy, setSortBy] = useState(savedState.sortBy || "lastUpdated");
   const [sortOrder, setSortOrder] = useState(savedState.sortOrder || "desc");
 
-  const plan = String(user?.access?.plan || user?.plan || "").toLowerCase();
-  const isAgency = plan === "premium" || plan === "agency";
   const userLeadStates = useMemo(() => {
     const raw = user?.leadStates || user?.access?.leadStates || user?.lead_states || [];
     const values = Array.isArray(raw) ? raw : String(raw || "").split(",");
@@ -254,11 +253,17 @@ export default function LeadDeskPage() {
     const primary = String(user?.leadState || user?.lead_state || user?.access?.leadState || "").trim().toUpperCase();
     return Array.from(new Set([...(normalized.length ? normalized : []), ...(primary && stateOptions.includes(primary) ? [primary] : [])]));
   }, [user]);
-  const availableStateOptions = isAgency ? (userLeadStates.length ? userLeadStates : stateOptions) : userLeadStates;
-  const lockedState = !isAgency ? (userLeadStates[0] || "") : "";
+  const availableStateOptions = userLeadStates;
+  const lockedState = userLeadStates.length <= 1 ? (userLeadStates[0] || "") : "";
+  const canChooseState = availableStateOptions.length > 1;
   const effectiveState = lockedState || (availableStateOptions.includes(state) ? state : availableStateOptions[0] || "");
   const aiDraftAllowed = canUseAiEmailDraft(user);
-  const dateOptions = activeTab === "renewal" ? renewalDateOptions : newDotDateOptions;
+  const trialActive = Boolean(user?.trialAccess?.active);
+  const dateOptions = useMemo(() => (
+    activeTab === "renewal"
+      ? (trialActive ? renewalDateOptions.filter((option) => ["next_7", "next_15", "custom"].includes(option.value)) : renewalDateOptions)
+      : (trialActive ? newDotDateOptions.filter((option) => ["last_7", "last_14", "last_15", "custom"].includes(option.value)) : newDotDateOptions)
+  ), [activeTab, trialActive]);
   const searchTitle = activeTab === "renewal" ? "Find Renewal Opportunities" : activeTab === "new_dot" ? "Find New DOT Leads" : "Find Marketplace Leads";
   const searchDescription = activeTab === "renewal"
     ? "Search insurance filing windows without mixing MCS-150 updates into renewal dates."
@@ -270,20 +275,21 @@ export default function LeadDeskPage() {
     if (datePreset === "custom") return { from: customFrom, to: customTo };
     if (activeTab === "renewal") {
       if (datePreset === "next_7") return renewalRange(7);
+      if (datePreset === "next_15") return renewalRange(15);
       if (datePreset === "next_60") return renewalRange(60);
-      if (datePreset === "next_90") return renewalRange(90);
       return renewalRange(30);
     }
     if (datePreset === "last_7") return dateRange(7);
     if (datePreset === "last_14") return dateRange(14);
+    if (datePreset === "last_15") return dateRange(15);
     if (datePreset === "last_30") return dateRange(30);
     return dateRange(7);
   }, [activeTab, customFrom, customTo, datePreset]);
 
   const windowDays = useMemo(() => {
     if (datePreset === "next_7") return 7;
+    if (datePreset === "next_15" || datePreset === "last_15") return 15;
     if (datePreset === "next_60") return 60;
-    if (datePreset === "next_90") return 90;
     if (datePreset === "last_14") return 14;
     if (datePreset === "last_30" || datePreset === "next_30") return 30;
     return 7;
@@ -312,6 +318,11 @@ export default function LeadDeskPage() {
     setSelectedLeadsById({});
     setCurrentPage(1);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "hot" || dateOptions.some((option) => option.value === datePreset)) return;
+    setDatePreset(activeTab === "renewal" ? "next_15" : "last_15");
+  }, [activeTab, dateOptions, datePreset]);
 
   useEffect(() => {
     const visibleById = new Map(filteredLeads.map((lead) => [leadSelectionId(lead), lead]));
@@ -595,7 +606,7 @@ export default function LeadDeskPage() {
 
   async function copyDraftForLead(lead) {
     if (!aiDraftAllowed) {
-      setSaveMessage("AI draft assistance is available on Pro and Agency plans.");
+      setSaveMessage("AI draft assistance is available on Producer Pro.");
       return;
     }
     try {
@@ -658,8 +669,12 @@ export default function LeadDeskPage() {
     return "";
   }
 
-  function exportCsv(rowsToExport = filteredLeads, fileLabel = "") {
+  async function exportCsv(rowsToExport = filteredLeads, fileLabel = "") {
     if (!rowsToExport.length) return;
+    await api.claimExportQuota({
+      recordCount: rowsToExport.length,
+      exportType: activeTab === "renewal" ? "renewal-leads" : activeTab === "new_dot" ? "new-dot-leads" : "marketplace-leads",
+    });
     const headers = [
       "DOT Number",
       "MC Number",
@@ -731,13 +746,14 @@ export default function LeadDeskPage() {
     link.download = `mytruckingleads-${type}-${today}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+    setSaveMessage(`Exported ${rowsToExport.length} carrier${rowsToExport.length === 1 ? "" : "s"}.`);
   }
 
   async function exportSelectedCsv() {
     const selectedRows = getSelectedRows();
     if (!selectedRows.length) return;
     try {
-      exportCsv(await hydrateRows(selectedRows), "selected-leads");
+      await exportCsv(await hydrateRows(selectedRows), "selected-leads");
       setSaveMessage(`Exported ${selectedRows.length} enriched selected carrier${selectedRows.length === 1 ? "" : "s"}.`);
     } catch (err) {
       setSaveMessage(err.message || "Selected carrier details could not be refreshed for export.");
@@ -882,7 +898,7 @@ export default function LeadDeskPage() {
             </div>
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-navy-400">State</label>
-              {isAgency ? (
+              {canChooseState ? (
                 <select className="input-field" value={state} onChange={(e) => {
                   setState(e.target.value);
                   setCurrentPage(1);
@@ -996,7 +1012,7 @@ export default function LeadDeskPage() {
           </div>
 
           <p className="text-xs text-navy-500">
-            Extra states can be added to any plan for $49/month per state. Agency includes up to 3 selected lead states.
+            One state is included. Each additional state is $49.99/month.
           </p>
 
           {activeTab !== "hot" && datePreset === "custom" && (
@@ -1036,7 +1052,7 @@ export default function LeadDeskPage() {
               <button type="button" onClick={resetFilters} className="btn-secondary px-4 py-2 text-sm">Reset Filters</button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => exportCsv()} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
+              <button type="button" onClick={() => exportCsv().catch((err) => setSaveMessage(err.message || "Export quota could not be reserved."))} disabled={!filteredLeads.length} className="btn-secondary px-4 py-2 text-sm">Export CSV</button>
               <button type="button" onClick={exportSelectedCsv} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Export Selected</button>
               <button type="button" onClick={copyEmails} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Emails</button>
               <button type="button" onClick={() => copyPhones("all")} disabled={!selectedLeadIds.length} className="btn-secondary px-4 py-2 text-sm">Copy Phones</button>

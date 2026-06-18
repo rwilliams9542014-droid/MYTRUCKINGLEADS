@@ -108,7 +108,7 @@ function enforceAdvancedFiltersForPlan(filters = {}, user) {
   });
 
   if (usedAdvancedFilters.length > 0) {
-    const err = new Error("Upgrade to Pro or Agency Unlimited to use advanced lead filtering.");
+    const err = new Error("Choose Producer Pro to use advanced lead filtering.");
     err.statusCode = 403;
     err.access = access;
     throw err;
