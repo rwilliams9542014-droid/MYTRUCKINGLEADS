@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, Button, Input, Badge } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
@@ -21,6 +21,22 @@ export default function SettingsPage() {
     confirmPassword: "",
   });
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    businessName: "",
+    phone: "",
+    leadState: "",
+  });
+
+  useEffect(() => {
+    setProfileForm({
+      name: user?.name || "",
+      businessName: user?.businessName || "",
+      phone: user?.phone || "",
+      leadState: user?.leadState || "",
+    });
+  }, [user]);
 
   const tabs = [
     { id: "profile", label: "Profile" },
@@ -53,6 +69,21 @@ export default function SettingsPage() {
       setMessage(err.status === 404 ? "Password updates are not enabled on the server yet." : (err.message || "Password could not be updated."));
     } finally {
       setPasswordLoading(false);
+    }
+  }
+
+  async function updateProfile(e) {
+    e.preventDefault();
+    setMessage("");
+    setProfileLoading(true);
+    try {
+      await api.updateProfile(profileForm);
+      await refreshUser();
+      setMessage("Profile updated successfully.");
+    } catch (err) {
+      setMessage(err.message || "Profile could not be updated.");
+    } finally {
+      setProfileLoading(false);
     }
   }
 
@@ -122,17 +153,17 @@ export default function SettingsPage() {
       {activeTab === "profile" && (
         <Card>
           <h2 className="text-lg font-semibold text-white mb-6">Profile Information</h2>
-          <div className="space-y-5">
+          <form onSubmit={updateProfile} className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Full Name" placeholder="John Smith" defaultValue={user?.name || ""} />
-              <Input label="Agency Name" placeholder="Your Insurance Agency" defaultValue={user?.businessName || ""} />
+              <Input label="Full Name" placeholder="John Smith" value={profileForm.name} onChange={(e) => setProfileForm((prev) => ({ ...prev, name: e.target.value }))} />
+              <Input label="Agency Name" placeholder="Your Insurance Agency" value={profileForm.businessName} onChange={(e) => setProfileForm((prev) => ({ ...prev, businessName: e.target.value }))} />
             </div>
             <Input label="Email" type="email" value={user?.email || ""} disabled />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Phone" type="tel" placeholder="(555) 123-4567" defaultValue={user?.phone || ""} />
+              <Input label="Phone" type="tel" placeholder="(555) 123-4567" value={profileForm.phone} onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))} />
               <div>
                 <label className="block text-sm font-medium text-navy-200 mb-2">Primary State</label>
-                <select className="input-field" defaultValue={user?.leadState || ""}>
+                <select className="input-field" value={profileForm.leadState} onChange={(e) => setProfileForm((prev) => ({ ...prev, leadState: e.target.value }))}>
                   <option value="" className="bg-navy-900">Select your state</option>
                   {US_STATES.map((s) => (
                     <option key={s} value={s} className="bg-navy-900">{s}</option>
@@ -141,9 +172,9 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="pt-4">
-              <Button type="button" onClick={() => setMessage("Profile updates use the existing account backend when enabled.")}>Save Changes</Button>
+              <Button type="submit" loading={profileLoading}>Save Changes</Button>
             </div>
-          </div>
+          </form>
         </Card>
       )}
 

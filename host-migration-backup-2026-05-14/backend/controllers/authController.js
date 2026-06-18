@@ -399,6 +399,76 @@ export async function getCurrentUser(req, res, next) {
   }
 }
 
+export async function updateProfile(req, res, next) {
+  try {
+    if (!req.user) {
+      return next(new AuthenticationError("Not authenticated"));
+    }
+
+    const name = req.body?.name ? validateString(req.body.name, "Full name", 2, 160) : null;
+    const businessName = req.body?.businessName || req.body?.business_name
+      ? validateString(req.body.businessName || req.body.business_name, "Agency name", 2, 140)
+      : null;
+    const phone = req.body?.phone ? validatePhone(req.body.phone) : null;
+    const leadState = req.body?.leadState || req.body?.lead_state
+      ? validateLeadState(req.body.leadState || req.body.lead_state)
+      : null;
+
+    const updates = [];
+    const values = [];
+
+    if (name !== null) {
+      values.push(name);
+      updates.push(`name = $${values.length}`);
+      const [firstName = "", ...lastParts] = name.split(/\s+/);
+      values.push(firstName || null);
+      updates.push(`first_name = $${values.length}`);
+      values.push(lastParts.join(" ") || null);
+      updates.push(`last_name = $${values.length}`);
+    }
+
+    if (businessName !== null) {
+      values.push(businessName);
+      updates.push(`business_name = $${values.length}`);
+    }
+
+    if (phone !== null) {
+      values.push(phone);
+      updates.push(`phone = $${values.length}`);
+    }
+
+    if (leadState !== null) {
+      values.push(leadState);
+      updates.push(`lead_state = $${values.length}`);
+      values.push([leadState]);
+      updates.push(`lead_states = $${values.length}`);
+    }
+
+    if (!updates.length) {
+      return res.status(400).json({ error: "No profile updates provided." });
+    }
+
+    values.push(req.user.id);
+    const result = await query(
+      `UPDATE users
+       SET ${updates.join(", ")},
+           updated_at = NOW()
+       WHERE id = $${values.length}
+       RETURNING id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, plan, stripe_subscription_id, subscription_status, subscription_expires_at,
+                 account_status, frozen_at, frozen_by, frozen_reason,
+                 trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
+                 monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
+                 team_owner_user_id, team_member_role`,
+      values
+    );
+
+    const effectiveUser = await loadEffectiveTeamUser(result.rows[0]);
+    res.json({ user: publicUser(effectiveUser) });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function updatePassword(req, res, next) {
   try {
     if (!req.user) {

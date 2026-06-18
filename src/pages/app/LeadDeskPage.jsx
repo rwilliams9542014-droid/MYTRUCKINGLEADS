@@ -253,8 +253,9 @@ export default function LeadDeskPage() {
     const primary = String(user?.leadState || user?.lead_state || user?.access?.leadState || "").trim().toUpperCase();
     return Array.from(new Set([...(normalized.length ? normalized : []), ...(primary && stateOptions.includes(primary) ? [primary] : [])]));
   }, [user]);
-  const availableStateOptions = userLeadStates;
-  const lockedState = userLeadStates.length <= 1 ? (userLeadStates[0] || "") : "";
+  const ownerCanSearchAllStates = Boolean(user?.isOwner || user?.access?.canSearchAllStates || ["owner", "admin", "super_admin", "superadmin"].includes(String(user?.role || "").toLowerCase()));
+  const availableStateOptions = ownerCanSearchAllStates ? ["Any", ...stateOptions] : userLeadStates;
+  const lockedState = ownerCanSearchAllStates ? "" : (userLeadStates.length <= 1 ? (userLeadStates[0] || "") : "");
   const canChooseState = availableStateOptions.length > 1;
   const effectiveState = lockedState || (availableStateOptions.includes(state) ? state : availableStateOptions[0] || "");
   const aiDraftAllowed = canUseAiEmailDraft(user);

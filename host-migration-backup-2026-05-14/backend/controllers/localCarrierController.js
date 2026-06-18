@@ -37,6 +37,11 @@ function dateString(value) {
   return value.toISOString().slice(0, 10);
 }
 
+function queryState(value) {
+  const state = String(value || "").trim().toUpperCase();
+  return state === "ANY" || state === "ALL" ? "" : state;
+}
+
 function clampDate(value, min, max) {
   if (value < min) return min;
   if (value > max) return max;
@@ -360,7 +365,7 @@ function buildCarrierQuery(query, options = {}) {
   const filter = {};
   const q = String(query.q || query.search || query.name || "").trim();
   const dot = String(query.dot || query.dotNumber || "").trim();
-  const state = String(query.state || "").trim().toUpperCase();
+  const state = queryState(query.state);
   const authorityStatus = String(query.authorityStatus || query.status || "").trim();
   const safetyRating = String(query.safetyRating || "").trim();
   const insuranceFrom = includeInsuranceDates
@@ -416,7 +421,7 @@ function buildPostgresCarrierQuery(query, options = {}) {
   const values = [];
   const q = String(query.q || query.search || query.name || "").trim();
   const dot = String(query.dot || query.dotNumber || "").trim();
-  const state = String(query.state || "").trim().toUpperCase();
+  const state = queryState(query.state);
   const authorityStatus = String(query.authorityStatus || query.status || "").trim();
   const safetyRating = String(query.safetyRating || "").trim();
   const insuranceFrom = includeInsuranceDates
@@ -653,7 +658,7 @@ async function fetchFmcsaCensusNewLeads(filters = {}) {
   const where = [];
   const from = compactDateNumber(filters.from);
   const to = compactDateNumber(filters.to);
-  const state = String(filters.state || "").trim().toUpperCase();
+  const state = queryState(filters.state);
 
   if (from) where.push(`add_date >= '${from}'`);
   if (to) where.push(`add_date <= '${to}'`);
@@ -1096,7 +1101,7 @@ async function getPostgresRenewalLeads(req, res) {
       const liveRows = await fetchAndStoreLiveRenewals({
         from,
         to,
-        state: String(req.query.state || "").trim().toUpperCase(),
+        state: queryState(req.query.state),
         limit
       });
       if (liveRows.length) {
