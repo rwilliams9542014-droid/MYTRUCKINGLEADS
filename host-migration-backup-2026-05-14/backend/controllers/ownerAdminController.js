@@ -6,6 +6,7 @@ import { connectMongo, getMongoUri, isMongoConnected } from "../config/mongo.js"
 import Carrier from "../models/Carrier.js";
 import {
   currentInsuranceFeedWarning,
+  debugInsuranceRenewalSearch,
   importInsuranceFilingIntelligence,
   listInsuranceSourceHealth
 } from "../services/insuranceFilingImportService.js";
@@ -738,6 +739,31 @@ export async function runOwnerInsuranceImport(req, res, next) {
       message: "Insurance filing intelligence import completed.",
       warning: await currentInsuranceFeedWarning(),
       stats
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getInsuranceRenewalDebug(req, res, next) {
+  try {
+    const report = await debugInsuranceRenewalSearch({
+      start: req.query.start || req.query.from,
+      end: req.query.end || req.query.to,
+      state: req.query.state,
+      requireContact: req.query.requireContact || req.query.require_contact || req.query.hasContact,
+      activeAuthorityOnly: req.query.activeAuthorityOnly || req.query.active_authority_only,
+      verifiedOnly: req.query.verifiedOnly || req.query.verified_only,
+      estimatedOnly: req.query.estimatedOnly || req.query.estimated_only,
+      includeHistoricalEstimates: req.query.includeHistoricalEstimates || req.query.include_historical_estimates,
+      insuranceCompany: req.query.insuranceCompany || req.query.insurance_company,
+      minFleetSize: req.query.minFleetSize || req.query.min_fleet_size,
+      maxFleetSize: req.query.maxFleetSize || req.query.max_fleet_size
+    });
+    res.json({
+      success: true,
+      generatedAt: nowIso(),
+      ...report
     });
   } catch (err) {
     next(err);
