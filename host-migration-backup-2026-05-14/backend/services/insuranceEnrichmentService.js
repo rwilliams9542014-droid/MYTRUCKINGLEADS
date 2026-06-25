@@ -142,6 +142,7 @@ export async function upsertInsuranceRecords(rows, { importRunId = "" } = {}) {
 
   for (const record of records) {
     const current = existingByDot.get(record.dotNumber);
+    const now = new Date();
     const set = {
       insuranceExpirationDate: record.insuranceExpirationDate,
       insuranceCancellationDate: record.insuranceCancellationDate,
@@ -150,8 +151,9 @@ export async function upsertInsuranceRecords(rows, { importRunId = "" } = {}) {
       insurancePolicyNumber: record.insurancePolicyNumber,
       insuranceFormCode: record.insuranceFormCode,
       insuranceType: record.insuranceType,
-      sourceLastSeenAt: new Date(),
-      lastUpdated: new Date()
+      sourceLastSeenAt: now,
+      lastInsuranceEnrichedAt: now,
+      lastUpdated: now
     };
 
     if (!current) {
@@ -171,7 +173,7 @@ export async function upsertInsuranceRecords(rows, { importRunId = "" } = {}) {
               authorityStatus: "",
               source: "FMCSA ActPendInsur",
               isNewLead: true,
-              newLeadSince: new Date()
+              newLeadSince: now
             },
             $set: {
               ...set,
@@ -194,6 +196,18 @@ export async function upsertInsuranceRecords(rows, { importRunId = "" } = {}) {
 
     if (changedFields.length === 0) {
       unchanged += 1;
+      operations.push({
+        updateOne: {
+          filter: { dotNumber: record.dotNumber },
+          update: {
+            $set: {
+              sourceLastSeenAt: now,
+              lastInsuranceEnrichedAt: now,
+              lastUpdated: now
+            }
+          }
+        }
+      });
       continue;
     }
 
