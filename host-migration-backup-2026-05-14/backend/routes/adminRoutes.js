@@ -17,10 +17,12 @@ import {
   getOwnerAlerts,
   getOwnerDataFreshness,
   getOwnerHealth,
+  getOwnerInsuranceSourceHealth,
   getOwnerRevenue,
   getOwnerSubscriber,
   getOwnerSubscribers,
   getOwnerSummary,
+  runOwnerInsuranceImport,
   unfreezeOwnerSubscriber
 } from "../controllers/ownerAdminController.js";
 import { authRequired } from "../middleware/authMiddleware.js";
@@ -44,6 +46,8 @@ router.post("/owner/subscribers/:id/note", addOwnerSubscriberNote);
 router.get("/owner/revenue", getOwnerRevenue);
 router.get("/owner/activity", getOwnerActivity);
 router.get("/owner/data-freshness", getOwnerDataFreshness);
+router.get("/owner/insurance-sources", getOwnerInsuranceSourceHealth);
+router.post("/owner/insurance-import", runOwnerInsuranceImport);
 router.get("/owner/alerts", getOwnerAlerts);
 router.get("/fmcsa-diagnostics/:dotNumber", getFmcsaDiagnostics);
 router.post("/users/:id/sync-stripe", syncUserStripe);

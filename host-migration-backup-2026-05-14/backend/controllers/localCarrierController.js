@@ -3,6 +3,7 @@ import CarrierChange from "../models/CarrierChange.js";
 import { isMongoConnected } from "../config/mongo.js";
 import { query as dbQuery } from "../config/db.js";
 import { fetchCarrierByDotOrMc } from "../services/fmcsaService.js";
+import { currentInsuranceFeedWarning } from "../services/insuranceFilingImportService.js";
 import { enrichLeadRowsForResponse, enrichSelectedCarriers } from "../services/carrierFullEnrichmentService.js";
 import { normalizeCanonicalCarrier } from "../services/carrierNormalizationService.js";
 import { getPlanAccessSummary, requirePaidPlan } from "../utils/planAccess.js";
@@ -757,6 +758,9 @@ function postgresCarrierToApi(row = {}) {
 
 function postgresCarrierToProspectLead(row = {}) {
   const apiCarrier = postgresCarrierToApi(row);
+  const insuranceLeadType = row.insurance_lead_type || "Historical Insurance Record";
+  const insuranceConfidence = row.insurance_confidence || "Historical";
+  const verificationStatus = row.insurance_verification_status || "Historical Only";
   return {
     id: apiCarrier.id,
     carrier_name: apiCarrier.carrierName,
@@ -777,6 +781,16 @@ function postgresCarrierToProspectLead(row = {}) {
     insurance_filing_status: apiCarrier.insuranceFilingStatus,
     insurance_type: apiCarrier.insuranceType,
     filingType: apiCarrier.filingType,
+    leadType: insuranceLeadType,
+    lead_type: insuranceLeadType,
+    confidence: insuranceConfidence,
+    insuranceConfidence,
+    verificationStatus,
+    insuranceVerificationStatus: verificationStatus,
+    sourceName: row.insurance_source_name || apiCarrier.source || "Carrier database insurance filing",
+    insuranceSource: row.insurance_source_name || apiCarrier.source || "Carrier database insurance filing",
+    lastVerifiedAt: row.last_verified_at || "",
+    insuranceIntelligenceNote: row.insurance_intelligence_note || "Historical insurance filing record. Current verification unavailable.",
     vehicle_count: apiCarrier.vehicleCount,
     driver_count: apiCarrier.driverCount,
     mcs150_date: apiCarrier.mcs150Date || "",
@@ -1128,6 +1142,7 @@ async function getPostgresRenewalLeads(req, res) {
   const hasMore = resultRows.length > limit || page * limit < total;
   const rows = hasMore ? resultRows.slice(0, limit) : resultRows;
   const trialAccess = trialAccessForRequest(req, res);
+  const insuranceWarning = await currentInsuranceFeedWarning().catch(() => "");
   const rawLeads = await enrichLeadRowsForResponse(rows.map(postgresCarrierToProspectLead), {
     mode: "renewal",
     missingOnly: true
@@ -1145,7 +1160,8 @@ async function getPostgresRenewalLeads(req, res) {
     from: from.toISOString().slice(0, 10),
     to: to.toISOString().slice(0, 10),
     source,
-    message: buildTrialLeadMessage(message, trialAccess),
+    message: buildTrialLeadMessage(insuranceWarning || message, trialAccess),
+    insuranceWarning,
     carriers,
     leads,
     access: getPlanAccessSummary(req.user),

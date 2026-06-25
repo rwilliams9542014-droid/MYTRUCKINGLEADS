@@ -173,7 +173,7 @@ function leadForOutreach(lead, activeTab) {
     cargoHauled: Array.isArray(lead.cargo) ? lead.cargo.join(", ") : lead.cargo,
     renewalDate: lead.renewalDisplay?.date || "",
     renewalDateSource: lead.renewalDisplay?.label || "",
-    leadType: activeTab === "renewal" ? "Renewal Opportunity" : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
+    leadType: activeTab === "renewal" ? (lead.leadType || "Estimated Renewal Opportunity") : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
     powerUnits: lead.trucks,
     drivers: lead.drivers,
   };
@@ -701,6 +701,10 @@ export default function LeadDeskPage() {
       "Insurance Expiration / Renewal Date",
       "Renewal / Filing Date",
       "Renewal / Filing Date Source",
+      "Confidence",
+      "Verification Status",
+      "Source",
+      "Last Verified",
       "Safety Indicator",
       "Status",
       "Last Refreshed",
@@ -724,7 +728,7 @@ export default function LeadDeskPage() {
         lead.cargo.join(", "),
         lead.mcs150Date,
         lead.addedDate,
-        activeTab === "renewal" ? "Renewal Lead" : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
+        activeTab === "renewal" ? (lead.leadType || "Estimated Renewal Opportunity") : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
         lead.authorityStatus,
         lead.insuranceFilingStatus,
         lead.insuranceEffectiveDate,
@@ -732,6 +736,10 @@ export default function LeadDeskPage() {
         lead.insuranceExpirationDate,
         lead.renewalDisplay?.date || "",
         lead.renewalDisplay?.label || "",
+        lead.confidence || "",
+        lead.verificationStatus || "",
+        lead.sourceName || "",
+        lead.lastVerifiedAt || "",
         safetyIndicator(safetyDetails[lead.dot] || lead),
         lead.rating,
         lastUpdated,
@@ -1167,6 +1175,12 @@ export default function LeadDeskPage() {
                         <>
                           <p>{lead.renewalDisplay.date || UNAVAILABLE}</p>
                           <p className="text-xs text-navy-500">{lead.renewalDisplay.label}</p>
+                          <p className="mt-1">
+                            <Badge variant={lead.confidence === "High" ? "success" : lead.confidence === "Estimated" ? "warning" : "outline"}>
+                              {lead.leadType || "Historical Insurance Record"}
+                            </Badge>
+                          </p>
+                          {lead.confidence && <p className="mt-1 text-xs text-navy-500">{lead.confidence} · {lead.verificationStatus || "Verification Pending"}</p>}
                         </>
                       ) : (
                         lead.addedDate || UNAVAILABLE
@@ -1203,6 +1217,10 @@ export default function LeadDeskPage() {
                               <p>Cancellation: <span className="text-white">{lead.insuranceCancelDate || UNAVAILABLE}</span></p>
                               <p>Company: <span className="text-white">{lead.insuranceCompany || UNAVAILABLE}</span></p>
                               <p>Filing Type: <span className="text-white">{lead.filingType || UNAVAILABLE}</span></p>
+                              <p>Confidence: <span className="text-white">{lead.confidence || UNAVAILABLE}</span></p>
+                              <p>Last Verified: <span className="text-white">{lead.lastVerifiedAt || UNAVAILABLE}</span></p>
+                              <p>Source: <span className="text-white">{lead.sourceName || UNAVAILABLE}</span></p>
+                              {lead.insuranceIntelligenceNote && <p className="text-xs text-amber-200">{lead.insuranceIntelligenceNote}</p>}
                             </div>
                           </div>
                           <div>

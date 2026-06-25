@@ -194,6 +194,11 @@ export const api = {
   getOwnerRevenue: () => apiRequest("/api/admin/owner/revenue"),
   getOwnerActivity: () => apiRequest("/api/admin/owner/activity"),
   getOwnerDataFreshness: () => apiRequest("/api/admin/owner/data-freshness"),
+  getOwnerInsuranceSources: () => apiRequest("/api/admin/owner/insurance-sources"),
+  runOwnerInsuranceImport: (payload = {}) => apiRequest("/api/admin/owner/insurance-import", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
   getOwnerAlerts: () => apiRequest("/api/admin/owner/alerts"),
   getFmcsaDiagnostics: (dot) => apiRequest(`/api/admin/fmcsa-diagnostics/${encodeURIComponent(dot)}`),
 

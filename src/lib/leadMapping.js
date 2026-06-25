@@ -308,6 +308,14 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
     insuranceCancelDate,
     insuranceCompany: pick(raw.insuranceCompany, raw.insurance_company, insurance.company, publicLiability.insuranceCompany, publicLiability.company),
     filingType: pick(raw.filingType, raw.insuranceFormCode, raw.insurance_form_code, raw.insuranceType, insurance.filingType, publicLiability.filingType, publicLiability.coverageInfo),
+    leadType: pick(raw.leadType, raw.lead_type),
+    confidence: pick(raw.confidence, raw.insuranceConfidence),
+    verificationStatus: pick(raw.verificationStatus, raw.insuranceVerificationStatus),
+    sourceName: pick(raw.sourceName, raw.insuranceSource, raw.source),
+    lastVerifiedAt: pick(raw.lastVerifiedAt, raw.last_verified_at),
+    insuranceIntelligenceNote: pick(raw.insuranceIntelligenceNote),
+    estimatedRenewalStart: pick(raw.estimatedRenewalStart, raw.estimated_renewal_start),
+    estimatedRenewalEnd: pick(raw.estimatedRenewalEnd, raw.estimated_renewal_end),
     agencyXDate: pick(raw.agencyXDate, raw.xDate),
     crmRenewalDate: pick(raw.crmRenewalDate),
     estimatedRenewalDate: pick(raw.estimatedRenewalDate, raw.estimatedRenewalOpportunity),
@@ -345,6 +353,12 @@ export function normalizeLeadRecord(raw = {}, type = "new_dot") {
 export function getRenewalDisplay(lead = {}) {
   if (lead.agencyXDate) return { label: "Agency X-Date", date: lead.agencyXDate };
   if (lead.crmRenewalDate) return { label: "CRM Renewal Date", date: lead.crmRenewalDate };
+  if (lead.estimatedRenewalStart || lead.estimatedRenewalEnd) {
+    return {
+      label: "Estimated Renewal Window",
+      date: [lead.estimatedRenewalStart, lead.estimatedRenewalEnd].filter(Boolean).join(" to ")
+    };
+  }
   if (lead.insuranceCancelDate) return { label: "FMCSA Filing Cancellation Date", date: lead.insuranceCancelDate };
   if (lead.insuranceEffectiveDate) return { label: "FMCSA Filing Effective Date", date: lead.insuranceEffectiveDate };
   if (lead.estimatedRenewalDate) return { label: "Estimated Renewal Opportunity", date: lead.estimatedRenewalDate };

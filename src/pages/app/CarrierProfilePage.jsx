@@ -427,6 +427,12 @@ function normalizeCarrier(data) {
     insuranceFilingStatus: lead.insuranceFilingStatus,
     filingType: lead.filingType,
     renewalDisplay: getRenewalDisplay(lead),
+    leadType: lead.leadType,
+    confidence: lead.confidence,
+    verificationStatus: lead.verificationStatus,
+    sourceName: lead.sourceName,
+    lastVerifiedAt: lead.lastVerifiedAt,
+    insuranceIntelligenceNote: lead.insuranceIntelligenceNote,
     insuranceFilings: normalizeInsuranceFilings(carrier, lead),
     totalInspections: pick(inspectionSummary.totalInspections, lead.totalInspections),
     vehicleInspections: pick(inspectionSummary.vehicleInspections, lead.vehicleInspections),
@@ -603,6 +609,23 @@ function InsuranceFilingCard({ carrier }) {
 
   return (
     <ProfileCard title={multipleFilings ? "Insurance Filings" : "Insurance Filing"}>
+      <div className="mb-4 profile-card-muted">
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-sky-100/45">Insurance Intelligence</p>
+        <div className="grid grid-cols-1 gap-3">
+          <DetailItem label="Lead Type" value={carrier.leadType || "Historical Insurance Record"} fallback={FMCSA_UNAVAILABLE} />
+          <DetailItem label="Confidence" value={carrier.confidence || "Historical"} fallback={FMCSA_UNAVAILABLE} />
+          <DetailItem label="Verification" value={carrier.verificationStatus || "Verification Pending"} fallback={FMCSA_UNAVAILABLE} />
+          <DetailItem label="Source" value={carrier.sourceName} fallback={FMCSA_UNAVAILABLE} />
+          <DetailItem label="Last Verified" value={formatFilingDate(carrier.lastVerifiedAt)} fallback={FMCSA_UNAVAILABLE} />
+        </div>
+        <p className="mt-3 text-xs text-amber-200">
+          {carrier.leadType === "Verified Cancellation"
+            ? "Cancellation date found in public filing data."
+            : carrier.confidence === "Estimated"
+              ? "Estimated renewal window based on filing effective date. Not a verified cancellation."
+              : carrier.insuranceIntelligenceNote || "No verified cancellation date found in current public FMCSA data."}
+        </p>
+      </div>
       {filings.length ? (
         <div className="space-y-3">
           {filings.map((filing, index) => (
