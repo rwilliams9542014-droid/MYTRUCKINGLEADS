@@ -1039,7 +1039,15 @@ async function fetchAndStoreLiveRenewals({ from, to, state, limit }) {
 }
 
 async function hydrateInsuranceIntelligenceCarriers({ from, to, state, limit }) {
-  const values = [dateOnly(from), dateOnly(to), Math.max(limit * 4, 250)];
+  const candidateLimit = Math.min(
+    Math.max(
+      parseInteger(process.env.FMCSA_RENEWAL_HYDRATION_CANDIDATE_LIMIT, 0),
+      limit * 100,
+      5000
+    ),
+    25000
+  );
+  const values = [dateOnly(from), dateOnly(to), candidateLimit];
   const result = await dbQuery(
     `WITH candidates AS (
        SELECT
