@@ -1138,6 +1138,10 @@ async function getPostgresRenewalLeads(req, res) {
   const days = Math.min(Math.max(parseInteger(req.query.days, 30), 1), 365);
   const page = Math.max(parseInteger(req.query.page, 1), 1);
   const limit = Math.min(Math.max(parseInteger(req.query.limit, 100), 1), 5000);
+  const refreshLimit = Math.min(
+    Math.max(parseInteger(process.env.FMCSA_RENEWAL_REFRESH_LIMIT, 1500), limit),
+    5000
+  );
   const from = dateOrNull(req.query.from || req.query.renewalFrom || req.query.insuranceFrom) || addDays(0);
   const to = dateOrNull(req.query.to || req.query.renewalTo || req.query.insuranceTo) || addDays(days);
   const direction = sortDirection(req.query.order, 1) === 1 ? "ASC" : "DESC";
@@ -1175,7 +1179,7 @@ async function getPostgresRenewalLeads(req, res) {
         from,
         to,
         state: queryState(req.query.state),
-        limit
+        limit: refreshLimit
       });
       if (liveRows.length) {
         const rowsByDot = new Map(resultRows.map((row) => [normalizeDotNumber(row.dot_number), row]));
@@ -1573,79 +1577,12 @@ export async function getLocalCarrierByDot(req, res) {
 
 export async function getRenewalLeads(req, res) {
   try {
-    if (!isMongoConnected()) {
-      return getPostgresRenewalLeads(req, res);
-    }
-    if (!(await enforceLeadPlanState(req, res, "renewal"))) return;
-
-    const days = Math.min(Math.max(parseInteger(req.query.days, 30), 1), 365);
-    const page = Math.max(parseInteger(req.query.page, 1), 1);
-    const limit = Math.min(Math.max(parseInteger(req.query.limit, 100), 1), 5000);
-    const from = dateOrNull(req.query.from || req.query.renewalFrom || req.query.insuranceFrom) || addDays(0);
-    const to = dateOrNull(req.query.to || req.query.renewalTo || req.query.insuranceTo) || addDays(days);
-    const requestedSort = String(req.query.sort || "insuranceExpirationDate").trim();
-    const direction = sortDirection(req.query.order, 1);
-    const sort = requestedSort === "fleetSize"
-      ? { fleetSize: -1, insuranceExpirationDate: 1, legalName: 1 }
-      : { insuranceExpirationDate: direction, fleetSize: -1, legalName: 1 };
-    const filter = {
-      ...buildCarrierQuery(req.query, { includeInsuranceDates: false }),
-      insuranceExpirationDate: {
-        $gte: from,
-        $lte: to
-      }
-    };
-
-    const [total, carriersPlusOne] = await Promise.all([
-      Carrier.countDocuments(filter).maxTimeMS(10000),
-      Carrier.find(filter)
-        .sort(sort)
-        .skip((page - 1) * limit)
-        .limit(limit + 1)
-        .maxTimeMS(10000)
-        .lean()
-    ]);
-    const hasMore = carriersPlusOne.length > limit;
-    const carriers = hasMore ? carriersPlusOne.slice(0, limit) : carriersPlusOne;
-
-    if (carriers.length < limit && page === 1) {
-      return getPostgresRenewalLeads(req, res);
-    }
-
-    const trialAccess = trialAccessForRequest(req, res);
-    const rawLeads = await enrichLeadRowsForResponse(carriers.map(carrier => carrierToProspectLead(carrier)), {
-      mode: "renewal",
-      missingOnly: true
-    });
-    const leads = maskTrialResults(rawLeads, trialAccess);
-    const maskedCarriers = maskTrialResults(carriers.map(carrier => carrierToApi(carrier)), trialAccess);
-
-    res.json({
-      total,
-      page,
-      limit,
-      hasMore,
-      pages: Math.ceil(total / limit),
-      days,
-      from: from.toISOString().slice(0, 10),
-      to: to.toISOString().slice(0, 10),
-      carriers: maskedCarriers,
-      leads,
-      access: getPlanAccessSummary(req.user),
-      trialAccess,
-      message: buildTrialLeadMessage(
-        carriers.length === 0
-          ? "No matching renewal dates are loaded yet. Bulk FMCSA census data does not always include insurance expiration dates; run targeted DOT enrichment or connect an insurance filings data source."
-          : "",
-        trialAccess
-      )
-    });
+    return getPostgresRenewalLeads(req, res);
   } catch (err) {
     console.error("Renewal leads error:", err);
     res.status(500).json({ error: "Failed to fetch renewal leads" });
   }
 }
-
 export async function getNewCarrierLeads(req, res) {
   try {
     if (!isMongoConnected()) {
@@ -1772,3 +1709,4 @@ export async function getNewCarrierLeads(req, res) {
     res.status(500).json({ error: "Failed to fetch new carrier leads" });
   }
 }
+
