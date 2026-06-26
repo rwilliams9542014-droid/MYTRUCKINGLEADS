@@ -5,7 +5,6 @@ const MOTUS_TRANSITION_DATE = new Date("2026-05-14T00:00:00.000Z");
 const DEFAULT_IMPORT_LIMIT = Number(process.env.INSURANCE_FILING_IMPORT_LIMIT || 2500);
 const DEFAULT_HEALTH_SCAN_LIMIT = Number(process.env.INSURANCE_SOURCE_HEALTH_SCAN_LIMIT || 600000);
 const HEALTH_PAGE_SIZE = Number(process.env.INSURANCE_SOURCE_HEALTH_PAGE_SIZE || 50000);
-const RENEWAL_CACHE_DAYS = Number(process.env.RENEWAL_LEAD_CACHE_DAYS || 90);
 
 export const INSURANCE_SOURCE_DEFINITIONS = [
   {
@@ -174,33 +173,6 @@ function addYears(value, years) {
   const date = new Date(value.getTime());
   date.setUTCFullYear(date.getUTCFullYear() + years);
   return date;
-}
-
-function todayUtc() {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  return today;
-}
-
-function renewalCacheWindow() {
-  const start = todayUtc();
-  return {
-    start,
-    end: addDays(start, RENEWAL_CACHE_DAYS)
-  };
-}
-
-function clampRenewalWindow(startValue, endValue, enforceCacheWindow = true) {
-  const requestedStart = dateOrNull(startValue);
-  const requestedEnd = dateOrNull(endValue);
-  if (!requestedStart || !requestedEnd) return null;
-  if (!enforceCacheWindow) return { start: requestedStart, end: requestedEnd };
-
-  const cache = renewalCacheWindow();
-  const start = requestedStart < cache.start ? cache.start : requestedStart;
-  const end = requestedEnd > cache.end ? cache.end : requestedEnd;
-  if (end < start) return null;
-  return { start, end };
 }
 
 function monthKeysBetween(startValue, endValue) {
@@ -886,13 +858,8 @@ export async function importInsuranceFilingIntelligence(options = {}) {
 
 export async function importInsuranceFilingsForRenewalWindow(options = {}) {
   await ensureInsuranceIntelligenceTables();
-  const clamped = clampRenewalWindow(
-    options.from || options.start,
-    options.to || options.end,
-    options.enforceCacheWindow !== false
-  );
-  const range = clamped ? renewalEffectiveRange(clamped.start, clamped.end) : null;
-  if (!clamped || !range) {
+  const range = renewalEffectiveRange(options.from || options.start, options.to || options.end);
+  if (!range) {
     const err = new Error("Valid from and to dates are required for renewal-window import.");
     err.status = 400;
     throw err;
@@ -905,11 +872,8 @@ export async function importInsuranceFilingsForRenewalWindow(options = {}) {
   const stats = {
     sourcesChecked: health.length,
     renewalWindow: {
-      requestedFrom: dateOnly(options.from || options.start),
-      requestedTo: dateOnly(options.to || options.end),
-      from: dateOnly(clamped.start),
-      to: dateOnly(clamped.end),
-      cacheDays: RENEWAL_CACHE_DAYS,
+      from: dateOnly(options.from || options.start),
+      to: dateOnly(options.to || options.end),
       effectiveStart: dateOnly(range.start),
       effectiveEnd: dateOnly(range.end)
     },
@@ -933,51 +897,6 @@ export async function importInsuranceFilingsForRenewalWindow(options = {}) {
   }
 
   return stats;
-}
-
-export async function pruneInsuranceRenewalCache(options = {}) {
-  await ensureInsuranceIntelligenceTables();
-  const cache = renewalCacheWindow();
-  const from = dateOnly(options.from || cache.start);
-  const to = dateOnly(options.to || cache.end);
-  const range = renewalEffectiveRange(from, to);
-  if (!range) {
-    const err = new Error("Unable to determine renewal cache prune window.");
-    err.status = 400;
-    throw err;
-  }
-
-  const eventResult = await query(
-    `DELETE FROM insurance_filing_events
-     WHERE NOT (
-       (event_type = 'Verified Cancellation' AND cancel_effective_date BETWEEN $1::date AND $2::date)
-       OR (event_type = 'Insurance Filing Change' AND event_date BETWEEN $1::date AND $2::date)
-       OR (event_type = 'Estimated Renewal Window'
-           AND estimated_renewal_start <= $2::date
-           AND estimated_renewal_end >= $1::date)
-       OR (event_type IN ('Historical Insurance Record', 'Historical Renewal Estimate')
-           AND COALESCE(cancel_effective_date, event_date, effective_date) BETWEEN $1::date AND $2::date)
-     )`,
-    [from, to]
-  );
-
-  const snapshotResult = await query(
-    `DELETE FROM insurance_filing_snapshots
-     WHERE effective_date IS NULL
-        OR effective_date < $1::date
-        OR effective_date > $2::date`,
-    [dateOnly(range.start), dateOnly(range.end)]
-  );
-
-  return {
-    from,
-    to,
-    cacheDays: RENEWAL_CACHE_DAYS,
-    effectiveStart: dateOnly(range.start),
-    effectiveEnd: dateOnly(range.end),
-    eventsDeleted: eventResult.rowCount || 0,
-    snapshotsDeleted: snapshotResult.rowCount || 0
-  };
 }
 
 function renewalWindowKey(row = {}) {
