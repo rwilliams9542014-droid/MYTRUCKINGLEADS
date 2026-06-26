@@ -371,18 +371,6 @@ export async function ensureInsuranceIntelligenceTables() {
   await query(`CREATE INDEX IF NOT EXISTS idx_insurance_events_estimated_window ON insurance_filing_events (estimated_renewal_start, estimated_renewal_end)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_insurance_events_source_record ON insurance_filing_events (source_record_id, event_type)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_insurance_health_status ON insurance_source_health (status)`);
-  await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_insurance_snapshot_source_record
-    ON insurance_filing_snapshots (source_record_id)
-    WHERE source_record_id IS NOT NULL`);
-  await query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_insurance_event_source_record_type_dates
-    ON insurance_filing_events (
-      source_record_id,
-      event_type,
-      COALESCE(event_date, DATE '0001-01-01'),
-      COALESCE(effective_date, DATE '0001-01-01'),
-      COALESCE(cancel_effective_date, DATE '0001-01-01')
-    )
-    WHERE source_record_id IS NOT NULL`);
 }
 
 async function upsertSourceHealth(definition, payload) {
@@ -638,114 +626,6 @@ async function insertEvent(snapshot, event) {
   );
 }
 
-function chunks(items, size = 100) {
-  const result = [];
-  for (let index = 0; index < items.length; index += size) {
-    result.push(items.slice(index, index + size));
-  }
-  return result;
-}
-
-function placeholders(rowCount, columnCount, jsonColumns = []) {
-  let param = 1;
-  const jsonColumnSet = new Set(jsonColumns);
-  return Array.from({ length: rowCount }, () => {
-    const row = Array.from({ length: columnCount }, (_, columnIndex) => {
-      const placeholder = `$${param++}`;
-      return jsonColumnSet.has(columnIndex) ? `${placeholder}::jsonb` : placeholder;
-    });
-    return `(${row.join(", ")})`;
-  }).join(", ");
-}
-
-async function insertSnapshotsBulk(snapshots) {
-  for (const batch of chunks(snapshots)) {
-    const values = [];
-    for (const snapshot of batch) {
-      values.push(
-        snapshot.dotNumber || null,
-        snapshot.docketNumber || null,
-        snapshot.mcNumber || null,
-        snapshot.legalName || null,
-        snapshot.insuranceCompany || null,
-        snapshot.policyNumber || null,
-        snapshot.formCode || null,
-        snapshot.filingType || null,
-        snapshot.bipdRequired,
-        snapshot.bipdOnFile,
-        snapshot.underlyingLimit,
-        snapshot.maxCoverage,
-        snapshot.postedDate,
-        snapshot.effectiveDate,
-        snapshot.cancelEffectiveDate,
-        snapshot.cancellationMethod || null,
-        snapshot.authorityStatus || null,
-        snapshot.sourceName,
-        snapshot.sourceRecordId || null,
-        snapshot.sourceFileDate,
-        JSON.stringify(snapshot.rawData || {})
-      );
-    }
-
-    await query(
-      `INSERT INTO insurance_filing_snapshots (
-         dot_number, docket_number, mc_number, legal_name, insurance_company, policy_number,
-         form_code, filing_type, bipd_required, bipd_on_file, underlying_limit, max_coverage,
-         posted_date, effective_date, cancel_effective_date, cancellation_method, authority_status,
-         source_name, source_record_id, source_file_date, raw_data_json
-       )
-       VALUES ${placeholders(batch.length, 21, [20])}
-       ON CONFLICT DO NOTHING`,
-      values
-    );
-  }
-}
-
-async function insertEventsBulk(eventRows) {
-  for (const batch of chunks(eventRows)) {
-    const values = [];
-    for (const { snapshot, event } of batch) {
-      values.push(
-        snapshot.dotNumber || null,
-        snapshot.docketNumber || null,
-        snapshot.mcNumber || null,
-        event.eventType,
-        event.eventDate || null,
-        snapshot.sourceName,
-        snapshot.insuranceCompany || null,
-        snapshot.policyNumber || null,
-        snapshot.effectiveDate || null,
-        snapshot.cancelEffectiveDate || null,
-        event.estimatedRenewalStart || null,
-        event.estimatedRenewalEnd || null,
-        event.estimatedRenewalBasis || null,
-        event.estimatedRenewalConfidence || null,
-        event.estimatedRenewalNote || null,
-        event.eventType,
-        event.confidence,
-        event.leadPriority,
-        event.verificationStatus,
-        event.verificationStatus === "Verified Current" ? new Date() : null,
-        snapshot.sourceRecordId || null,
-        JSON.stringify(snapshot.rawData || {})
-      );
-    }
-
-    await query(
-      `INSERT INTO insurance_filing_events (
-         dot_number, docket_number, mc_number, event_type, event_date, event_source,
-         insurance_company, policy_number, effective_date, cancel_effective_date,
-         estimated_renewal_start, estimated_renewal_end, estimated_renewal_basis,
-         estimated_renewal_confidence, estimated_renewal_note, new_value, confidence,
-         lead_priority, verification_status, last_verified_at, source_record_id, raw_data_json
-       )
-       VALUES ${placeholders(batch.length, 22, [21])}
-       ON CONFLICT DO NOTHING`,
-      values
-    );
-  }
-}
-
 async function latestHealthBySource() {
   const rows = await query(`SELECT * FROM insurance_source_health`).then((result) => result.rows);
   return new Map(rows.map((row) => [row.source_name, row]));
@@ -799,26 +679,20 @@ async function fetchRowsForEffectiveRange(definition, effectiveStart, effectiveE
 }
 
 async function persistInsuranceRows(definition, rows, sourceHealth, stats) {
-  const snapshots = [];
-  const eventRows = [];
-
   for (const row of rows) {
     const snapshot = mapSnapshot(definition, row, sourceHealth);
     if (!snapshot.dotNumber && !snapshot.docketNumber) continue;
-    snapshots.push(snapshot);
+    await insertSnapshot(snapshot);
     stats.snapshotsInserted += 1;
 
     for (const event of buildEvents(snapshot, sourceHealth)) {
-      eventRows.push({ snapshot, event });
+      await insertEvent(snapshot, event);
       stats.eventsInserted += 1;
       if (event.eventType === "Verified Cancellation") stats.verifiedCancellationEvents += 1;
       if (event.eventType === "Estimated Renewal Window") stats.estimatedRenewalEvents += 1;
       if (event.eventType === "Historical Insurance Record") stats.historicalEvents += 1;
     }
   }
-
-  await insertSnapshotsBulk(snapshots);
-  await insertEventsBulk(eventRows);
 }
 
 export async function importInsuranceFilingIntelligence(options = {}) {
