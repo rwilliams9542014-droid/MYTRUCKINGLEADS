@@ -199,6 +199,10 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload),
   }),
+  runOwnerInsuranceBackfill: (payload = {}) => apiRequest("/api/admin/owner/insurance-backfill", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
   getOwnerAlerts: () => apiRequest("/api/admin/owner/alerts"),
   getFmcsaDiagnostics: (dot) => apiRequest(`/api/admin/fmcsa-diagnostics/${encodeURIComponent(dot)}`),
 

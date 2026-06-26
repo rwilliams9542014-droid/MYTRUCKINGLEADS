@@ -1048,13 +1048,15 @@ function falseQuery(value) {
 
 function eventRenewalWhere({ from, to, query }) {
   const values = [dateOnly(from), dateOnly(to)];
+  const includeHistoricalRecords = boolQuery(query.includeHistoricalRecords || query.include_historical_records);
   const where = [`
     (
       (ev.event_type = 'Verified Cancellation' AND ev.cancel_effective_date BETWEEN $1::date AND $2::date)
       OR (ev.event_type = 'Insurance Filing Change' AND ev.event_date BETWEEN $1::date AND $2::date)
-      OR (ev.event_type IN ('Estimated Renewal Window', 'Historical Renewal Estimate')
+      OR (ev.event_type = 'Estimated Renewal Window'
           AND ev.estimated_renewal_start <= $2::date
           AND ev.estimated_renewal_end >= $1::date)
+      ${includeHistoricalRecords ? "OR (ev.event_type IN ('Historical Insurance Record', 'Historical Renewal Estimate') AND COALESCE(ev.cancel_effective_date, ev.event_date, ev.effective_date) BETWEEN $1::date AND $2::date)" : ""}
     )
   `];
   const state = queryState(query.state);
@@ -1074,8 +1076,9 @@ function eventRenewalWhere({ from, to, query }) {
   if (requireContact) where.push(`NULLIF(COALESCE(c.phone, e.phone, c.email, e.email), '') IS NOT NULL`);
   if (activeAuthorityOnly) where.push(`(c.authority_status ILIKE '%active%' OR c.authority_status ILIKE '%authorized%' OR s.authority_status ILIKE '%active%')`);
   if (verifiedOnly) where.push(`ev.event_type = 'Verified Cancellation'`);
-  if (estimatedOnly) where.push(`ev.event_type IN ('Estimated Renewal Window', 'Historical Renewal Estimate')`);
+  if (estimatedOnly) where.push(`ev.event_type = 'Estimated Renewal Window'`);
   if (!includeHistoricalEstimates) where.push(`ev.event_type <> 'Historical Renewal Estimate'`);
+  if (!includeHistoricalRecords) where.push(`ev.event_type <> 'Historical Insurance Record'`);
   if (insuranceCompany) {
     values.push(`%${insuranceCompany}%`);
     where.push(`ev.insurance_company ILIKE $${values.length}`);
@@ -1090,6 +1093,58 @@ function eventRenewalWhere({ from, to, query }) {
   }
 
   return { whereSql: where.join(" AND "), values };
+}
+
+function snapshotEstimateWhere({ from, to, query }) {
+  const values = [dateOnly(from), dateOnly(to)];
+  const where = [`
+    s.effective_date IS NOT NULL
+    AND (s.effective_date + INTERVAL '1 year' - INTERVAL '30 days')::date <= $2::date
+    AND (s.effective_date + INTERVAL '1 year' + INTERVAL '15 days')::date >= $1::date
+  `];
+  const state = queryState(query.state);
+  const requireContact = boolQuery(query.requireContact || query.require_contact || query.hasContact);
+  const activeAuthorityOnly = boolQuery(query.activeAuthorityOnly || query.active_authority_only);
+  const verifiedOnly = boolQuery(query.verifiedOnly || query.verified_only) || String(query.leadType || "").toLowerCase() === "verified";
+  const insuranceCompany = String(query.insuranceCompany || query.insurance_company || "").trim();
+  const minFleetSize = parseInteger(query.minFleetSize || query.min_fleet_size, null);
+  const maxFleetSize = parseInteger(query.maxFleetSize || query.max_fleet_size, null);
+
+  if (verifiedOnly) where.push("1 = 0");
+  if (state) {
+    values.push(state);
+    where.push(`UPPER(COALESCE(c.hq_state, '')) = $${values.length}`);
+  }
+  if (requireContact) where.push(`NULLIF(COALESCE(c.phone, e.phone, c.email, e.email), '') IS NOT NULL`);
+  if (activeAuthorityOnly) where.push(`(c.authority_status ILIKE '%active%' OR c.authority_status ILIKE '%authorized%' OR s.authority_status ILIKE '%active%')`);
+  if (insuranceCompany) {
+    values.push(`%${insuranceCompany}%`);
+    where.push(`s.insurance_company ILIKE $${values.length}`);
+  }
+  if (minFleetSize !== null) {
+    values.push(minFleetSize);
+    where.push(`COALESCE(c.vehicle_count, 0) >= $${values.length}`);
+  }
+  if (maxFleetSize !== null) {
+    values.push(maxFleetSize);
+    where.push(`COALESCE(c.vehicle_count, 0) <= $${values.length}`);
+  }
+
+  return { whereSql: where.join(" AND "), values };
+}
+
+function dedupeRenewalRows(rows = []) {
+  const rowsByKey = new Map();
+  for (const row of rows) {
+    const key = [
+      normalizeDotNumber(row.dot_number) || row.mc_number || row.id,
+      row.insurance_lead_type || "",
+      row.insurance_policy_number || "",
+      pgDate(row.insurance_effective_date) || ""
+    ].join("|");
+    if (!rowsByKey.has(key)) rowsByKey.set(key, row);
+  }
+  return [...rowsByKey.values()];
 }
 
 async function fetchInsuranceIntelligenceRenewals({ from, to, query, limit, offset, direction }) {
@@ -1238,9 +1293,115 @@ async function fetchInsuranceIntelligenceRenewals({ from, to, query, limit, offs
     [...values, limit + 1, offset]
   );
 
+  const snapshotWhere = snapshotEstimateWhere({ from, to, query });
+  const snapshotLimit = limit + offset + 1;
+  const snapshotCountResult = await dbQuery(
+    `SELECT COUNT(*)::int AS total
+     FROM (
+       SELECT DISTINCT ON (
+         COALESCE(NULLIF(s.dot_number, ''), NULLIF(s.docket_number, ''), s.id::text),
+         COALESCE(s.policy_number, ''),
+         s.effective_date
+       ) s.id
+       FROM insurance_filing_snapshots s
+       LEFT JOIN carriers c ON c.dot_number = s.dot_number
+       LEFT JOIN enriched_carrier_data e ON e.carrier_id = c.id
+       LEFT JOIN insurance_source_health h ON h.source_name = s.source_name
+       WHERE ${snapshotWhere.whereSql}
+       ORDER BY COALESCE(NULLIF(s.dot_number, ''), NULLIF(s.docket_number, ''), s.id::text),
+                COALESCE(s.policy_number, ''),
+                s.effective_date,
+                s.imported_at DESC
+     ) estimated`,
+    snapshotWhere.values
+  );
+  const snapshotRowsResult = await dbQuery(
+    `SELECT *
+     FROM (
+       SELECT DISTINCT ON (
+         COALESCE(NULLIF(s.dot_number, ''), NULLIF(s.docket_number, ''), s.id::text),
+         COALESCE(s.policy_number, ''),
+         s.effective_date
+       )
+         COALESCE(c.id::text, 'snapshot-estimate-' || s.id::text) AS id,
+         COALESCE(c.dot_number, s.dot_number) AS dot_number,
+         COALESCE(c.mc_number, s.mc_number, s.docket_number) AS mc_number,
+         COALESCE(c.carrier_name, c.legal_name, s.legal_name, 'DOT ' || COALESCE(s.dot_number, s.docket_number, s.id::text)) AS carrier_name,
+         COALESCE(c.legal_name, s.legal_name, c.carrier_name) AS legal_name,
+         c.dba_name,
+         c.entity_type,
+         c.safety_rating,
+         c.safety_rating_date,
+         (s.effective_date + INTERVAL '1 year' + INTERVAL '15 days')::date AS insurance_expiration,
+         s.insurance_company,
+         'Estimated Renewal Window' AS insurance_filing_status,
+         s.policy_number AS insurance_policy_number,
+         c.cargo_insurance,
+         c.vehicle_count,
+         c.driver_count,
+         c.mcs150_date,
+         c.mcs150_mileage,
+         c.carrier_operation_type,
+         c.hq_address,
+         c.hq_city,
+         c.hq_state,
+         c.hq_zip,
+         c.mailing_address,
+         c.mailing_city,
+         c.mailing_state,
+         c.mailing_zip,
+         COALESCE(c.phone, e.phone) AS phone,
+         COALESCE(c.email, e.email) AS email,
+         COALESCE(c.website, e.website) AS website,
+         c.cargo_types,
+         c.operating_status,
+         COALESCE(c.authority_status, s.authority_status) AS authority_status,
+         c.safety_data,
+         c.contact_enrichment_data,
+         c.created_at,
+         c.last_updated,
+         'Estimated Renewal Window' AS insurance_lead_type,
+         'Estimated' AS insurance_confidence,
+         CASE
+           WHEN COALESCE(h.safe_for_current_leads, false) AND NOT COALESCE(h.frozen, false) THEN 'Estimated'
+           ELSE 'Estimated From Historical Baseline'
+         END AS insurance_verification_status,
+         s.source_name AS insurance_source_name,
+         NULL::timestamptz AS last_verified_at,
+         s.effective_date AS insurance_effective_date,
+         NULL::date AS verified_cancel_date,
+         (s.effective_date + INTERVAL '1 year' - INTERVAL '30 days')::date AS estimated_renewal_start,
+         (s.effective_date + INTERVAL '1 year' + INTERVAL '15 days')::date AS estimated_renewal_end,
+         'filing_effective_date' AS estimated_renewal_basis,
+         'estimated' AS estimated_renewal_confidence,
+         'Estimated from public filing effective date. Not a verified cancellation.' AS estimated_renewal_note,
+         'Estimated from public filing effective date. Not a verified cancellation.' AS insurance_intelligence_note
+       FROM insurance_filing_snapshots s
+       LEFT JOIN carriers c ON c.dot_number = s.dot_number
+       LEFT JOIN enriched_carrier_data e ON e.carrier_id = c.id
+       LEFT JOIN insurance_source_health h ON h.source_name = s.source_name
+       WHERE ${snapshotWhere.whereSql}
+       ORDER BY COALESCE(NULLIF(s.dot_number, ''), NULLIF(s.docket_number, ''), s.id::text),
+                COALESCE(s.policy_number, ''),
+                s.effective_date,
+                s.imported_at DESC
+     ) estimated
+     ORDER BY estimated_renewal_start ${direction} NULLS LAST, vehicle_count DESC NULLS LAST, carrier_name ASC
+     LIMIT $${snapshotWhere.values.length + 1} OFFSET $${snapshotWhere.values.length + 2}`,
+    [...snapshotWhere.values, snapshotLimit, offset]
+  );
+
+  const combinedRows = dedupeRenewalRows([...snapshotRowsResult.rows, ...rowsResult.rows])
+    .sort((a, b) => {
+      const aDate = dateOrNull(a.estimated_renewal_start || a.verified_cancel_date || a.insurance_expiration)?.getTime() || 0;
+      const bDate = dateOrNull(b.estimated_renewal_start || b.verified_cancel_date || b.insurance_expiration)?.getTime() || 0;
+      return direction === "ASC" ? aDate - bDate : bDate - aDate;
+    })
+    .slice(0, limit + 1);
+
   return {
-    rows: rowsResult.rows,
-    total: Number(countResult.rows[0]?.total || 0)
+    rows: combinedRows,
+    total: Number(countResult.rows[0]?.total || 0) + Number(snapshotCountResult.rows[0]?.total || 0)
   };
 }
 
@@ -1299,6 +1460,7 @@ async function getPostgresRenewalLeads(req, res) {
   const from = dateOrNull(req.query.from || req.query.renewalFrom || req.query.insuranceFrom) || addDays(0);
   const to = dateOrNull(req.query.to || req.query.renewalTo || req.query.insuranceTo) || addDays(days);
   const direction = sortDirection(req.query.order, 1) === 1 ? "ASC" : "DESC";
+  const includeHistoricalRecords = boolQuery(req.query.includeHistoricalRecords || req.query.include_historical_records);
   const { whereSql, values } = buildPostgresCarrierQuery({
     ...req.query,
     insuranceFrom: from,
@@ -1336,11 +1498,12 @@ async function getPostgresRenewalLeads(req, res) {
   }
 
   let source = "postgres-fallback";
-  let message = rowsResult.rows.length === 0
+  const fallbackRows = includeHistoricalRecords ? rowsResult.rows : [];
+  let message = fallbackRows.length === 0
     ? "No matching renewal dates are loaded yet."
-    : "Showing renewal leads from the available carrier database.";
-  let resultRows = rowsResult.rows;
-  let total = Number(countResult.rows[0]?.total ?? resultRows.length);
+    : "Showing renewal leads from historical carrier insurance dates.";
+  let resultRows = fallbackRows;
+  let total = includeHistoricalRecords ? Number(countResult.rows[0]?.total ?? resultRows.length) : 0;
 
   if (intelligenceResult.rows.length) {
     const rowsByKey = new Map();
@@ -1348,7 +1511,7 @@ async function getPostgresRenewalLeads(req, res) {
       const key = normalizeDotNumber(row.dot_number) || String(row.id);
       rowsByKey.set(key, row);
     }
-    for (const row of rowsResult.rows) {
+    for (const row of fallbackRows) {
       const key = normalizeDotNumber(row.dot_number) || String(row.id);
       if (!rowsByKey.has(key)) rowsByKey.set(key, row);
     }
@@ -1358,7 +1521,7 @@ async function getPostgresRenewalLeads(req, res) {
     message = "Showing renewal leads from verified filings, filing changes, and estimated insurance renewal windows.";
   }
 
-  if (source !== "insurance-filing-intelligence" && resultRows.length < limit && page === 1) {
+  if (includeHistoricalRecords && source !== "insurance-filing-intelligence" && resultRows.length < limit && page === 1) {
     try {
       const liveRows = await fetchAndStoreLiveRenewals({
         from,

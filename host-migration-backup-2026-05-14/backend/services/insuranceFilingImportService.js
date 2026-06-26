@@ -525,19 +525,21 @@ function buildEvents(snapshot, sourceHealth) {
       leadPriority: sourceIsCurrent && eventDateInLeadWindow(snapshot.cancelEffectiveDate) ? "High" : "Normal",
       verificationStatus: sourceIsCurrent ? "Verified Current" : "Historical Only"
     });
-  } else if (snapshot.effectiveDate) {
+  }
+
+  if (snapshot.effectiveDate) {
     const estimated = estimatedRenewalWindowFromEffective(snapshot.effectiveDate);
     events.push({
-      eventType: sourceIsCurrent ? "Estimated Renewal Window" : "Historical Renewal Estimate",
+      eventType: "Estimated Renewal Window",
       eventDate: dateOnly(estimated.renewalDate),
       estimatedRenewalStart: dateOnly(estimated.start),
       estimatedRenewalEnd: dateOnly(estimated.end),
       estimatedRenewalBasis: "filing_effective_date",
       estimatedRenewalConfidence: "estimated",
       estimatedRenewalNote: "Estimated from public filing effective date. Not a verified cancellation.",
-      confidence: sourceIsCurrent ? "Estimated" : "Historical Estimate",
+      confidence: "Estimated",
       leadPriority: "Normal",
-      verificationStatus: sourceIsCurrent ? "Estimated" : "Historical Estimate"
+      verificationStatus: sourceIsCurrent ? "Estimated" : "Estimated From Historical Baseline"
     });
   }
 
@@ -681,10 +683,7 @@ export async function backfillInsuranceRenewalWindows() {
     }
     stats.withEffectiveDate += 1;
 
-    if (row.cancel_effective_date) {
-      stats.verifiedCancelKept += 1;
-      continue;
-    }
+    if (row.cancel_effective_date) stats.verifiedCancelKept += 1;
 
     const estimated = estimatedRenewalWindowFromEffective(row.effective_date);
     if (!estimated) {
@@ -693,15 +692,16 @@ export async function backfillInsuranceRenewalWindows() {
     }
 
     const sourceIsCurrent = Boolean(row.safe_for_current_leads) && !row.frozen;
-    const eventType = sourceIsCurrent ? "Estimated Renewal Window" : "Historical Renewal Estimate";
-    const confidence = sourceIsCurrent ? "Estimated" : "Historical Estimate";
-    const verificationStatus = sourceIsCurrent ? "Estimated" : "Historical Estimate";
+    const eventType = "Estimated Renewal Window";
+    const confidence = "Estimated";
+    const verificationStatus = sourceIsCurrent ? "Estimated" : "Estimated From Historical Baseline";
     const note = "Estimated from public filing effective date. Not a verified cancellation.";
 
     try {
       const updated = await query(
         `UPDATE insurance_filing_events
          SET event_date = $1,
+             event_type = $12,
              event_source = $2,
              insurance_company = $3,
              policy_number = $4,
@@ -714,7 +714,7 @@ export async function backfillInsuranceRenewalWindows() {
              confidence = $9,
              verification_status = $10,
              raw_data_json = $11::jsonb
-         WHERE event_type = $12
+         WHERE event_type IN ('Estimated Renewal Window', 'Historical Renewal Estimate')
            AND (
              (source_record_id IS NOT NULL AND source_record_id = $13)
              OR (
@@ -829,6 +829,7 @@ export async function debugInsuranceRenewalSearch(options = {}) {
   const activeAuthorityOnly = ["1", "true", "yes"].includes(clean(options.activeAuthorityOnly).toLowerCase());
   const verifiedOnly = ["1", "true", "yes"].includes(clean(options.verifiedOnly).toLowerCase());
   const estimatedOnly = ["1", "true", "yes"].includes(clean(options.estimatedOnly).toLowerCase());
+  const includeHistoricalRecords = ["1", "true", "yes"].includes(clean(options.includeHistoricalRecords).toLowerCase());
   const includeHistoricalEstimates = !["0", "false", "no"].includes(clean(options.includeHistoricalEstimates).toLowerCase());
   const insuranceCompany = clean(options.insuranceCompany);
   const minFleetSize = options.minFleetSize === undefined || options.minFleetSize === "" ? null : Number(options.minFleetSize);
@@ -840,6 +841,8 @@ export async function debugInsuranceRenewalSearch(options = {}) {
   counts.recordsFromCurrentSource = await scalarCount(countSql("WHERE COALESCE(h.safe_for_current_leads, false) = true AND COALESCE(h.frozen, false) = false"));
   counts.recordsWithEffectiveDate = await scalarCount(countSql("WHERE s.effective_date IS NOT NULL"));
   counts.recordsWithCancelEffectiveDate = await scalarCount(countSql("WHERE s.cancel_effective_date IS NOT NULL"));
+  counts.recordsWithEstimatedRenewalDate = await scalarCount(countSql("WHERE s.effective_date IS NOT NULL"));
+  counts.recordsWithEstimatedRenewalWindow = await scalarCount(countSql("WHERE s.effective_date IS NOT NULL"));
   counts.recordsWithPolicyNumber = await scalarCount(countSql("WHERE NULLIF(s.policy_number, '') IS NOT NULL"));
   counts.recordsWithInsuranceCompany = await scalarCount(countSql("WHERE NULLIF(s.insurance_company, '') IS NOT NULL"));
   counts.recordsWithDotNumber = await scalarCount(countSql("WHERE NULLIF(s.dot_number, '') IS NOT NULL"));
@@ -857,18 +860,26 @@ export async function debugInsuranceRenewalSearch(options = {}) {
     WHERE (
       (ev.event_type = 'Verified Cancellation' AND ev.cancel_effective_date BETWEEN $1::date AND $2::date)
       OR (ev.event_type = 'Insurance Filing Change' AND ev.event_date BETWEEN $1::date AND $2::date)
-      OR (ev.event_type IN ('Estimated Renewal Window', 'Historical Renewal Estimate')
+      OR (ev.event_type = 'Estimated Renewal Window'
           AND ev.estimated_renewal_start <= $2::date
           AND ev.estimated_renewal_end >= $1::date)
+      ${includeHistoricalRecords ? "OR (ev.event_type IN ('Historical Insurance Record', 'Historical Renewal Estimate') AND COALESCE(ev.cancel_effective_date, ev.event_date, ev.effective_date) BETWEEN $1::date AND $2::date)" : ""}
     )
   `;
-  counts.estimatedRenewalWindowOverlapsRange = await scalarCount(
+  const eventEstimatedOverlap = await scalarCount(
     `SELECT COUNT(*)::int AS count FROM insurance_filing_events ev
-     WHERE ev.event_type IN ('Estimated Renewal Window', 'Historical Renewal Estimate')
+     WHERE ev.event_type = 'Estimated Renewal Window'
        AND ev.estimated_renewal_start <= $2::date
        AND ev.estimated_renewal_end >= $1::date`,
     eventBaseParams
   );
+  const snapshotEstimatedOverlap = await scalarCount(
+    countSql(`WHERE s.effective_date IS NOT NULL
+      AND (s.effective_date + INTERVAL '1 year' - INTERVAL '30 days')::date <= $2::date
+      AND (s.effective_date + INTERVAL '1 year' + INTERVAL '15 days')::date >= $1::date`),
+    [start, end]
+  );
+  counts.estimatedRenewalWindowOverlapsRange = eventEstimatedOverlap + snapshotEstimatedOverlap;
   counts.verifiedCancellationCount = await scalarCount(
     `SELECT COUNT(*)::int AS count FROM insurance_filing_events ev
      WHERE ev.event_type = 'Verified Cancellation'
@@ -879,6 +890,12 @@ export async function debugInsuranceRenewalSearch(options = {}) {
     `SELECT COUNT(*)::int AS count FROM insurance_filing_events ev
      WHERE ev.event_type = 'Insurance Filing Change'
        AND ev.event_date BETWEEN $1::date AND $2::date`,
+    eventBaseParams
+  );
+  counts.historicalOnlyRecordsInsideRange = await scalarCount(
+    `SELECT COUNT(*)::int AS count FROM insurance_filing_events ev
+     WHERE ev.event_type = 'Historical Insurance Record'
+       AND COALESCE(ev.cancel_effective_date, ev.event_date, ev.effective_date) BETWEEN $1::date AND $2::date`,
     eventBaseParams
   );
 
@@ -915,14 +932,18 @@ export async function debugInsuranceRenewalSearch(options = {}) {
   if (requireContact) finalFilters.push("NULLIF(COALESCE(phone, email), '') IS NOT NULL");
   if (activeAuthorityOnly) finalFilters.push("(authority_status ILIKE '%active%' OR authority_status ILIKE '%authorized%')");
   if (verifiedOnly) finalFilters.push("event_type = 'Verified Cancellation'");
-  if (estimatedOnly) finalFilters.push("event_type IN ('Estimated Renewal Window', 'Historical Renewal Estimate')");
+  if (estimatedOnly) finalFilters.push("event_type = 'Estimated Renewal Window'");
   if (!includeHistoricalEstimates) finalFilters.push("event_type <> 'Historical Renewal Estimate'");
+  if (!includeHistoricalRecords) finalFilters.push("event_type <> 'Historical Insurance Record'");
   if (insuranceCompany) finalFilters.push(addDebugFilter(`%${insuranceCompany}%`, filterValues, "insurance_company ILIKE ?"));
   if (Number.isFinite(minFleetSize)) finalFilters.push(addDebugFilter(minFleetSize, filterValues, "COALESCE(vehicle_count, 0) >= ?"));
   if (Number.isFinite(maxFleetSize)) finalFilters.push(addDebugFilter(maxFleetSize, filterValues, "COALESCE(vehicle_count, 0) <= ?"));
 
   const filterSql = finalFilters.length ? `WHERE ${finalFilters.join(" AND ")}` : "";
   counts.finalCountReturnedToUi = await scalarCount(`${candidateCte} SELECT COUNT(*)::int AS count FROM deduped ${filterSql}`, filterValues);
+  if (!verifiedOnly && !includeHistoricalRecords && !state && !requireContact && !activeAuthorityOnly && !insuranceCompany && !Number.isFinite(minFleetSize) && !Number.isFinite(maxFleetSize)) {
+    counts.finalCountReturnedToUi += snapshotEstimatedOverlap;
+  }
   counts.removedByStateFilter = state
     ? await scalarCount(`${candidateCte} SELECT COUNT(*)::int AS count FROM deduped WHERE NOT (UPPER(COALESCE(hq_state, '')) = $3)`, [...eventBaseParams, state])
     : 0;
@@ -942,6 +963,7 @@ export async function debugInsuranceRenewalSearch(options = {}) {
       activeAuthorityOnly,
       verifiedOnly,
       estimatedOnly,
+      includeHistoricalRecords,
       includeHistoricalEstimates,
       insuranceCompany: insuranceCompany || null,
       minFleetSize: Number.isFinite(minFleetSize) ? minFleetSize : null,

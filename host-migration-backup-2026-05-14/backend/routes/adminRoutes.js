@@ -24,6 +24,7 @@ import {
   getOwnerSubscribers,
   getOwnerSummary,
   runOwnerInsuranceImport,
+  runOwnerInsuranceBackfill,
   unfreezeOwnerSubscriber
 } from "../controllers/ownerAdminController.js";
 import { authRequired } from "../middleware/authMiddleware.js";
@@ -49,6 +50,7 @@ router.get("/owner/activity", getOwnerActivity);
 router.get("/owner/data-freshness", getOwnerDataFreshness);
 router.get("/owner/insurance-sources", getOwnerInsuranceSourceHealth);
 router.post("/owner/insurance-import", runOwnerInsuranceImport);
+router.post("/owner/insurance-backfill", runOwnerInsuranceBackfill);
 router.get("/insurance-renewals/debug", getInsuranceRenewalDebug);
 router.get("/owner/alerts", getOwnerAlerts);
 router.get("/fmcsa-diagnostics/:dotNumber", getFmcsaDiagnostics);
