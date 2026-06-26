@@ -537,30 +537,40 @@ async function ensureOperationalTables() {
   await query(`CREATE INDEX IF NOT EXISTS idx_subscription_consents_stripe_subscription ON subscription_consents (stripe_subscription_id)`);
 }
 
-connectMongo()
-  .catch(err => {
+async function runStartupTasks() {
+  await connectMongo().catch(err => {
     console.warn("MongoDB startup connection skipped:", err.message);
-  })
-  .finally(async () => {
-    try {
-      await ensureUserAccountSchema();
-      await ensureOperationalTables();
-      await ensureMarketplaceSchema();
-      console.log("User account schema ready");
-    } catch (err) {
-      console.error("User account schema setup failed:", err.message);
-      process.exit(1);
-    }
-
-    if (process.env.CARRIER_CRON_ENABLED !== "false") {
-      startCarrierUpdateCron();
-    }
-    if (process.env.RENEWAL_CRON_ENABLED !== "false") {
-      startRenewalUpdateCron();
-    }
-
-    app.listen(PORT, () => {
-      console.log(`API server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-    });
   });
+
+  try {
+    await ensureUserAccountSchema();
+    await ensureOperationalTables();
+    await ensureMarketplaceSchema();
+    console.log("User account schema ready");
+  } catch (err) {
+    console.error("User account schema setup failed; continuing in degraded mode:", err.message);
+  }
+
+  if (process.env.CARRIER_CRON_ENABLED !== "false") {
+    try {
+      startCarrierUpdateCron();
+    } catch (err) {
+      console.warn("Carrier update cron skipped:", err.message);
+    }
+  }
+  if (process.env.RENEWAL_CRON_ENABLED !== "false") {
+    try {
+      startRenewalUpdateCron();
+    } catch (err) {
+      console.warn("Renewal update cron skipped:", err.message);
+    }
+  }
+}
+
+app.listen(PORT, () => {
+  console.log(`API server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+  runStartupTasks().catch((err) => {
+    console.error("Startup tasks failed; server remains online:", err.message);
+  });
+});
