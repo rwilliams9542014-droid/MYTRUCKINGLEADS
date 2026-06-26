@@ -9,6 +9,8 @@ import { getPlanAccessSummary } from "../utils/planAccess.js";
 import { loadEffectiveTeamUser } from "../utils/teamAccounts.js";
 import { isOwnerUser } from "../utils/ownerAccess.js";
 import { clearOwnerPreviewCookie } from "../utils/ownerPreview.js";
+import { isDatabaseUnavailableError } from "../utils/databaseStatus.js";
+import { verifyEmergencyOwnerLogin } from "../utils/emergencyOwner.js";
 import {
   attachCheckoutSessionToConsent,
   recordSubscriptionConsent,
@@ -278,17 +280,36 @@ export async function login(req, res, next) {
     // Find user
     const isEmailLogin = loginValue.includes("@");
     const loginLookup = isEmailLogin ? validateEmail(loginValue) : validateUsername(loginValue);
-    const result = await query(
-      `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, password_hash,
-              plan, stripe_subscription_id, subscription_status, subscription_expires_at,
-              account_status, frozen_at, frozen_by, frozen_reason,
-              trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
-              monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
-              team_owner_user_id, team_member_role
-       FROM users
-       WHERE ${isEmailLogin ? "email = $1" : "lower(username) = $1"}`,
-      [loginLookup]
-    );
+    let result;
+    try {
+      result = await query(
+        `SELECT id, name, first_name, last_name, username, email, phone, business_name, lead_state, lead_states, role, password_hash,
+                plan, stripe_subscription_id, subscription_status, subscription_expires_at,
+                account_status, frozen_at, frozen_by, frozen_reason,
+                trial_ends_at, daily_profile_views, daily_contact_views, daily_saved_prospects, last_usage_reset_at,
+                monthly_export_rows, monthly_export_reset_at, daily_export_rows, daily_export_reset_at,
+                team_owner_user_id, team_member_role
+         FROM users
+         WHERE ${isEmailLogin ? "email = $1" : "lower(username) = $1"}`,
+        [loginLookup]
+      );
+    } catch (err) {
+      if (!isDatabaseUnavailableError(err)) throw err;
+      const emergencyUser = await verifyEmergencyOwnerLogin(loginValue, password);
+      if (!emergencyUser) {
+        return res.status(503).json({
+          error: "Database is temporarily unavailable. Owner emergency login is not configured."
+        });
+      }
+      const token = jwt.sign({ sub: "owner-emergency", emergencyOwner: true }, process.env.JWT_SECRET, {
+        expiresIn: "12h"
+      });
+      setAuthCookie(res, token);
+      return res.json({
+        user: publicUser(emergencyUser),
+        emergencyMode: true
+      });
+    }
     
     if (result.rows.length === 0) {
       return next(new AuthenticationError("Invalid username or password"));
@@ -344,6 +365,12 @@ export async function getCurrentUser(req, res, next) {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "Not authenticated" });
+    }
+    if (req.user.id === "owner-emergency") {
+      return res.json({
+        user: publicUser(req.user),
+        emergencyMode: true
+      });
     }
 
     const currentStatus = String(req.user.subscription_status || "").toLowerCase();

@@ -7,6 +7,7 @@ import { applyTrialResponse, hydrateTrialAccessUser } from "../utils/trialAccess
 import { loadEffectiveTeamUser } from "../utils/teamAccounts.js";
 import { isOwnerUser } from "../utils/ownerAccess.js";
 import { applyOwnerPreview, readOwnerPreviewCookie } from "../utils/ownerPreview.js";
+import { emergencyOwnerUser } from "../utils/emergencyOwner.js";
 
 // Extract token from the httpOnly cookie first, then fall back to Authorization.
 function extractToken(req) {
@@ -142,6 +143,12 @@ async function authenticateRequest(req, res, { allowAnonymous = false } = {}) {
       throw new AuthenticationError("Token has expired");
     }
     throw new AuthenticationError("Invalid token");
+  }
+
+  if (payload.emergencyOwner === true && payload.sub === "owner-emergency") {
+    const user = emergencyOwnerUser();
+    assignRequestUser(req, res, user);
+    return user;
   }
 
   const user = await loadUserForRequest(payload.sub);

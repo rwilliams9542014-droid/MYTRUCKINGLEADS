@@ -1,4 +1,6 @@
 // Centralized error handling and custom error classes
+import { isDatabaseUnavailableError } from "../utils/databaseStatus.js";
+
 export class AppError extends Error {
   constructor(message, statusCode) {
     super(message);
@@ -71,6 +73,12 @@ export function errorHandler(err, req, res, next) {
 
     return res.status(409).json({
       error: "Email already in use",
+    });
+  }
+
+  if (isDatabaseUnavailableError(err)) {
+    return res.status(503).json({
+      error: "Database is temporarily unavailable. Please try again shortly."
     });
   }
 

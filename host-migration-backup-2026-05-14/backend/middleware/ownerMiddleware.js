@@ -7,6 +7,11 @@ export async function ownerRequired(req, res, next) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
+    if (req.user.id === "owner-emergency" && isOwnerUser(req.user)) {
+      req.owner = req.user;
+      return next();
+    }
+
     const result = await query(
       `SELECT id, email, username, role
        FROM users
