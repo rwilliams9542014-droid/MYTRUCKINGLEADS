@@ -696,12 +696,8 @@ export default function LeadDeskPage() {
       "Lead Type",
       "Authority Status",
       "Insurance Filing Status",
-      "Insurance Company",
-      "Policy/Filing Number",
       "Insurance Filing Effective Date",
-      "Verified Cancel Date",
-      "Estimated Renewal Window",
-      "Estimated Renewal Basis",
+      "Insurance Filing Cancellation Date",
       "Insurance Expiration / Renewal Date",
       "Renewal / Filing Date",
       "Renewal / Filing Date Source",
@@ -735,12 +731,8 @@ export default function LeadDeskPage() {
         activeTab === "renewal" ? (lead.leadType || "Estimated Renewal Opportunity") : activeTab === "new_dot" ? "New DOT Lead" : "Marketplace Lead",
         lead.authorityStatus,
         lead.insuranceFilingStatus,
-        lead.insuranceCompany,
-        lead.insurancePolicyNumber,
         lead.insuranceEffectiveDate,
         lead.insuranceCancelDate,
-        [lead.estimatedRenewalStart, lead.estimatedRenewalEnd].filter(Boolean).join(" - "),
-        lead.estimatedRenewalBasis || "",
         lead.insuranceExpirationDate,
         lead.renewalDisplay?.date || "",
         lead.renewalDisplay?.label || "",
@@ -1224,9 +1216,6 @@ export default function LeadDeskPage() {
                               <p>Effective: <span className="text-white">{lead.insuranceEffectiveDate || UNAVAILABLE}</span></p>
                               <p>Cancellation: <span className="text-white">{lead.insuranceCancelDate || UNAVAILABLE}</span></p>
                               <p>Company: <span className="text-white">{lead.insuranceCompany || UNAVAILABLE}</span></p>
-                              <p>Policy/Filing #: <span className="text-white">{lead.insurancePolicyNumber || UNAVAILABLE}</span></p>
-                              <p>Estimated Window: <span className="text-white">{[lead.estimatedRenewalStart, lead.estimatedRenewalEnd].filter(Boolean).join(" - ") || UNAVAILABLE}</span></p>
-                              <p>Basis: <span className="text-white">{lead.estimatedRenewalBasis || UNAVAILABLE}</span></p>
                               <p>Filing Type: <span className="text-white">{lead.filingType || UNAVAILABLE}</span></p>
                               <p>Confidence: <span className="text-white">{lead.confidence || UNAVAILABLE}</span></p>
                               <p>Last Verified: <span className="text-white">{lead.lastVerifiedAt || UNAVAILABLE}</span></p>

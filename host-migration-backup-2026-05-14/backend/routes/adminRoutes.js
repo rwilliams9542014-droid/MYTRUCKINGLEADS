@@ -13,7 +13,6 @@ import {
   addOwnerSubscriberNote,
   cancelOwnerSubscriber,
   freezeOwnerSubscriber,
-  getInsuranceRenewalDebug,
   getOwnerActivity,
   getOwnerAlerts,
   getOwnerDataFreshness,
@@ -49,7 +48,6 @@ router.get("/owner/activity", getOwnerActivity);
 router.get("/owner/data-freshness", getOwnerDataFreshness);
 router.get("/owner/insurance-sources", getOwnerInsuranceSourceHealth);
 router.post("/owner/insurance-import", runOwnerInsuranceImport);
-router.get("/insurance-renewals/debug", getInsuranceRenewalDebug);
 router.get("/owner/alerts", getOwnerAlerts);
 router.get("/fmcsa-diagnostics/:dotNumber", getFmcsaDiagnostics);
 router.post("/users/:id/sync-stripe", syncUserStripe);
