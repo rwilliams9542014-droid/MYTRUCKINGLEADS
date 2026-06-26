@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { readFileSync } from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -268,6 +269,17 @@ app.use((req, res) => {
 
 // Global error handler (must be last)
 app.use(errorHandler);
+
+async function ensureBaseSchema() {
+  const existingUsersTable = await query("SELECT to_regclass('public.users') AS table_name");
+  if (existingUsersTable.rows[0]?.table_name) {
+    return;
+  }
+
+  const schemaSql = readFileSync(join(__dirname, "schema.sql"), "utf8");
+  await query(schemaSql);
+  console.log("Base database schema created");
+}
 
 async function ensureUserAccountSchema() {
   await query(`
@@ -543,6 +555,7 @@ async function runStartupTasks() {
   });
 
   try {
+    await ensureBaseSchema();
     await ensureUserAccountSchema();
     await ensureOperationalTables();
     await ensureMarketplaceSchema();
