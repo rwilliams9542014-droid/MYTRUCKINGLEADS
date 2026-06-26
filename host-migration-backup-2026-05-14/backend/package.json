@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "insurance:import-intelligence": "node scripts/importInsuranceFilingIntelligence.js",
     "insurance:backfill-renewal-windows": "node scripts/backfillInsuranceRenewalWindows.js",
     "insurance:debug-renewals": "node scripts/debugInsuranceRenewals.js"
   },

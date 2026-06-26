@@ -1,0 +1,31 @@
+import { closePool } from "../config/db.js";
+import {
+  currentInsuranceFeedWarning,
+  importInsuranceFilingIntelligence
+} from "../services/insuranceFilingImportService.js";
+
+function argValue(name, fallback = "") {
+  const prefix = `${name}=`;
+  const found = process.argv.slice(2).find((arg) => arg.startsWith(prefix));
+  return found ? found.slice(prefix.length) : fallback;
+}
+
+async function main() {
+  const limit = Number(argValue("--limit", process.env.INSURANCE_FILING_IMPORT_LIMIT || 2500));
+  console.log(`[InsuranceFilingImport] Starting import with limit ${limit}...`);
+  const stats = await importInsuranceFilingIntelligence({ limit });
+  console.log("[InsuranceFilingImport] Completed.");
+  console.log(JSON.stringify({
+    stats,
+    warning: await currentInsuranceFeedWarning()
+  }, null, 2));
+}
+
+main()
+  .catch((err) => {
+    console.error("[InsuranceFilingImport] Failed:", err.message);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await closePool().catch(() => {});
+  });
