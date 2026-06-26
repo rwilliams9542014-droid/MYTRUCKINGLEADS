@@ -656,75 +656,38 @@ export async function importInsuranceFilingIntelligence(options = {}) {
   return stats;
 }
 
-function renewalWindowKey(row = {}) {
-  return [
-    row.source_record_id || "",
-    dotNumber(row.dot_number),
-    clean(row.docket_number),
-    clean(row.policy_number),
-    dateOnly(row.effective_date)
-  ].join("|");
-}
-
-function hasMatchingEstimatedWindow(existing, estimated) {
-  return (
-    dateOnly(existing?.estimated_renewal_start) === dateOnly(estimated.start)
-    && dateOnly(existing?.estimated_renewal_end) === dateOnly(estimated.end)
-    && existing?.event_type === "Estimated Renewal Window"
-  );
-}
-
-export async function backfillInsuranceRenewalWindows(options = {}) {
-  const dryRun = Boolean(options.dryRun);
-  if (!dryRun) await ensureInsuranceIntelligenceTables();
+export async function backfillInsuranceRenewalWindows() {
+  await ensureInsuranceIntelligenceTables();
   const stats = {
     scanned: 0,
-    with_effective_date: 0,
-    windows_already_exist: 0,
-    windows_would_create: 0,
-    windows_would_update: 0,
-    windows_created: 0,
-    windows_updated: 0,
-    skipped_no_effective_date: 0,
-    skipped_invalid_effective_date: 0,
-    records_with_cancel_date: 0,
-    verified_cancel_dates_kept: 0,
-    historical_only_records: 0,
+    withEffectiveDate: 0,
+    windowsCreated: 0,
+    windowsUpdated: 0,
+    skippedNoDate: 0,
+    skippedInvalidDate: 0,
+    verifiedCancelKept: 0,
     errors: 0
   };
 
-  const [snapshotResult, eventResult] = await Promise.all([
-    query(`
+  const result = await query(`
     SELECT s.*, h.safe_for_current_leads, h.frozen
     FROM insurance_filing_snapshots s
     LEFT JOIN insurance_source_health h ON h.source_name = s.source_name
-  `),
-    query(`
-      SELECT source_record_id, dot_number, docket_number, policy_number, effective_date,
-             event_type, estimated_renewal_start, estimated_renewal_end
-      FROM insurance_filing_events
-      WHERE event_type IN ('Estimated Renewal Window', 'Historical Renewal Estimate')
-    `)
-  ]);
-  const existingByKey = new Map(eventResult.rows.map((row) => [renewalWindowKey(row), row]));
+  `);
 
-  for (const row of snapshotResult.rows) {
+  for (const row of result.rows) {
     stats.scanned += 1;
     if (!row.effective_date) {
-      stats.skipped_no_effective_date += 1;
-      if (row.cancel_effective_date) stats.historical_only_records += 1;
+      stats.skippedNoDate += 1;
       continue;
     }
-    stats.with_effective_date += 1;
+    stats.withEffectiveDate += 1;
 
-    if (row.cancel_effective_date) {
-      stats.records_with_cancel_date += 1;
-      stats.verified_cancel_dates_kept += 1;
-    }
+    if (row.cancel_effective_date) stats.verifiedCancelKept += 1;
 
     const estimated = estimatedRenewalWindowFromEffective(row.effective_date);
     if (!estimated) {
-      stats.skipped_invalid_effective_date += 1;
+      stats.skippedInvalidDate += 1;
       continue;
     }
 
@@ -733,14 +696,6 @@ export async function backfillInsuranceRenewalWindows(options = {}) {
     const confidence = "Estimated";
     const verificationStatus = sourceIsCurrent ? "Estimated" : "Estimated From Historical Baseline";
     const note = "Estimated from public filing effective date. Not a verified cancellation.";
-    const existing = existingByKey.get(renewalWindowKey(row));
-
-    if (dryRun) {
-      if (!existing) stats.windows_would_create += 1;
-      else if (hasMatchingEstimatedWindow(existing, estimated)) stats.windows_already_exist += 1;
-      else stats.windows_would_update += 1;
-      continue;
-    }
 
     try {
       const updated = await query(
@@ -790,7 +745,7 @@ export async function backfillInsuranceRenewalWindows(options = {}) {
       );
 
       if (updated.rowCount > 0) {
-        stats.windows_updated += updated.rowCount;
+        stats.windowsUpdated += updated.rowCount;
         continue;
       }
 
@@ -828,7 +783,7 @@ export async function backfillInsuranceRenewalWindows(options = {}) {
           JSON.stringify(row.raw_data_json || {})
         ]
       );
-      stats.windows_created += 1;
+      stats.windowsCreated += 1;
     } catch (err) {
       stats.errors += 1;
       console.warn(`[InsuranceRenewalBackfill] ${row.source_record_id || row.id} skipped: ${err.message}`);
@@ -860,7 +815,7 @@ function addDebugFilter(filters, values, condition) {
 }
 
 export async function debugInsuranceRenewalSearch(options = {}) {
-  if (options.ensureSchema !== false) await ensureInsuranceIntelligenceTables();
+  await ensureInsuranceIntelligenceTables();
   const start = dateOnly(options.start);
   const end = dateOnly(options.end);
   if (!start || !end) {
