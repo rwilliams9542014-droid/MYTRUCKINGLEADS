@@ -5,7 +5,6 @@ import { query } from "../config/db.js";
 import { connectMongo, getMongoUri, isMongoConnected } from "../config/mongo.js";
 import Carrier from "../models/Carrier.js";
 import {
-  backfillInsuranceRenewalWindows,
   currentInsuranceFeedWarning,
   debugInsuranceRenewalSearch,
   importInsuranceFilingIntelligence,
@@ -746,20 +745,6 @@ export async function runOwnerInsuranceImport(req, res, next) {
   }
 }
 
-export async function runOwnerInsuranceBackfill(req, res, next) {
-  try {
-    const stats = await backfillInsuranceRenewalWindows();
-    res.json({
-      success: true,
-      message: "Insurance renewal windows backfill completed.",
-      warning: await currentInsuranceFeedWarning(),
-      stats
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
 export async function getInsuranceRenewalDebug(req, res, next) {
   try {
     const report = await debugInsuranceRenewalSearch({
@@ -770,7 +755,6 @@ export async function getInsuranceRenewalDebug(req, res, next) {
       activeAuthorityOnly: req.query.activeAuthorityOnly || req.query.active_authority_only,
       verifiedOnly: req.query.verifiedOnly || req.query.verified_only,
       estimatedOnly: req.query.estimatedOnly || req.query.estimated_only,
-      includeHistoricalRecords: req.query.includeHistoricalRecords || req.query.include_historical_records,
       includeHistoricalEstimates: req.query.includeHistoricalEstimates || req.query.include_historical_estimates,
       insuranceCompany: req.query.insuranceCompany || req.query.insurance_company,
       minFleetSize: req.query.minFleetSize || req.query.min_fleet_size,

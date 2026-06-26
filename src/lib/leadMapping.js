@@ -359,15 +359,12 @@ export function getRenewalDisplay(lead = {}) {
   if (lead.crmRenewalDate) return { label: "CRM Renewal Date", date: lead.crmRenewalDate };
   if (lead.estimatedRenewalStart || lead.estimatedRenewalEnd) {
     return {
-      label: "Estimated Window",
+      label: "Estimated Renewal Window",
       date: [lead.estimatedRenewalStart, lead.estimatedRenewalEnd].filter(Boolean).join(" to ")
     };
   }
-  if (lead.leadType === "Verified Cancellation" && lead.insuranceCancelDate) return { label: "Verified Cancel Date", date: lead.insuranceCancelDate };
-  if (lead.leadType === "Insurance Filing Change" && lead.insuranceEffectiveDate) return { label: "Filing Change Date", date: lead.insuranceEffectiveDate };
-  if (lead.leadType === "Historical Insurance Record" && lead.insuranceCancelDate) return { label: "Historical Filing Date", date: lead.insuranceCancelDate };
-  if (lead.insuranceCancelDate) return { label: "Historical Filing Date", date: lead.insuranceCancelDate };
-  if (lead.insuranceEffectiveDate) return { label: "Filing Effective Date", date: lead.insuranceEffectiveDate };
+  if (lead.insuranceCancelDate) return { label: "FMCSA Filing Cancellation Date", date: lead.insuranceCancelDate };
+  if (lead.insuranceEffectiveDate) return { label: "FMCSA Filing Effective Date", date: lead.insuranceEffectiveDate };
   if (lead.estimatedRenewalDate) return { label: "Estimated Renewal Opportunity", date: lead.estimatedRenewalDate };
   return { label: UNAVAILABLE, date: null };
 }

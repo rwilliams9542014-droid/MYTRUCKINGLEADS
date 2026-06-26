@@ -201,7 +201,6 @@ export default function AdminPage() {
   const [freshness, setFreshness] = useState(null);
   const [insuranceSources, setInsuranceSources] = useState(null);
   const [insuranceImporting, setInsuranceImporting] = useState(false);
-  const [insuranceBackfilling, setInsuranceBackfilling] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -318,31 +317,6 @@ export default function AdminPage() {
       setError(err.message || "Insurance import failed.");
     } finally {
       setInsuranceImporting(false);
-    }
-  };
-
-  const runInsuranceBackfill = async () => {
-    if (!window.confirm("Backfill estimated renewal windows from public filing effective dates now?")) return;
-    setInsuranceBackfilling(true);
-    setError("");
-    try {
-      const result = await api.runOwnerInsuranceBackfill();
-      const [freshnessData, insuranceSourceData, healthData] = await Promise.all([
-        api.getOwnerDataFreshness(),
-        api.getOwnerInsuranceSources(),
-        api.getOwnerHealth(),
-      ]);
-      setFreshness(freshnessData);
-      setInsuranceSources({
-        ...insuranceSourceData,
-        warning: result?.message || insuranceSourceData?.warning,
-        backfillStats: result?.stats
-      });
-      setHealth(healthData);
-    } catch (err) {
-      setError(err.message || "Insurance renewal window backfill failed.");
-    } finally {
-      setInsuranceBackfilling(false);
     }
   };
 
@@ -498,25 +472,10 @@ export default function AdminPage() {
             </p>
             {insuranceSources?.warning && <p className="mt-2 text-sm text-amber-200">{insuranceSources.warning}</p>}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={runInsuranceImport} disabled={insuranceImporting || insuranceBackfilling}>
-              {insuranceImporting ? "Running..." : "Run Insurance Import Now"}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={runInsuranceBackfill} disabled={insuranceImporting || insuranceBackfilling}>
-              {insuranceBackfilling ? "Backfilling..." : "Backfill Renewal Windows"}
-            </Button>
-          </div>
+          <Button size="sm" onClick={runInsuranceImport} disabled={insuranceImporting}>
+            {insuranceImporting ? "Running..." : "Run Insurance Import Now"}
+          </Button>
         </div>
-        {insuranceSources?.backfillStats && (
-          <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
-            {Object.entries(insuranceSources.backfillStats).map(([key, value]) => (
-              <div key={key} className="rounded-lg border border-white/10 bg-navy-900/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.12em] text-navy-500">{key.replace(/([A-Z])/g, " $1")}</p>
-                <p className="mt-1 text-sm font-semibold text-white">{numberValue(value)}</p>
-              </div>
-            ))}
-          </div>
-        )}
         <div className="mt-4 overflow-x-auto">
           <table className="premium-table w-full min-w-[980px]">
             <thead>
