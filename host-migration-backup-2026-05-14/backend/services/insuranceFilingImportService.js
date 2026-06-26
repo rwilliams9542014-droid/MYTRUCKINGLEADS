@@ -175,33 +175,6 @@ function addYears(value, years) {
   return date;
 }
 
-function monthKeysBetween(startValue, endValue) {
-  const start = dateOrNull(startValue);
-  const end = dateOrNull(endValue);
-  if (!start || !end) return [];
-  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
-  const last = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
-  const months = [];
-  while (cursor <= last) {
-    months.push({
-      year: cursor.getUTCFullYear(),
-      month: String(cursor.getUTCMonth() + 1).padStart(2, "0")
-    });
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-  }
-  return months;
-}
-
-function renewalEffectiveRange(startValue, endValue) {
-  const start = dateOrNull(startValue);
-  const end = dateOrNull(endValue);
-  if (!start || !end) return null;
-  return {
-    start: addDays(addYears(start, -1), -15),
-    end: addDays(addYears(end, -1), 30)
-  };
-}
-
 function estimatedRenewalWindowFromEffective(value) {
   const effectiveDate = dateOrNull(value);
   if (!effectiveDate) return null;
@@ -640,61 +613,6 @@ async function fetchImportRows(definition, limit) {
   return fetchJson(definition.datasetId, params);
 }
 
-async function fetchRowsForEffectiveRange(definition, effectiveStart, effectiveEnd, limit) {
-  const months = monthKeysBetween(effectiveStart, effectiveEnd);
-  const rows = [];
-  const seen = new Set();
-  const pageSize = Math.min(Math.max(Number(limit) || DEFAULT_IMPORT_LIMIT, 100), 5000);
-
-  for (const { year, month } of months) {
-    if (rows.length >= limit) break;
-    const compactDates = definition.sourceFamily === "motus";
-    const likePattern = compactDates ? `${year}${month}%` : `${month}/%/${year}`;
-    for (let offset = 0; rows.length < limit; offset += pageSize) {
-      const page = await fetchJson(definition.datasetId, {
-        "$where": `effective_date like '${likePattern}'`,
-        "$limit": pageSize,
-        "$offset": offset
-      }).catch((err) => {
-        console.warn(`[InsuranceFilingImport] ${definition.name} targeted fetch skipped: ${err.message}`);
-        return [];
-      });
-      if (!page.length) break;
-
-      for (const row of page) {
-        const effective = dateOrNull(row.effective_date);
-        if (!effective || effective < effectiveStart || effective > effectiveEnd) continue;
-        const key = JSON.stringify(row);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        rows.push(row);
-        if (rows.length >= limit) break;
-      }
-
-      if (page.length < pageSize) break;
-    }
-  }
-
-  return rows;
-}
-
-async function persistInsuranceRows(definition, rows, sourceHealth, stats) {
-  for (const row of rows) {
-    const snapshot = mapSnapshot(definition, row, sourceHealth);
-    if (!snapshot.dotNumber && !snapshot.docketNumber) continue;
-    await insertSnapshot(snapshot);
-    stats.snapshotsInserted += 1;
-
-    for (const event of buildEvents(snapshot, sourceHealth)) {
-      await insertEvent(snapshot, event);
-      stats.eventsInserted += 1;
-      if (event.eventType === "Verified Cancellation") stats.verifiedCancellationEvents += 1;
-      if (event.eventType === "Estimated Renewal Window") stats.estimatedRenewalEvents += 1;
-      if (event.eventType === "Historical Insurance Record") stats.historicalEvents += 1;
-    }
-  }
-}
-
 export async function importInsuranceFilingIntelligence(options = {}) {
   await ensureInsuranceIntelligenceTables();
   const skipHealth = Boolean(options.skipHealth);
@@ -724,50 +642,20 @@ export async function importInsuranceFilingIntelligence(options = {}) {
       return [];
     });
 
-    await persistInsuranceRows(definition, rows, sourceHealth, stats);
-  }
+    for (const row of rows) {
+      const snapshot = mapSnapshot(definition, row, sourceHealth);
+      if (!snapshot.dotNumber && !snapshot.docketNumber) continue;
+      await insertSnapshot(snapshot);
+      stats.snapshotsInserted += 1;
 
-  return stats;
-}
-
-export async function importInsuranceFilingsForRenewalWindow(options = {}) {
-  await ensureInsuranceIntelligenceTables();
-  const range = renewalEffectiveRange(options.from || options.start, options.to || options.end);
-  if (!range) {
-    const err = new Error("Valid from and to dates are required for renewal-window import.");
-    err.status = 400;
-    throw err;
-  }
-
-  const limit = Number(options.limit || DEFAULT_IMPORT_LIMIT);
-  const skipHealth = Boolean(options.skipHealth);
-  const health = skipHealth ? [] : await checkInsuranceSourceHealth();
-  const healthBySource = await latestHealthBySource();
-  const stats = {
-    sourcesChecked: health.length,
-    renewalWindow: {
-      from: dateOnly(options.from || options.start),
-      to: dateOnly(options.to || options.end),
-      effectiveStart: dateOnly(range.start),
-      effectiveEnd: dateOnly(range.end)
-    },
-    snapshotsInserted: 0,
-    eventsInserted: 0,
-    verifiedCancellationEvents: 0,
-    estimatedRenewalEvents: 0,
-    historicalEvents: 0,
-    sources: health
-  };
-
-  for (const definition of INSURANCE_SOURCE_DEFINITIONS.filter((source) => source.import && source.dateFields.includes("effective_date"))) {
-    const sourceHealth = healthBySource.get(definition.name) || {
-      source_name: definition.name,
-      latest_record_date: null,
-      frozen: definition.sourceFamily === "legacy",
-      safe_for_current_leads: definition.sourceFamily === "motus"
-    };
-    const rows = await fetchRowsForEffectiveRange(definition, range.start, range.end, limit);
-    await persistInsuranceRows(definition, rows, sourceHealth, stats);
+      for (const event of buildEvents(snapshot, sourceHealth)) {
+        await insertEvent(snapshot, event);
+        stats.eventsInserted += 1;
+        if (event.eventType === "Verified Cancellation") stats.verifiedCancellationEvents += 1;
+        if (event.eventType === "Estimated Renewal Window") stats.estimatedRenewalEvents += 1;
+        if (event.eventType === "Historical Insurance Record") stats.historicalEvents += 1;
+      }
+    }
   }
 
   return stats;
