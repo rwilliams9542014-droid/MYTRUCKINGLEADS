@@ -543,6 +543,14 @@ function dateOnly(value) {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
+function addYearsUtc(value, years) {
+  const date = dateOrNull(value);
+  if (!date) return null;
+  const next = new Date(date.getTime());
+  next.setUTCFullYear(next.getUTCFullYear() + years);
+  return next;
+}
+
 function usDateOrNull(value) {
   if (!value) return null;
   const text = String(value).trim();
@@ -861,6 +869,62 @@ async function fetchInsuranceRowsForWindow({ from, to, limit }) {
   return results;
 }
 
+async function fetchEstimatedInsuranceRenewalRows({ from, to, limit }) {
+  const priorFrom = addYearsUtc(from, -1);
+  const priorTo = addYearsUtc(to, -1);
+  if (!priorFrom || !priorTo) return [];
+
+  const months = monthKeysBetween(priorFrom, priorTo);
+  const selected = [
+    "docket_number",
+    "dot_number",
+    "cancl_effective_date",
+    "effective_date",
+    "name_company",
+    "policy_no",
+    "ins_form_code",
+    "mod_col_1"
+  ].join(",");
+  const pageSize = Number(process.env.FMCSA_INSURANCE_SEARCH_PAGE_SIZE || 5000);
+  const maxRows = Math.max(limit * 1200, 10000);
+  const results = [];
+
+  for (const { month, year } of months) {
+    for (let offset = 0; results.length < maxRows; offset += pageSize) {
+      const params = new URLSearchParams();
+      params.set("$select", selected);
+      params.set("$where", `effective_date like '${month}/%/${year}'`);
+      params.set("$order", "effective_date ASC");
+      params.set("$limit", String(pageSize));
+      params.set("$offset", String(offset));
+
+      const rows = await fetchJsonFromSocrata(`https://data.transportation.gov/resource/qh9u-swkp.json?${params.toString()}`);
+      if (!rows.length) break;
+
+      for (const row of rows) {
+        const effectiveDate = usDateOrNull(row.effective_date);
+        const estimatedRenewalDate = addYearsUtc(effectiveDate, 1);
+        const dot_number = normalizeDotNumber(row.dot_number);
+        if (!dot_number || !effectiveDate || !estimatedRenewalDate) continue;
+        if (estimatedRenewalDate < from || estimatedRenewalDate > to) continue;
+
+        results.push({
+          ...row,
+          dot_number,
+          effectiveDate,
+          estimatedRenewal: true,
+          estimatedRenewalBasis: "prior-year-effective-date",
+          expirationDate: estimatedRenewalDate
+        });
+      }
+
+      if (rows.length < pageSize) break;
+    }
+  }
+
+  return results;
+}
+
 async function fetchCensusRowsForDots(dotNumbers, state = "") {
   if (!dotNumbers.length) return [];
   const params = new URLSearchParams();
@@ -978,7 +1042,9 @@ async function upsertPostgresRenewalCarrier({ insurance, census }) {
       dateOnly(insurance.expirationDate),
       insurance.name_company || "",
       insurance.policy_no || "",
-      insurance.mod_col_1 || insurance.ins_form_code || "",
+      insurance.estimatedRenewal
+        ? "Estimated Renewal (prior year effective filing)"
+        : (insurance.mod_col_1 || insurance.ins_form_code || ""),
       cargoTypes,
       census.hm_ind === "Y"
     ]
@@ -988,10 +1054,17 @@ async function upsertPostgresRenewalCarrier({ insurance, census }) {
 }
 
 async function fetchAndStoreLiveRenewals({ from, to, state, limit }) {
-  const insuranceRows = await fetchInsuranceRowsForWindow({ from, to, limit });
+  const [cancellationRows, estimatedRenewalRows] = await Promise.all([
+    fetchInsuranceRowsForWindow({ from, to, limit }),
+    fetchEstimatedInsuranceRenewalRows({ from, to, limit })
+  ]);
+  const insuranceRows = [...cancellationRows, ...estimatedRenewalRows];
   const bestByDot = new Map();
   for (const row of insuranceRows) {
-    if (!bestByDot.has(row.dot_number)) bestByDot.set(row.dot_number, row);
+    const current = bestByDot.get(row.dot_number);
+    if (!current || (current.estimatedRenewal && !row.estimatedRenewal)) {
+      bestByDot.set(row.dot_number, row);
+    }
   }
 
   const insuranceByDot = [...bestByDot.values()];
@@ -1124,7 +1197,7 @@ async function getPostgresRenewalLeads(req, res) {
     }
   }
 
-  const total = Number(countResult.rows[0]?.total ?? resultRows.length);
+  const total = Math.max(Number(countResult.rows[0]?.total ?? 0), resultRows.length);
   const hasMore = resultRows.length > limit || page * limit < total;
   const rows = hasMore ? resultRows.slice(0, limit) : resultRows;
   const trialAccess = trialAccessForRequest(req, res);
@@ -1535,7 +1608,7 @@ export async function getRenewalLeads(req, res) {
     const hasMore = carriersPlusOne.length > limit;
     const carriers = hasMore ? carriersPlusOne.slice(0, limit) : carriersPlusOne;
 
-    if (carriers.length === 0 && page === 1) {
+    if (carriers.length < limit && page === 1) {
       return getPostgresRenewalLeads(req, res);
     }
 
