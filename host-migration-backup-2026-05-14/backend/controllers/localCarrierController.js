@@ -1038,84 +1038,6 @@ async function fetchAndStoreLiveRenewals({ from, to, state, limit }) {
   return hydrated;
 }
 
-async function hydrateInsuranceIntelligenceCarriers({ from, to, state, limit }) {
-  const values = [dateOnly(from), dateOnly(to), Math.max(limit * 4, 250)];
-  const result = await dbQuery(
-    `WITH candidates AS (
-       SELECT
-         ev.dot_number,
-         COALESCE(ev.docket_number, ev.mc_number) AS docket_number,
-         ev.insurance_company AS name_company,
-         ev.policy_number AS policy_no,
-         ev.effective_date,
-         COALESCE(ev.cancel_effective_date, ev.estimated_renewal_end, ev.event_date) AS expiration_date
-       FROM insurance_filing_events ev
-       WHERE NULLIF(ev.dot_number, '') IS NOT NULL
-         AND (
-           (ev.event_type = 'Verified Cancellation' AND ev.cancel_effective_date BETWEEN $1::date AND $2::date)
-           OR (ev.event_type = 'Insurance Filing Change' AND ev.event_date BETWEEN $1::date AND $2::date)
-           OR (ev.event_type = 'Estimated Renewal Window'
-               AND ev.estimated_renewal_start <= $2::date
-               AND ev.estimated_renewal_end >= $1::date)
-         )
-       UNION ALL
-       SELECT
-         s.dot_number,
-         COALESCE(s.docket_number, s.mc_number) AS docket_number,
-         s.insurance_company AS name_company,
-         s.policy_number AS policy_no,
-         s.effective_date,
-         (s.effective_date + INTERVAL '1 year' + INTERVAL '15 days')::date AS expiration_date
-       FROM insurance_filing_snapshots s
-       WHERE NULLIF(s.dot_number, '') IS NOT NULL
-         AND s.effective_date IS NOT NULL
-         AND (s.effective_date + INTERVAL '1 year' - INTERVAL '30 days')::date <= $2::date
-         AND (s.effective_date + INTERVAL '1 year' + INTERVAL '15 days')::date >= $1::date
-     ),
-     deduped AS (
-       SELECT DISTINCT ON (dot_number)
-         dot_number,
-         docket_number,
-         name_company,
-         policy_no,
-         effective_date,
-         expiration_date
-       FROM candidates
-       ORDER BY dot_number, expiration_date ASC NULLS LAST
-     )
-     SELECT *
-     FROM deduped
-     LIMIT $3`,
-    values
-  );
-
-  const hydrated = [];
-  const chunkSize = 50;
-  for (let i = 0; i < result.rows.length && hydrated.length < limit; i += chunkSize) {
-    const chunk = result.rows.slice(i, i + chunkSize);
-    const censusRows = await fetchCensusRowsForDots(chunk.map((row) => row.dot_number), state);
-    const censusByDot = new Map(censusRows.map((row) => [normalizeDotNumber(row.dot_number), row]));
-    for (const insurance of chunk) {
-      const dot = normalizeDotNumber(insurance.dot_number);
-      const census = censusByDot.get(dot);
-      if (!census) continue;
-      const saved = await upsertPostgresRenewalCarrier({
-        insurance: {
-          ...insurance,
-          dot_number: dot,
-          expirationDate: dateOrNull(insurance.expiration_date),
-          effectiveDate: dateOrNull(insurance.effective_date)
-        },
-        census
-      });
-      if (saved) hydrated.push(saved);
-      if (hydrated.length >= limit) break;
-    }
-  }
-
-  return hydrated;
-}
-
 function boolQuery(value) {
   return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 }
@@ -1563,14 +1485,6 @@ async function getPostgresRenewalLeads(req, res) {
   ]);
   let intelligenceResult = { rows: [], total: 0 };
   try {
-    if (queryState(req.query.state)) {
-      await hydrateInsuranceIntelligenceCarriers({
-        from,
-        to,
-        state: queryState(req.query.state),
-        limit
-      });
-    }
     intelligenceResult = await fetchInsuranceIntelligenceRenewals({
       from,
       to,

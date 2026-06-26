@@ -10,7 +10,6 @@ function argValue(name, fallback = "") {
 async function main() {
   const start = argValue("--start");
   const end = argValue("--end");
-  const state = argValue("--state");
   if (!start || !end) {
     throw new Error("Usage: npm run insurance:debug-renewals -- --start=2026-08-01 --end=2026-08-25");
   }
@@ -19,7 +18,6 @@ async function main() {
   const report = await debugInsuranceRenewalSearch({
     start,
     end,
-    state,
     ensureSchema: false
   });
   console.log(JSON.stringify(report, null, 2));

@@ -615,8 +615,7 @@ async function fetchImportRows(definition, limit) {
 
 export async function importInsuranceFilingIntelligence(options = {}) {
   await ensureInsuranceIntelligenceTables();
-  const skipHealth = Boolean(options.skipHealth);
-  const health = skipHealth ? [] : await checkInsuranceSourceHealth();
+  const health = await checkInsuranceSourceHealth();
   const healthBySource = await latestHealthBySource();
   const limit = Number(options.limit || DEFAULT_IMPORT_LIMIT);
   const stats = {
@@ -630,12 +629,8 @@ export async function importInsuranceFilingIntelligence(options = {}) {
   };
 
   for (const definition of INSURANCE_SOURCE_DEFINITIONS.filter((source) => source.import)) {
-    const sourceHealth = healthBySource.get(definition.name) || {
-      source_name: definition.name,
-      latest_record_date: null,
-      frozen: definition.sourceFamily === "legacy",
-      safe_for_current_leads: definition.sourceFamily === "motus"
-    };
+    const sourceHealth = healthBySource.get(definition.name);
+    if (!sourceHealth) continue;
 
     const rows = await fetchImportRows(definition, limit).catch((err) => {
       console.warn(`[InsuranceFilingImport] ${definition.name} import skipped: ${err.message}`);
