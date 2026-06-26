@@ -526,6 +526,19 @@ function pgCargo(row) {
     : "Not listed";
 }
 
+const INSURANCE_FILING_DATASETS = [
+  {
+    id: "qh9u-swkp",
+    label: "FMCSA ActPendInsur - All With History",
+    priority: 1
+  },
+  {
+    id: "6sqe-dvqs",
+    label: "FMCSA InsHist - All With History",
+    priority: 2
+  }
+];
+
 function compactDateNumber(value) {
   const date = dateOrNull(value);
   return date ? Number(date.toISOString().slice(0, 10).replace(/-/g, "")) : null;
@@ -838,31 +851,35 @@ async function fetchInsuranceRowsForWindow({ from, to, limit }) {
   const maxRows = Math.max(limit * 1200, 10000);
   const results = [];
 
-  for (const { month, year } of months) {
-    for (let offset = 0; results.length < maxRows; offset += pageSize) {
-      const params = new URLSearchParams();
-      params.set("$select", selected);
-      params.set("$where", `cancl_effective_date like '${month}/%/${year}'`);
-      params.set("$order", "cancl_effective_date ASC");
-      params.set("$limit", String(pageSize));
-      params.set("$offset", String(offset));
+  for (const dataset of INSURANCE_FILING_DATASETS) {
+    for (const { month, year } of months) {
+      for (let offset = 0; results.length < maxRows; offset += pageSize) {
+        const params = new URLSearchParams();
+        params.set("$select", selected);
+        params.set("$where", `cancl_effective_date like '${month}/%/${year}'`);
+        params.set("$order", "cancl_effective_date ASC");
+        params.set("$limit", String(pageSize));
+        params.set("$offset", String(offset));
 
-      const rows = await fetchJsonFromSocrata(`https://data.transportation.gov/resource/qh9u-swkp.json?${params.toString()}`);
-      if (!rows.length) break;
+        const rows = await fetchJsonFromSocrata(`https://data.transportation.gov/resource/${dataset.id}.json?${params.toString()}`);
+        if (!rows.length) break;
 
-      for (const row of rows) {
-        const expirationDate = usDateOrNull(row.cancl_effective_date);
-        const dot_number = normalizeDotNumber(row.dot_number);
-        if (!dot_number || !expirationDate || expirationDate < from || expirationDate > to) continue;
-        results.push({
-          ...row,
-          dot_number,
-          expirationDate,
-          effectiveDate: usDateOrNull(row.effective_date)
-        });
+        for (const row of rows) {
+          const expirationDate = usDateOrNull(row.cancl_effective_date);
+          const dot_number = normalizeDotNumber(row.dot_number);
+          if (!dot_number || !expirationDate || expirationDate < from || expirationDate > to) continue;
+          results.push({
+            ...row,
+            dot_number,
+            expirationDate,
+            effectiveDate: usDateOrNull(row.effective_date),
+            insuranceSourceDataset: dataset.label,
+            insuranceSourcePriority: dataset.priority
+          });
+        }
+
+        if (rows.length < pageSize) break;
       }
-
-      if (rows.length < pageSize) break;
     }
   }
 
@@ -889,36 +906,40 @@ async function fetchEstimatedInsuranceRenewalRows({ from, to, limit }) {
   const maxRows = Math.max(limit * 1200, 10000);
   const results = [];
 
-  for (const { month, year } of months) {
-    for (let offset = 0; results.length < maxRows; offset += pageSize) {
-      const params = new URLSearchParams();
-      params.set("$select", selected);
-      params.set("$where", `effective_date like '${month}/%/${year}'`);
-      params.set("$order", "effective_date ASC");
-      params.set("$limit", String(pageSize));
-      params.set("$offset", String(offset));
+  for (const dataset of INSURANCE_FILING_DATASETS) {
+    for (const { month, year } of months) {
+      for (let offset = 0; results.length < maxRows; offset += pageSize) {
+        const params = new URLSearchParams();
+        params.set("$select", selected);
+        params.set("$where", `effective_date like '${month}/%/${year}'`);
+        params.set("$order", "effective_date ASC");
+        params.set("$limit", String(pageSize));
+        params.set("$offset", String(offset));
 
-      const rows = await fetchJsonFromSocrata(`https://data.transportation.gov/resource/qh9u-swkp.json?${params.toString()}`);
-      if (!rows.length) break;
+        const rows = await fetchJsonFromSocrata(`https://data.transportation.gov/resource/${dataset.id}.json?${params.toString()}`);
+        if (!rows.length) break;
 
-      for (const row of rows) {
-        const effectiveDate = usDateOrNull(row.effective_date);
-        const estimatedRenewalDate = addYearsUtc(effectiveDate, 1);
-        const dot_number = normalizeDotNumber(row.dot_number);
-        if (!dot_number || !effectiveDate || !estimatedRenewalDate) continue;
-        if (estimatedRenewalDate < from || estimatedRenewalDate > to) continue;
+        for (const row of rows) {
+          const effectiveDate = usDateOrNull(row.effective_date);
+          const estimatedRenewalDate = addYearsUtc(effectiveDate, 1);
+          const dot_number = normalizeDotNumber(row.dot_number);
+          if (!dot_number || !effectiveDate || !estimatedRenewalDate) continue;
+          if (estimatedRenewalDate < from || estimatedRenewalDate > to) continue;
 
-        results.push({
-          ...row,
-          dot_number,
-          effectiveDate,
-          estimatedRenewal: true,
-          estimatedRenewalBasis: "prior-year-effective-date",
-          expirationDate: estimatedRenewalDate
-        });
+          results.push({
+            ...row,
+            dot_number,
+            effectiveDate,
+            estimatedRenewal: true,
+            estimatedRenewalBasis: "prior-year-effective-date",
+            expirationDate: estimatedRenewalDate,
+            insuranceSourceDataset: dataset.label,
+            insuranceSourcePriority: dataset.priority
+          });
+        }
+
+        if (rows.length < pageSize) break;
       }
-
-      if (rows.length < pageSize) break;
     }
   }
 
@@ -1139,7 +1160,7 @@ async function getPostgresRenewalLeads(req, res) {
   const page = Math.max(parseInteger(req.query.page, 1), 1);
   const limit = Math.min(Math.max(parseInteger(req.query.limit, 100), 1), 5000);
   const refreshLimit = Math.min(
-    Math.max(parseInteger(process.env.FMCSA_RENEWAL_REFRESH_LIMIT, 1500), limit),
+    Math.max(parseInteger(process.env.FMCSA_RENEWAL_REFRESH_LIMIT, 5000), limit),
     5000
   );
   const from = dateOrNull(req.query.from || req.query.renewalFrom || req.query.insuranceFrom) || addDays(0);
