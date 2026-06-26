@@ -2,7 +2,6 @@ import cron from "node-cron";
 import { connectMongo } from "../config/mongo.js";
 import { enrichLeadPools } from "../services/carrierFullEnrichmentService.js";
 import { importInsuranceExpirations } from "../services/insuranceEnrichmentService.js";
-import { importInsuranceFilingIntelligence } from "../services/insuranceFilingImportService.js";
 
 let scheduledTask = null;
 let running = false;
@@ -20,12 +19,6 @@ export async function runMonthlyRenewalUpdate(options = {}) {
     await connectMongo({ required: true });
     console.log(`[RenewalCron] Renewal update started at ${startedAt.toISOString()}`);
 
-    const intelligenceStats = process.env.INSURANCE_FILING_INTELLIGENCE_ENABLED === "false"
-      ? null
-      : await importInsuranceFilingIntelligence({
-        limit: Number(process.env.INSURANCE_FILING_IMPORT_LIMIT || 2500)
-      });
-
     const stats = await importInsuranceExpirations({
       batchSize: Number(process.env.FMCSA_INSURANCE_IMPORT_BATCH_SIZE || 1000),
       limit: Number(process.env.FMCSA_INSURANCE_IMPORT_LIMIT || 0),
@@ -41,8 +34,8 @@ export async function runMonthlyRenewalUpdate(options = {}) {
         limit: Number(process.env.FULL_ENRICHMENT_BATCH_LIMIT || 100)
       });
 
-    console.log("[RenewalCron] Renewal update finished:", { insuranceIntelligenceStats: intelligenceStats, renewalStats: stats, enrichmentStats });
-    return { insuranceIntelligenceStats: intelligenceStats, renewalStats: stats, enrichmentStats };
+    console.log("[RenewalCron] Renewal update finished:", { renewalStats: stats, enrichmentStats });
+    return { renewalStats: stats, enrichmentStats };
   } catch (err) {
     console.error("[RenewalCron] Renewal update failed:", err);
     throw err;

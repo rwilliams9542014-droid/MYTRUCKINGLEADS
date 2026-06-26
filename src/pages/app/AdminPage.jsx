@@ -199,8 +199,6 @@ export default function AdminPage() {
   const [revenue, setRevenue] = useState(null);
   const [activity, setActivity] = useState(null);
   const [freshness, setFreshness] = useState(null);
-  const [insuranceSources, setInsuranceSources] = useState(null);
-  const [insuranceImporting, setInsuranceImporting] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -215,14 +213,13 @@ export default function AdminPage() {
     setLoading(true);
     setError("");
     try {
-      const [summaryData, healthData, subscribersData, revenueData, activityData, freshnessData, insuranceSourceData, alertsData] = await Promise.all([
+      const [summaryData, healthData, subscribersData, revenueData, activityData, freshnessData, alertsData] = await Promise.all([
         api.getOwnerSummary(),
         api.getOwnerHealth(),
         api.getOwnerSubscribers(),
         api.getOwnerRevenue(),
         api.getOwnerActivity(),
         api.getOwnerDataFreshness(),
-        api.getOwnerInsuranceSources(),
         api.getOwnerAlerts(),
       ]);
       setSummary(summaryData);
@@ -231,7 +228,6 @@ export default function AdminPage() {
       setRevenue(revenueData);
       setActivity(activityData);
       setFreshness(freshnessData);
-      setInsuranceSources(insuranceSourceData);
       setAlerts(alertsData?.alerts || []);
     } catch (err) {
       setError(err.message || "Owner dashboard data could not be loaded.");
@@ -298,27 +294,6 @@ export default function AdminPage() {
     ["Past Due", numberValue(revenue?.pastDueAccounts)],
     ["Avg Revenue / Account", money(revenue?.averageRevenuePerAccount)],
   ]), [revenue]);
-
-  const runInsuranceImport = async () => {
-    if (!window.confirm("Run the owner-only insurance filing intelligence import now?")) return;
-    setInsuranceImporting(true);
-    setError("");
-    try {
-      await api.runOwnerInsuranceImport();
-      const [freshnessData, insuranceSourceData, healthData] = await Promise.all([
-        api.getOwnerDataFreshness(),
-        api.getOwnerInsuranceSources(),
-        api.getOwnerHealth(),
-      ]);
-      setFreshness(freshnessData);
-      setInsuranceSources(insuranceSourceData);
-      setHealth(healthData);
-    } catch (err) {
-      setError(err.message || "Insurance import failed.");
-    } finally {
-      setInsuranceImporting(false);
-    }
-  };
 
   if (!isOwner) return <Navigate to="/dashboard" replace />;
 
@@ -460,47 +435,6 @@ export default function AdminPage() {
           <ActivityCard label="Total Carriers Cached" value={freshness?.totalCarriersCached} />
           <ActivityCard label="Total Carriers Enriched" value={freshness?.totalCarriersEnriched} />
           <ActivityCard label="Failed Enrichment Count" value={freshness?.failedEnrichmentCount} />
-        </div>
-      </Card>
-
-      <Card className="border-cyan-300/10 bg-white/[0.03]">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Insurance Data Sources</h2>
-            <p className="mt-1 text-xs text-navy-500">
-              Frozen sources are historical only. Verified cancellation leads require a current public source.
-            </p>
-            {insuranceSources?.warning && <p className="mt-2 text-sm text-amber-200">{insuranceSources.warning}</p>}
-          </div>
-          <Button size="sm" onClick={runInsuranceImport} disabled={insuranceImporting}>
-            {insuranceImporting ? "Running..." : "Run Insurance Import Now"}
-          </Button>
-        </div>
-        <div className="mt-4 overflow-x-auto">
-          <table className="premium-table w-full min-w-[980px]">
-            <thead>
-              <tr className="border-b border-white/5">
-                {["Source", "Status", "Latest Record", "Records", "Safe For Current Leads", "Message"].map((heading) => (
-                  <th key={heading} className="px-4 py-3 text-left text-xs font-medium uppercase text-navy-400">{heading}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(insuranceSources?.sources || freshness?.insuranceSources || []).map((source) => (
-                <tr key={source.source_name} className="border-b border-white/[0.03]">
-                  <td className="px-4 py-3 text-sm font-medium text-white">
-                    <p>{source.source_name}</p>
-                    <p className="text-xs text-navy-500">{source.dataset_id}</p>
-                  </td>
-                  <td className="px-4 py-3"><Badge variant={statusVariant(source.status)}>{String(source.status || "unknown").replace(/_/g, " ")}</Badge></td>
-                  <td className="px-4 py-3 text-sm text-navy-300">{source.latest_record_date || "-"}</td>
-                  <td className="px-4 py-3 text-sm text-navy-300">{numberValue(source.record_count)}</td>
-                  <td className="px-4 py-3"><Badge variant={source.safe_for_current_leads ? "success" : "warning"}>{source.safe_for_current_leads ? "Yes" : "No"}</Badge></td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{source.message || source.error_message || "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </Card>
 

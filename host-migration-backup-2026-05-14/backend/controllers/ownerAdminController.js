@@ -4,11 +4,6 @@ import { fileURLToPath } from "node:url";
 import { query } from "../config/db.js";
 import { connectMongo, getMongoUri, isMongoConnected } from "../config/mongo.js";
 import Carrier from "../models/Carrier.js";
-import {
-  currentInsuranceFeedWarning,
-  importInsuranceFilingIntelligence,
-  listInsuranceSourceHealth
-} from "../services/insuranceFilingImportService.js";
 import { cancelSubscriptionForUser, listStripeSignupRecords } from "../services/stripeService.js";
 import { getLatestSubscriptionConsentForUser } from "../services/subscriptionConsentService.js";
 import { isOwnerUser } from "../utils/ownerAccess.js";
@@ -487,15 +482,6 @@ async function getOwnerHealthPayload() {
     storageMessage = "Quote upload storage is not writable";
   }
 
-  const insuranceSources = await listInsuranceSourceHealth().catch(() => []);
-  const insuranceWarning = await currentInsuranceFeedWarning().catch(() => "");
-  const insuranceChecks = insuranceSources.map((source) => buildHealth(
-    `Insurance Source: ${source.source_name}`,
-    source.status === "healthy" ? "healthy" : source.status === "frozen" ? "warning" : source.status || "warning",
-    source.message || source.error_message || "Insurance source checked",
-    source.safe_for_current_leads ? "Current source can be used for verified insurance intelligence" : "Treat as historical/estimated unless live verification succeeds"
-  ));
-
   const checks = [
     buildHealth("API Health", "healthy", "API is responding"),
     buildHealth("Database Connection", databaseStatus, databaseMessage),
@@ -508,9 +494,7 @@ async function getOwnerHealthPayload() {
     buildHealth("Quote Upload Storage", storageStatus, storageMessage),
     buildHealth("Lead Import Cron / Scheduled Job", process.env.CARRIER_CRON_ENABLED === "false" ? "warning" : "healthy", process.env.CARRIER_CRON_ENABLED === "false" ? "New DOT cron disabled" : `Daily schedule ${process.env.CARRIER_CRON_SCHEDULE || "0 2 * * *"}`),
     buildHealth("Last Successful New DOT Import", freshnessStatus(freshness.lastNewDotImport, 24), freshness.lastNewDotImport ? `Last import ${new Date(freshness.lastNewDotImport).toLocaleString()}` : "No New DOT import timestamp found"),
-    buildHealth("Last Successful Renewal Data Refresh", freshnessStatus(freshness.lastRenewalRefresh, 35 * 24), freshness.lastRenewalRefresh ? `Last refresh ${new Date(freshness.lastRenewalRefresh).toLocaleString()}` : "No renewal refresh timestamp found"),
-    ...(insuranceWarning ? [buildHealth("Insurance Cancellation Feed", "warning", insuranceWarning, "Review Insurance Data Sources")] : []),
-    ...insuranceChecks
+    buildHealth("Last Successful Renewal Data Refresh", freshnessStatus(freshness.lastRenewalRefresh, 35 * 24), freshness.lastRenewalRefresh ? `Last refresh ${new Date(freshness.lastRenewalRefresh).toLocaleString()}` : "No renewal refresh timestamp found")
   ];
 
   return { lastUpdated: nowIso(), checks };
@@ -697,12 +681,8 @@ export async function getOwnerActivity(req, res, next) {
 export async function getOwnerDataFreshness(req, res, next) {
   try {
     const freshness = await loadCarrierFreshness();
-    const insuranceSources = await listInsuranceSourceHealth().catch(() => []);
-    const insuranceWarning = await currentInsuranceFeedWarning().catch(() => "");
     res.json({
       ...freshness,
-      insuranceSources,
-      insuranceWarning,
       statuses: {
         lastFmcsaCarrierLookup: freshnessStatus(freshness.lastFmcsaCarrierLookup, 24),
         lastMotusPublicDataImport: freshnessStatus(freshness.lastMotusPublicDataImport, 48),
@@ -710,34 +690,6 @@ export async function getOwnerDataFreshness(req, res, next) {
         lastRenewalRefresh: freshnessStatus(freshness.lastRenewalRefresh, 35 * 24),
         lastSafetySmsDataCheck: freshnessStatus(freshness.lastSafetySmsDataCheck, 7 * 24)
       }
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function getOwnerInsuranceSourceHealth(req, res, next) {
-  try {
-    const sources = await listInsuranceSourceHealth();
-    res.json({
-      lastUpdated: nowIso(),
-      warning: await currentInsuranceFeedWarning(),
-      sources
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function runOwnerInsuranceImport(req, res, next) {
-  try {
-    const limit = Math.min(Math.max(toInt(req.body?.limit || req.query?.limit, Number(process.env.INSURANCE_FILING_IMPORT_LIMIT || 2500)), 1), 25000);
-    const stats = await importInsuranceFilingIntelligence({ limit });
-    res.json({
-      success: true,
-      message: "Insurance filing intelligence import completed.",
-      warning: await currentInsuranceFeedWarning(),
-      stats
     });
   } catch (err) {
     next(err);
