@@ -1132,6 +1132,20 @@ function falseQuery(value) {
   return ["0", "false", "no", "off"].includes(String(value || "").trim().toLowerCase());
 }
 
+const RENEWAL_CACHE_DAYS = Number(process.env.RENEWAL_LEAD_CACHE_DAYS || 90);
+
+function renewalCacheEndDate() {
+  return addDays(RENEWAL_CACHE_DAYS);
+}
+
+function clampRenewalSearchWindow(from, to) {
+  const today = addDays(0);
+  const cacheEnd = renewalCacheEndDate();
+  const start = from < today ? today : from;
+  const end = to > cacheEnd ? cacheEnd : to;
+  return end < start ? { from: start, to: start } : { from: start, to: end };
+}
+
 function eventRenewalWhere({ from, to, query }) {
   const values = [dateOnly(from), dateOnly(to)];
   const includeHistoricalRecords = boolQuery(query.includeHistoricalRecords || query.include_historical_records);
@@ -1540,11 +1554,12 @@ async function listPostgresCarriers(req, res) {
 async function getPostgresRenewalLeads(req, res) {
   if (!(await enforceLeadPlanState(req, res, "renewal"))) return;
 
-  const days = Math.min(Math.max(parseInteger(req.query.days, 30), 1), 365);
+  const days = Math.min(Math.max(parseInteger(req.query.days, 30), 1), RENEWAL_CACHE_DAYS);
   const page = Math.max(parseInteger(req.query.page, 1), 1);
   const limit = Math.min(Math.max(parseInteger(req.query.limit, 100), 1), 5000);
-  const from = dateOrNull(req.query.from || req.query.renewalFrom || req.query.insuranceFrom) || addDays(0);
-  const to = dateOrNull(req.query.to || req.query.renewalTo || req.query.insuranceTo) || addDays(days);
+  const requestedFrom = dateOrNull(req.query.from || req.query.renewalFrom || req.query.insuranceFrom) || addDays(0);
+  const requestedTo = dateOrNull(req.query.to || req.query.renewalTo || req.query.insuranceTo) || addDays(days);
+  const { from, to } = clampRenewalSearchWindow(requestedFrom, requestedTo);
   const direction = sortDirection(req.query.order, 1) === 1 ? "ASC" : "DESC";
   const includeHistoricalRecords = boolQuery(req.query.includeHistoricalRecords || req.query.include_historical_records);
   const { whereSql, values } = buildPostgresCarrierQuery({
@@ -1661,6 +1676,7 @@ async function getPostgresRenewalLeads(req, res) {
     hasMore,
     pages: Math.ceil(total / limit),
     days,
+    cacheDays: RENEWAL_CACHE_DAYS,
     from: from.toISOString().slice(0, 10),
     to: to.toISOString().slice(0, 10),
     source,
