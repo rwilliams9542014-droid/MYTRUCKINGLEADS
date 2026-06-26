@@ -12,8 +12,9 @@ function argValue(name, fallback = "") {
 
 async function main() {
   const limit = Number(argValue("--limit", process.env.INSURANCE_FILING_IMPORT_LIMIT || 2500));
+  const skipHealth = process.argv.includes("--skip-health");
   console.log(`[InsuranceFilingImport] Starting import with limit ${limit}...`);
-  const stats = await importInsuranceFilingIntelligence({ limit });
+  const stats = await importInsuranceFilingIntelligence({ limit, skipHealth });
   console.log("[InsuranceFilingImport] Completed.");
   console.log(JSON.stringify({
     stats,
