@@ -6,7 +6,10 @@ const PLAN_ALIASES = {
   agency: "pro",
   premium: "pro",
   growth: "pro",
-  professional: "pro"
+  professional: "pro",
+  "producer-pro": "pro",
+  producer_pro: "pro",
+  producerpro: "pro"
 };
 
 const RENEWAL_WINDOWS = {
