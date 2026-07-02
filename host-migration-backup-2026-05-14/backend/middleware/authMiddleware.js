@@ -25,7 +25,7 @@ function extractToken(req) {
 
 async function loadUserForRequest(userId) {
   const userResult = await query(
-    `SELECT id, email, username, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
+    `SELECT id, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
             account_status, frozen_at, frozen_by, frozen_reason,
             trial_ends_at, daily_profile_views, daily_contact_views,
             daily_saved_prospects, last_usage_reset_at,
@@ -49,7 +49,7 @@ async function loadUserForRequest(userId) {
     } else {
       await syncUserSubscriptionFromStripe(syncUserId).catch(() => null);
       const refreshedUser = await query(
-        `SELECT id, email, username, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
+        `SELECT id, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
                 account_status, frozen_at, frozen_by, frozen_reason,
                 trial_ends_at, daily_profile_views, daily_contact_views,
                 daily_saved_prospects, last_usage_reset_at,
@@ -88,8 +88,6 @@ async function loadUserForRequest(userId) {
 function assignRequestUser(req, res, user) {
   req.user = {
     id: user.id,
-    email: user.email,
-    username: user.username,
     plan: user.plan,
     lead_state: user.lead_state,
     lead_states: user.lead_states,

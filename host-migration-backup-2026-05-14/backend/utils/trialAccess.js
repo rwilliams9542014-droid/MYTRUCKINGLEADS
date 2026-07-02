@@ -1,5 +1,4 @@
 import { query } from "../config/db.js";
-import { isOwnerUser } from "./ownerAccess.js";
 
 export const TRIAL_LIMIT_MESSAGE = "Free trial limit reached. Upgrade to unlock unlimited searches, exports, full carrier profiles, and CRM access.";
 
@@ -64,7 +63,6 @@ export function trialEndsAtForUser(user = {}) {
 }
 
 export function isTrialUser(user = {}) {
-  if (isOwnerUser(user) && !user.owner_preview_active) return false;
   const plan = String(user.plan || "").toLowerCase();
   const status = String(user.subscription_status || user.subscriptionStatus || "").toLowerCase();
   return plan === "trial" || status === "trialing";
