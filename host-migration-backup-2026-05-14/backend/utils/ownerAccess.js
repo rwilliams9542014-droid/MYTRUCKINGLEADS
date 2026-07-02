@@ -15,7 +15,9 @@ export function ownerEmails() {
 }
 
 export function isOwnerUser(user = {}) {
+  const role = String(user.role || "").toLowerCase();
   return (
+    ["admin", "super_admin", "superadmin", "owner_admin", "platform_owner"].includes(role) ||
     ownerEmails().includes(String(user.email || "").toLowerCase()) ||
     ownerUsernames().includes(String(user.username || "").toLowerCase())
   );

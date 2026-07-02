@@ -1560,6 +1560,9 @@ table tbody tr td:last-child {
     let sortState = { key: "date", direction: "desc" };
     let activeProfilePayload = null;
     let cargoHydrationRun = 0;
+    let renderedEntriesCache = [];
+    let renderedRowsReference = null;
+    let renderedHeaderSignature = "";
     let currentUser = null;
     let currentTrialAccess = null;
     const carrierProfileCache = new Map();
@@ -1821,8 +1824,8 @@ table tbody tr td:last-child {
 
     async function hydrateLeadDeskCargo(rows = currentRows, options = {}) {
       const runId = ++cargoHydrationRun;
-      const maxRows = Math.min(Math.max(Number(options.maxRows ?? 60) || 60, 1), 100);
-      const concurrency = Math.min(Math.max(Number(options.concurrency ?? 4) || 4, 1), 8);
+      const maxRows = Math.min(Math.max(Number(options.maxRows ?? 25) || 25, 1), 60);
+      const concurrency = Math.min(Math.max(Number(options.concurrency ?? 2) || 2, 1), 4);
       const targets = rows
         .map((row, index) => ({ row, index, dot: rowDotNumber(row) }))
         .filter(({ row, dot }) => dot && !normalizeCargoText(rowCargoText(row)))
@@ -1839,7 +1842,9 @@ table tbody tr td:last-child {
         window.requestAnimationFrame(() => {
           pendingRender = false;
           if (runId !== cargoHydrationRun) return;
-          renderRows(currentRows);
+          const cargoChangesCanAffectList = sortState.key === "cargo" || ["hazmat", "refrigerated"].includes(activeQuickChip);
+          if (cargoChangesCanAffectList) clearRenderedEntriesCache();
+          renderRows(currentRows, { reuseEntries: !cargoChangesCanAffectList, skipMetrics: !cargoChangesCanAffectList });
         });
       };
 
@@ -1924,6 +1929,7 @@ table tbody tr td:last-child {
         ? "Choose Last Week, Last Month, or a custom date range for new DOT leads."
         : "Choose a renewal window and state for renewal leads.";
       currentRows = [];
+      clearRenderedEntriesCache();
       selectedLeadIndexes.clear();
       currentPage = 1;
       sortState = { key: "date", direction: "desc" };
@@ -1958,10 +1964,13 @@ table tbody tr td:last-child {
         const data = await api(path);
         updateTrialAccess(data?.trialAccess);
         currentRows = normalizeRows(data);
+        clearRenderedEntriesCache();
         selectedLeadIndexes.clear();
         currentPage = 1;
         renderRows(currentRows);
-        void hydrateLeadDeskCargo(currentRows);
+        window.setTimeout(() => {
+          void hydrateLeadDeskCargo(currentRows);
+        }, 350);
         const shownFrom = data.from || range.from;
         const shownTo = data.to || range.to;
         els.searchStatus.textContent = data.message || `Found ${currentRows.length} ${currentMode === "new" ? "new DOT" : "renewal"} leads from ${shownFrom} to ${shownTo}.`;
@@ -1969,6 +1978,7 @@ table tbody tr td:last-child {
       } catch (err) {
         updateTrialAccess(err.data?.trialAccess);
         currentRows = [];
+        clearRenderedEntriesCache();
         selectedLeadIndexes.clear();
         currentPage = 1;
         renderRows([]);
@@ -2223,6 +2233,11 @@ table tbody tr td:last-child {
       return `<button class="sort-button" type="button" data-sort-key="${escapeHtml(key)}">${escapeHtml(label)} <span class="sort-icon">${icon}</span></button>`;
     }
 
+    function clearRenderedEntriesCache() {
+      renderedEntriesCache = [];
+      renderedRowsReference = null;
+    }
+
     function selectedEntries() {
       return [...selectedLeadIndexes]
         .sort((left, right) => left - right)
@@ -2301,7 +2316,9 @@ table tbody tr td:last-child {
       ];
     }
 
-    function renderRows(rows) {
+    function renderRows(rows, options = {}) {
+      const reuseEntries = Boolean(options.reuseEntries && renderedRowsReference === rows && renderedEntriesCache.length);
+      const skipMetrics = Boolean(options.skipMetrics);
       const headers = [
         `<label class="lead-check-wrap" title="Select visible leads"><input id="selectVisibleLeads" class="lead-checkbox" type="checkbox" aria-label="Select visible leads"></label>`,
         sortButton("DOT Number", "dot"),
@@ -2318,23 +2335,31 @@ table tbody tr td:last-child {
         sortButton("Status", "status"),
         "Action"
       ];
-      els.tableHead.innerHTML = `<tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>`;
-      els.tableHead.querySelectorAll("[data-sort-key]").forEach((button) => {
-        button.addEventListener("click", () => {
-          const key = button.dataset.sortKey;
-          if (sortState.key === key) {
-            sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
-          } else {
-            sortState = { key, direction: sortTypes[key] === "text" ? "asc" : "desc" };
-          }
-          currentPage = 1;
-          renderRows(currentRows);
+      const headerSignature = `${currentMode}|${sortState.key}|${sortState.direction}`;
+      if (renderedHeaderSignature !== headerSignature) {
+        renderedHeaderSignature = headerSignature;
+        els.tableHead.innerHTML = `<tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>`;
+        els.tableHead.querySelectorAll("[data-sort-key]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const key = button.dataset.sortKey;
+            if (sortState.key === key) {
+              sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+            } else {
+              sortState = { key, direction: sortTypes[key] === "text" ? "asc" : "desc" };
+            }
+            currentPage = 1;
+            clearRenderedEntriesCache();
+            renderRows(currentRows);
+          });
         });
-      });
-      const entries = sortedEntries(filteredEntries(rows));
+      }
+
+      const entries = reuseEntries ? renderedEntriesCache : sortedEntries(filteredEntries(rows));
+      renderedEntriesCache = entries;
+      renderedRowsReference = rows;
       const pageInfo = pageEntries(entries);
       const visibleEntries = pageInfo.rows;
-      updateLeadMetrics(entries);
+      if (!skipMetrics) updateLeadMetrics(entries);
       syncSelectAll(visibleEntries);
       renderPager(entries.length, pageInfo);
 
@@ -2898,6 +2923,7 @@ table tbody tr td:last-child {
       if (!button) return;
       activeQuickChip = button.dataset.chip;
       currentPage = 1;
+      clearRenderedEntriesCache();
       els.quickChipRow.querySelectorAll("[data-chip]").forEach((chip) => {
         chip.classList.toggle("active", chip === button);
       });
@@ -2909,16 +2935,16 @@ table tbody tr td:last-child {
     });
     els.pageSize.addEventListener("change", () => {
       currentPage = 1;
-      renderRows(currentRows);
+      renderRows(currentRows, { reuseEntries: true, skipMetrics: true });
     });
     els.prevPageBtn.addEventListener("click", () => {
       if (currentPage <= 1) return;
       currentPage -= 1;
-      renderRows(currentRows);
+      renderRows(currentRows, { reuseEntries: true, skipMetrics: true });
     });
     els.nextPageBtn.addEventListener("click", () => {
       currentPage += 1;
-      renderRows(currentRows);
+      renderRows(currentRows, { reuseEntries: true, skipMetrics: true });
     });
     document.querySelectorAll("[data-profile-tab]").forEach((button) => {
       button.addEventListener("click", () => setProfileTab(button.dataset.profileTab));

@@ -259,7 +259,9 @@ export function getPlanAccessSummary(user) {
     requiresSingleState: false,
     canSearchAllStates: ownerAccess,
     userLimit: Object.prototype.hasOwnProperty.call(USER_LIMITS, plan) ? USER_LIMITS[plan] : 1,
-    savedLeadLimit: Object.prototype.hasOwnProperty.call(SAVED_LEAD_LIMITS, plan) ? SAVED_LEAD_LIMITS[plan] : 0,
+    savedLeadLimit: ownerAccess
+      ? null
+      : Object.prototype.hasOwnProperty.call(SAVED_LEAD_LIMITS, plan) ? SAVED_LEAD_LIMITS[plan] : 0,
     canAccessLeadMarketplace: isPaidPlan(user),
     canPurchaseMarketplaceLeads: isPaidPlan(user),
     marketplaceFreeLeadCreditsPerMonth: MARKETPLACE_FREE_LEAD_CREDITS[plan] ?? 0,
