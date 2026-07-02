@@ -5,7 +5,7 @@ import { createCheckoutSession, syncUserSubscriptionFromStripe } from "../servic
 import { validateEmail, validateLeadState, validatePassword, validatePhone, validatePlan, validateString, validateUsername } from "../utils/validators.js";
 import { ValidationError, ConflictError, AuthenticationError } from "../middleware/errorHandler.js";
 import { getTrialUsage } from "../utils/trialAccess.js";
-import { getPlanAccessSummary } from "../utils/planAccess.js";
+import { getPlanAccessSummary, hasOwnerAccess } from "../utils/planAccess.js";
 import { loadEffectiveTeamUser } from "../utils/teamAccounts.js";
 import { isOwnerUser } from "../utils/ownerAccess.js";
 import { clearOwnerPreviewCookie } from "../utils/ownerPreview.js";
@@ -373,8 +373,9 @@ export async function getCurrentUser(req, res, next) {
       });
     }
 
+    const ownerAccess = hasOwnerAccess(req.user);
     const currentStatus = String(req.user.subscription_status || "").toLowerCase();
-    if (!["active", "trialing"].includes(currentStatus)) {
+    if (!ownerAccess && !["active", "trialing"].includes(currentStatus)) {
       await syncUserSubscriptionFromStripe(req.user.team_owner_user_id || req.user.id);
     }
 
@@ -394,7 +395,7 @@ export async function getCurrentUser(req, res, next) {
     }
 
     const syncedStatus = String(userResult.rows[0].subscription_status || "").toLowerCase();
-    if (!["active", "trialing"].includes(syncedStatus)) {
+    if (!ownerAccess && !["active", "trialing"].includes(syncedStatus)) {
       clearAuthCookie(res);
       return res.status(401).json({ error: "Complete Stripe checkout before accessing your account." });
     }
