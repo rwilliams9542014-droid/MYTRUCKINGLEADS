@@ -1940,8 +1940,30 @@ table tbody tr td:last-child {
       renderRows([]);
     }
 
+    function dedupeRowsByDot(rows = []) {
+      const byDot = new Map();
+      const noDotRows = [];
+      rows.forEach((row) => {
+        const dot = String(row?.dotNumber || row?.dot_number || row?.dot || row?.usdot || row?.usdotNumber || "").replace(/\D/g, "");
+        if (!dot) {
+          noDotRows.push(row);
+          return;
+        }
+        const current = byDot.get(dot);
+        if (!current) {
+          byDot.set(dot, row);
+          return;
+        }
+        const rowDate = parseLeadDate(row.addDate || row.newDotDate || row.created_at || row.createdAt || row.dateCreated);
+        const currentDate = parseLeadDate(current.addDate || current.newDotDate || current.created_at || current.createdAt || current.dateCreated);
+        if ((rowDate?.getTime() || 0) >= (currentDate?.getTime() || 0)) byDot.set(dot, row);
+      });
+      return [...byDot.values(), ...noDotRows];
+    }
+
     function normalizeRows(data) {
-      return Array.isArray(data?.leads) ? data.leads : [];
+      const rows = Array.isArray(data?.leads) ? data.leads : [];
+      return currentMode === "new" ? dedupeRowsByDot(rows) : rows;
     }
 
     async function search() {

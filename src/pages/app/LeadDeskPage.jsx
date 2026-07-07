@@ -152,6 +152,30 @@ function normalizeLead(lead, type) {
   };
 }
 
+function leadDotValue(lead = {}) {
+  return String(lead.dot || lead.dotNumber || lead.dot_number || lead.usdot || lead.usdotNumber || "").replace(/\D/g, "");
+}
+
+function leadDateValue(lead = {}) {
+  const date = new Date(lead.addDate || lead.newDotDate || lead.addedDate || lead.created_at || lead.createdAt || lead.dateCreated || 0);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function dedupeNewDotRows(rows = []) {
+  const byDot = new Map();
+  const noDotRows = [];
+  rows.forEach((row) => {
+    const dot = leadDotValue(row);
+    if (!dot) {
+      noDotRows.push(row);
+      return;
+    }
+    const current = byDot.get(dot);
+    if (!current || leadDateValue(row) >= leadDateValue(current)) byDot.set(dot, row);
+  });
+  return [...byDot.values(), ...noDotRows];
+}
+
 function leadSelectionId(lead = {}) {
   const type = lead.type || "lead";
   const dot = lead.dot || lead.dotNumber || lead.usdot || lead.usdotNumber;
@@ -426,9 +450,12 @@ export default function LeadDeskPage() {
         });
       }
 
-      setLeads(rows.map((lead) => normalizeLead(lead, activeTab)));
+      const uniqueRows = activeTab === "new_dot" ? dedupeNewDotRows(rows) : rows;
+      setLeads(uniqueRows.map((lead) => normalizeLead(lead, activeTab)));
       setHasSearched(true);
-      setTotalResults(Number(data?.total ?? rows.length));
+      const duplicateRows = rows.length - uniqueRows.length;
+      const reportedTotal = Number(data?.total ?? rows.length);
+      setTotalResults(activeTab === "new_dot" ? Math.max(uniqueRows.length, reportedTotal - duplicateRows) : reportedTotal);
       setCurrentPage(Number(data?.page || requestedPage));
       setLastUpdated(new Date().toLocaleString());
       setLeadSourceMeta({

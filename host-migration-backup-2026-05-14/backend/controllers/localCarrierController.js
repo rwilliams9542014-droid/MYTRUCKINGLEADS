@@ -551,6 +551,71 @@ function normalizeDotNumber(value) {
   return normalized === "0" ? "" : normalized;
 }
 
+function rowDateScore(row = {}) {
+  const candidates = [
+    row.leadDeskNewDate,
+    row.newLeadSince,
+    row.dateCreated,
+    row.firstSeenAt,
+    row.firstImportedAt,
+    row.createdAt,
+    row.created_at,
+    row.lastUpdated,
+    row.last_updated
+  ];
+  for (const value of candidates) {
+    const date = dateOrNull(value);
+    if (date) return date.getTime();
+  }
+  return 0;
+}
+
+function rowCompletenessScore(row = {}) {
+  return [
+    row.email,
+    row.phone,
+    row.phoneNumber,
+    row.cellPhone,
+    row.website,
+    row.cargo_hauled,
+    row.cargoHauled,
+    Array.isArray(row.cargo_types) && row.cargo_types.length,
+    Array.isArray(row.cargoTypes) && row.cargoTypes.length,
+    row.vehicle_count,
+    row.fleetSize,
+    row.powerUnits,
+    row.driver_count,
+    row.driverCount,
+    row.drivers,
+    row.mcs150_date,
+    row.mcs150Date,
+    row.insurance_expiration,
+    row.safety_data,
+    row.smsSafety
+  ].filter(Boolean).length;
+}
+
+function preferLeadRow(candidate = {}, current = {}) {
+  const candidateDate = rowDateScore(candidate);
+  const currentDate = rowDateScore(current);
+  if (candidateDate !== currentDate) return candidateDate > currentDate ? candidate : current;
+  return rowCompletenessScore(candidate) >= rowCompletenessScore(current) ? candidate : current;
+}
+
+function dedupeRowsByDot(rows = []) {
+  const byDot = new Map();
+  const noDot = [];
+  for (const row of rows) {
+    const dot = normalizeDotNumber(row?.dotNumber || row?.dot_number || row?.dot || row?.usdot || row?.usdotNumber);
+    if (!dot) {
+      noDot.push(row);
+      continue;
+    }
+    byDot.set(dot, byDot.has(dot) ? preferLeadRow(row, byDot.get(dot)) : row);
+  }
+  return [...byDot.values(), ...noDot];
+}
+
 function dateOnly(value) {
   const date = dateOrNull(value);
   return date ? date.toISOString().slice(0, 10) : "";
@@ -1264,14 +1329,15 @@ async function getFmcsaNewCarrierLeads(req, res) {
   }
 
   const trialAccess = trialAccessForRequest(req, res);
-  const rawLeads = await enrichLeadRowsForResponse(normalizedLeads, {
+  const dedupedLeads = dedupeRowsByDot(normalizedLeads);
+  const rawLeads = await enrichLeadRowsForResponse(dedupedLeads, {
     mode: "new",
     missingOnly: true
   });
   const leads = maskTrialResults(rawLeads, trialAccess);
 
   res.json({
-    total: normalizedLeads.length,
+    total: dedupedLeads.length,
     page: Math.max(parseInteger(req.query.page, 1), 1),
     limit: Math.min(Math.max(parseInteger(req.query.limit, 100), 1), 5000),
     hasMore: false,
@@ -1326,10 +1392,11 @@ async function getPostgresNewCarrierLeads(req, res) {
     ).catch(() => ({ rows: [] }))
   ]);
 
-  const rowsPlusOne = rowsResult.rows;
-  const total = Number(countResult.rows[0]?.total ?? rowsPlusOne.length);
-  const hasMore = rowsPlusOne.length > limit || page * limit < total;
+  const rowsPlusOne = dedupeRowsByDot(rowsResult.rows);
+  const rawTotal = Number(countResult.rows[0]?.total ?? rowsPlusOne.length);
+  const hasMore = rowsPlusOne.length > limit || page * limit < rawTotal;
   const rows = hasMore ? rowsPlusOne.slice(0, limit) : rowsPlusOne;
+  const total = !hasMore && page === 1 ? rows.length : rawTotal;
   const trialAccess = trialAccessForRequest(req, res);
   const rawLeads = await enrichLeadRowsForResponse(rows.map(postgresCarrierToProspectLead), {
     mode: "new",
@@ -1663,7 +1730,7 @@ export async function getNewCarrierLeads(req, res) {
       { $addFields: { leadDeskNewDate: leadDateExpression } },
       { $match: { leadDeskNewDate: dateRange } }
     ];
-    const [countResult, carriersPlusOne] = await Promise.all([
+    const [countResult, carriersPlusOneResult] = await Promise.all([
       Carrier.aggregate([...pipeline, { $count: "total" }]).option({ maxTimeMS: 10000 }),
       Carrier.aggregate([
         ...pipeline,
@@ -1673,9 +1740,11 @@ export async function getNewCarrierLeads(req, res) {
         { $project: { leadDeskNewDate: 0 } }
       ]).option({ maxTimeMS: 10000 })
     ]);
-    const total = Number(countResult[0]?.total || 0);
+    const carriersPlusOne = dedupeRowsByDot(carriersPlusOneResult);
+    const rawTotal = Number(countResult[0]?.total || 0);
     const hasMore = carriersPlusOne.length > limit;
     const carriers = hasMore ? carriersPlusOne.slice(0, limit) : carriersPlusOne;
+    const total = !hasMore && page === 1 ? carriers.length : rawTotal;
 
     const trialAccess = trialAccessForRequest(req, res);
     const rawLeads = await enrichLeadRowsForResponse(carriers.map(carrier => carrierToNewVentureLead(carrier)), {
