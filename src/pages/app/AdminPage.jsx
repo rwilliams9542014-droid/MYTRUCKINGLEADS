@@ -40,36 +40,6 @@ function statusDot(status) {
   return "bg-slate-500";
 }
 
-function MetricCard({ metric }) {
-  const isMoney = /revenue|recurring/i.test(metric.label);
-  return (
-    <Card className="border-cyan-300/10 bg-white/[0.035]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-navy-400">{metric.label}</p>
-          <p className="mt-3 text-2xl font-bold text-white">{isMoney ? money(metric.value) : numberValue(metric.value)}</p>
-        </div>
-        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${statusDot(metric.status)}`} />
-      </div>
-      <p className="mt-3 min-h-4 text-xs text-navy-500">{metric.detail || metric.action || "Live owner metric"}</p>
-    </Card>
-  );
-}
-
-function HealthRow({ item }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 border-b border-white/[0.04] px-4 py-3 last:border-0 md:grid-cols-[1.3fr_.8fr_1.4fr_.8fr] md:items-center">
-      <div className="flex items-center gap-3">
-        <span className={`h-2.5 w-2.5 rounded-full ${statusDot(item.status)}`} />
-        <span className="text-sm font-medium text-white">{item.name}</span>
-      </div>
-      <Badge variant={statusVariant(item.status)}>{String(item.status || "unknown").replace(/_/g, " ")}</Badge>
-      <p className="text-sm text-navy-400">{item.message}</p>
-      <p className="text-xs text-navy-500">{dateValue(item.lastChecked)}</p>
-    </div>
-  );
-}
-
 function ActivityCard({ label, value }) {
   return (
     <div className="rounded-xl border border-white/10 bg-navy-900/40 p-4">
@@ -77,6 +47,49 @@ function ActivityCard({ label, value }) {
       <p className="mt-2 text-xl font-semibold text-white">{numberValue(value)}</p>
     </div>
   );
+}
+
+function MicroMetric({ label, value, detail, tone = "slate" }) {
+  const tones = {
+    cyan: "border-cyan-400/20 bg-cyan-400/10 text-cyan-200",
+    green: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+    amber: "border-amber-400/20 bg-amber-400/10 text-amber-200",
+    slate: "border-zinc-800 bg-zinc-950/50 text-zinc-100",
+  };
+
+  return (
+    <div className={`rounded-lg border p-4 ${tones[tone] || tones.slate}`}>
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+      {detail && <p className="mt-1 text-xs text-zinc-500">{detail}</p>}
+    </div>
+  );
+}
+
+function LeadTile({ label, value, detail }) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-4">
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+      <p className="mt-3 text-lg font-semibold text-white">{value}</p>
+      <p className="mt-1 text-xs text-zinc-500">{detail}</p>
+    </div>
+  );
+}
+
+function statusLabel(status) {
+  return String(status || "unknown").replace(/_/g, " ");
+}
+
+function systemStatusLabel(checks) {
+  const critical = checks.filter((item) => statusVariant(item.status) === "danger").length;
+  const warnings = checks.filter((item) => statusVariant(item.status) === "warning").length;
+  if (critical) return `${critical} SYSTEM ISSUE${critical === 1 ? "" : "S"}`;
+  if (warnings) return `${warnings} SYSTEM WARNING${warnings === 1 ? "" : "S"}`;
+  return "ALL SYSTEMS OPERATIONAL";
+}
+
+function isCanceled(subscriber) {
+  return String(subscriber?.status || subscriber?.subscriptionStatus || "").toLowerCase().includes("cancel");
 }
 
 function DetailDrawer({ detail, loading, note, setNote, onClose, onAction, actionLoading }) {
@@ -206,6 +219,7 @@ export default function AdminPage() {
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [healthOpen, setHealthOpen] = useState(false);
 
   const isOwner = user?.isOwner || user?.role === "owner" || user?.role === "admin" || user?.email === OWNER_EMAIL;
 
@@ -283,158 +297,280 @@ export default function AdminPage() {
     }
   };
 
-  const revenueCards = useMemo(() => ([
-    ["MRR", money(revenue?.mrr)],
-    ["ARR", money(revenue?.arr)],
-    ["Revenue This Month", money(revenue?.revenueThisMonth)],
-    ["Revenue Last Month", money(revenue?.revenueLastMonth)],
-    ["New Subscriptions", numberValue(revenue?.newSubscriptionsThisMonth)],
-    ["Cancellations", numberValue(revenue?.cancellationsThisMonth)],
-    ["Failed Payments", numberValue(revenue?.failedPayments)],
-    ["Past Due", numberValue(revenue?.pastDueAccounts)],
-    ["Avg Revenue / Account", money(revenue?.averageRevenuePerAccount)],
-  ]), [revenue]);
+  const handleSubscriberQuickAction = async (subscriber, action) => {
+    if (!subscriber?.id) return;
+    const reason = window.prompt(`Reason for ${action}?`, "");
+    if (reason == null) return;
+    const loadingKey = `${action}-${subscriber.id}`;
+    setActionLoading(loadingKey);
+    try {
+      if (action === "freeze") await api.freezeOwnerSubscriber(subscriber.id, reason || "Frozen by owner");
+      if (action === "unfreeze") await api.unfreezeOwnerSubscriber(subscriber.id, reason || "Unfrozen by owner");
+      await loadAll();
+      if (detail?.subscriber?.id === subscriber.id) {
+        setDetail(await api.getOwnerSubscriber(subscriber.id));
+      }
+    } catch (err) {
+      setError(err.message || "Owner action failed.");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const ownerView = useMemo(() => {
+    const healthChecks = health?.checks || [];
+    const pastDueSubscriber = subscribers.find((sub) => String(sub.status || "").toLowerCase() === "past due");
+    const twilioCheck = healthChecks.find((item) => /twilio|sms provider/i.test(item.name || ""));
+    const newSignupsMetric = (summary?.metrics || []).find((metric) => /new signups/i.test(metric.label || ""));
+    const quoteRequestsMetric = (summary?.metrics || []).find((metric) => /quote requests/i.test(metric.label || ""));
+    const newDotLeadsMetric = (summary?.metrics || []).find((metric) => /new dot/i.test(metric.label || ""));
+
+    const attention = [];
+    if ((revenue?.pastDueAccounts || 0) > 0) {
+      attention.push({
+        tone: "danger",
+        badge: "High Priority",
+        title: `${revenue.pastDueAccounts} Account${revenue.pastDueAccounts === 1 ? "" : "s"} Past Due`,
+        detail: pastDueSubscriber ? `${pastDueSubscriber.name} (${pastDueSubscriber.email})` : "Review subscriber billing status.",
+        action: "Review Account",
+        subscriber: pastDueSubscriber,
+      });
+    }
+    if (twilioCheck && statusVariant(twilioCheck.status) !== "success") {
+      attention.push({
+        tone: "warning",
+        badge: "Setup",
+        title: "SMS Gateway Offline",
+        detail: twilioCheck.message || "Twilio is not configured.",
+        action: "Setup SMS",
+      });
+    }
+    alerts.slice(0, 4).forEach((alert) => {
+      if (attention.some((item) => item.title && alert.message?.includes(item.title))) return;
+      attention.push({
+        tone: statusVariant(alert.severity) === "danger" ? "danger" : "warning",
+        badge: statusLabel(alert.severity),
+        title: alert.message,
+        detail: dateValue(alert.timestamp),
+        action: alert.action,
+      });
+    });
+
+    return {
+      healthChecks,
+      systemLabel: systemStatusLabel(healthChecks),
+      newDotLeads: activity?.newDotLeadsImported ?? newDotLeadsMetric?.value,
+      newSignups: revenue?.newSubscriptionsThisMonth ?? newSignupsMetric?.value,
+      quoteRequests: activity?.quoteRequestsSubmitted ?? quoteRequestsMetric?.value,
+      attention,
+    };
+  }, [activity, alerts, health, revenue, subscribers, summary]);
 
   if (!isOwner) return <Navigate to="/dashboard" replace />;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="rounded-3xl border border-cyan-300/10 bg-gradient-to-br from-[#071527] via-[#04101f] to-[#020817] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-brand-300">Owner Console</p>
-            <h1 className="mt-2 text-3xl font-bold text-white">Owner Command Center</h1>
-            <p className="mt-1 text-sm text-navy-400">Monitor subscribers, revenue, data health, and platform activity.</p>
+    <div className="min-h-screen space-y-6 bg-zinc-950 text-zinc-100 animate-fade-in">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-cyan-300">Owner Console</p>
+            <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">Owner Command Center</h1>
+            <p className="mt-1 text-sm text-zinc-500">Last updated {dateValue(summary?.lastUpdated)}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge variant={statusVariant(summary?.platformStatus)}>{summary?.platformStatus || "Loading"}</Badge>
-            <p className="text-xs text-navy-500">Last updated: {dateValue(summary?.lastUpdated)}</p>
-            <Button size="sm" variant="secondary" loading={loading} onClick={loadAll}>Refresh</Button>
+
+          <div className="flex flex-1 flex-col gap-3 xl:max-w-4xl">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setHealthOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-left text-sm font-semibold text-emerald-200 lg:w-auto"
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full ${statusDot(summary?.platformStatus)}`} />
+                  <span>{ownerView.systemLabel}</span>
+                  <span className="text-xs text-emerald-300">{healthOpen ? "Hide" : "Show"}</span>
+                </button>
+                {healthOpen && (
+                  <div className="absolute right-0 z-20 mt-2 max-h-96 w-full overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2 shadow-2xl lg:w-[520px]">
+                    {ownerView.healthChecks.map((item) => (
+                      <div key={item.name} className="grid gap-2 rounded-lg px-3 py-2 hover:bg-zinc-900 sm:grid-cols-[1fr_auto] sm:items-center">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className={`h-2 w-2 rounded-full ${statusDot(item.status)}`} />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-white">{item.name}</p>
+                            <p className="truncate text-xs text-zinc-500">{item.message}</p>
+                          </div>
+                        </div>
+                        <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+                      </div>
+                    ))}
+                    {!ownerView.healthChecks.length && <p className="px-3 py-2 text-sm text-zinc-500">Loading system checks...</p>}
+                  </div>
+                )}
+              </div>
+              <Button size="sm" variant="secondary" loading={loading} onClick={loadAll}>Refresh</Button>
+            </div>
+
+            <div className="flex flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-sm text-zinc-400 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              <span><strong className="text-white">{numberValue(ownerView.newDotLeads)}</strong> New DOT Leads <span className="text-zinc-600">(This Week)</span></span>
+              <span className="hidden text-zinc-700 sm:inline">-&gt;</span>
+              <span><strong className="text-white">{numberValue(ownerView.newSignups)}</strong> New Signup{Number(ownerView.newSignups) === 1 ? "" : "s"}</span>
+              <span className="hidden text-zinc-700 sm:inline">-&gt;</span>
+              <span><strong className="text-white">{numberValue(ownerView.quoteRequests)}</strong> Quote Requests</span>
+            </div>
           </div>
         </div>
       </div>
 
       {error && <div className="rounded-xl border border-danger-500/20 bg-danger-500/10 p-3 text-sm text-danger-300">{error}</div>}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {(summary?.metrics || []).map((metric) => <MetricCard key={metric.label} metric={metric} />)}
-        {loading && !summary && Array.from({ length: 8 }).map((_, index) => (
-          <Card key={index} className="h-32 animate-pulse bg-white/[0.03]" />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_.8fr]">
-        <Card className="!p-0 overflow-hidden border-cyan-300/10 bg-white/[0.03]">
-          <div className="border-b border-white/5 px-5 py-4">
-            <h2 className="text-lg font-semibold text-white">Website Health</h2>
-            <p className="text-xs text-navy-500">Safe checks only. Secrets are never returned.</p>
-          </div>
-          {(health?.checks || []).map((item) => <HealthRow key={item.name} item={item} />)}
-        </Card>
-
-        <Card className="border-cyan-300/10 bg-white/[0.03]">
-          <h2 className="text-lg font-semibold text-white">Needs Attention</h2>
-          <div className="mt-4 space-y-3">
-            {alerts.map((alert, index) => (
-              <div key={`${alert.message}-${index}`} className="rounded-xl border border-white/10 bg-navy-950/50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Badge variant={statusVariant(alert.severity)}>{alert.severity}</Badge>
-                  <span className="text-xs text-navy-500">{dateValue(alert.timestamp)}</span>
-                </div>
-                <p className="mt-2 text-sm text-white">{alert.message}</p>
-                <p className="mt-1 text-xs text-brand-300">{alert.action}</p>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-10">
+        <div className="space-y-6 lg:col-span-7">
+          <Card className="border-zinc-800 bg-zinc-900">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Financial Health</h2>
+                <p className="text-xs text-zinc-500">{revenue?.source || "Loading revenue source..."}</p>
               </div>
-            ))}
-            {!alerts.length && <p className="rounded-xl bg-accent-500/10 p-4 text-sm text-accent-300">No active owner alerts.</p>}
+              <Badge variant={statusVariant(revenue?.paymentHealth?.webhookStatus)}>{revenue?.paymentHealth?.webhookStatus || "Unknown"}</Badge>
+            </div>
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <MicroMetric label="MRR" value={money(revenue?.mrr)} tone="green" />
+              <MicroMetric label="ARR" value={money(revenue?.arr)} tone="cyan" />
+              <MicroMetric label="Avg Revenue / Account" value={money(revenue?.averageRevenuePerAccount)} tone="slate" />
+            </div>
+            {(revenue?.pastDueAccounts || 0) > 0 && (
+              <div className="mt-4 rounded-lg border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {revenue.pastDueAccounts} account{revenue.pastDueAccounts === 1 ? "" : "s"} past due. Review billing before access issues spread.
+              </div>
+            )}
+          </Card>
+
+          <Card className="border-zinc-800 bg-zinc-900">
+            <h2 className="text-lg font-semibold text-white">Lead Platform</h2>
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <LeadTile label="Data Freshness" value={`Last Import: ${dateValue(freshness?.lastNewDotImport)}`} detail={`Renewal refresh: ${dateValue(freshness?.lastRenewalRefresh)}`} />
+              <LeadTile label="Cache Engine" value={`${numberValue(freshness?.totalCarriersCached)} Carriers Cached`} detail={`${numberValue(freshness?.totalCarriersEnriched)} enriched | ${numberValue(freshness?.failedEnrichmentCount)} failed`} />
+              <LeadTile label="User Productivity" value={`${numberValue(activity?.emailOutreachSent)} Outreach Sent`} detail={`${numberValue(activity?.marketplaceLeadsSold)} leads sold | ${numberValue(activity?.carriersSavedToCrm)} saved to CRM`} />
+              <LeadTile label="Search Demand" value={`${numberValue(activity?.leadSearchesToday)} Searches Today`} detail={`${numberValue(activity?.leadSearchesThisMonth)} searches this month`} />
+            </div>
+          </Card>
+        </div>
+
+        <aside className="lg:col-span-3">
+          <div className="sticky top-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+            <h2 className="text-lg font-semibold text-white">Needs Attention</h2>
+            <div className="mt-4 space-y-3">
+              {ownerView.attention.map((item, index) => (
+                <div
+                  key={`${item.title}-${index}`}
+                  className={`rounded-xl border p-4 ${
+                    item.tone === "danger"
+                      ? "border-red-400/25 bg-red-500/10"
+                      : "border-amber-400/25 bg-amber-500/10"
+                  }`}
+                >
+                  <Badge variant={item.tone === "danger" ? "danger" : "warning"}>{item.badge}</Badge>
+                  <p className="mt-3 text-sm font-semibold text-white">{item.title}</p>
+                  <p className={`mt-1 text-xs ${item.tone === "danger" ? "text-red-200" : "text-amber-200"}`}>{item.detail}</p>
+                  <Button
+                    className="mt-3"
+                    size="sm"
+                    variant={item.tone === "danger" ? "danger" : "secondary"}
+                    onClick={() => item.subscriber ? openSubscriber(item.subscriber) : setHealthOpen(true)}
+                  >
+                    {item.action || "Review"}
+                  </Button>
+                </div>
+              ))}
+              {!ownerView.attention.length && (
+                <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
+                  No active owner alerts.
+                </div>
+              )}
+            </div>
           </div>
-        </Card>
+        </aside>
       </div>
 
-      <Card className="!p-0 overflow-hidden border-cyan-300/10 bg-white/[0.03]">
+      <Card className="!p-0 overflow-hidden border-zinc-800 bg-zinc-900">
         <div className="border-b border-white/5 px-5 py-4">
           <h2 className="text-lg font-semibold text-white">Current Subscribers</h2>
-          <p className="text-xs text-navy-500">Click a row to view usage, notes, billing IDs, and owner actions.</p>
+          <p className="text-xs text-zinc-500">Click a row to view usage, notes, billing IDs, and owner actions.</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="premium-table w-full min-w-[1180px]">
+        <div className="hidden md:block">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="border-b border-white/5">
-                {["Name", "Email", "Company / Agency", "Plan", "Status", "Trial Ends", "Current Period Ends", "Monthly Price", "Users/Seats", "Last Login", "Leads Used", "Emails Sent", "Created", "Actions"].map((heading) => (
-                  <th key={heading} className="px-4 py-3 text-left text-xs font-medium uppercase text-navy-400">{heading}</th>
+                {["Subscriber Details", "Plan & Billing", "Activity & Metrics", "Quick Actions"].map((heading) => (
+                  <th key={heading} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">{heading}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {subscribers.map((sub) => (
-                <tr key={`${sub.source}-${sub.id || sub.email}`} className="cursor-pointer border-b border-white/[0.03] hover:bg-white/[0.04]" onClick={() => openSubscriber(sub)}>
-                  <td className="px-4 py-3 text-sm font-medium text-white">{sub.name}</td>
-                  <td className="px-4 py-3 text-sm text-navy-300">{sub.email}</td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{sub.company || "-"}</td>
-                  <td className="px-4 py-3"><Badge variant={sub.plan === "premium" ? "brand" : sub.plan === "pro" ? "success" : "outline"}>{sub.plan}</Badge></td>
-                  <td className="px-4 py-3"><Badge variant={statusVariant(sub.status)}>{sub.status}</Badge></td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{dateValue(sub.trialEnds)}</td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{dateValue(sub.currentPeriodEnds)}</td>
-                  <td className="px-4 py-3 text-sm text-white">{money(sub.monthlyPrice)}</td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{sub.seats || 1}</td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{dateValue(sub.lastLogin)}</td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{numberValue(sub.leadsUsed)}</td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{numberValue(sub.emailsSent)}</td>
-                  <td className="px-4 py-3 text-sm text-navy-400">{dateValue(sub.createdDate)}</td>
-                  <td className="px-4 py-3"><Button size="sm" variant="ghost">View</Button></td>
+                <tr
+                  key={`${sub.source}-${sub.id || sub.email}`}
+                  className={`cursor-pointer border-b border-zinc-800/70 odd:bg-zinc-950/20 hover:bg-zinc-800/45 ${isCanceled(sub) ? "opacity-60" : ""}`}
+                  onClick={() => openSubscriber(sub)}
+                >
+                  <td className="px-5 py-4 align-top">
+                    <p className={`text-sm font-semibold ${isCanceled(sub) ? "text-zinc-400" : "text-white"}`}>{sub.name}</p>
+                    <p className="mt-1 truncate text-xs text-zinc-500">{sub.email}</p>
+                    <p className="mt-1 truncate text-xs text-zinc-600">{sub.company || "No company listed"}</p>
+                  </td>
+                  <td className="px-5 py-4 align-top">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={sub.plan === "premium" ? "brand" : sub.plan === "pro" ? "success" : "outline"}>{sub.plan}</Badge>
+                      <Badge variant={statusVariant(sub.status)}>{sub.status}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-white">{money(sub.monthlyPrice)} <span className="text-xs text-zinc-500">/ month</span></p>
+                    <p className="mt-1 text-xs text-zinc-500">Renews {dateValue(sub.currentPeriodEnds)}</p>
+                  </td>
+                  <td className="px-5 py-4 align-top">
+                    <p className="text-sm text-white">{numberValue(sub.leadsUsed)} leads used</p>
+                    <p className="mt-1 text-xs text-zinc-500">{numberValue(sub.emailsSent)} emails sent | {numberValue(sub.exportsThisMonth)} exports</p>
+                    <p className="mt-1 text-xs text-zinc-600">Last login {dateValue(sub.lastLogin)}</p>
+                  </td>
+                  <td className="px-5 py-4 align-top" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => openSubscriber(sub)}>View</Button>
+                      {sub.accountStatus === "frozen" ? (
+                        <Button size="sm" variant="secondary" loading={actionLoading === `unfreeze-${sub.id}`} onClick={() => handleSubscriberQuickAction(sub, "unfreeze")}>Unfreeze</Button>
+                      ) : (
+                        <Button size="sm" variant="secondary" loading={actionLoading === `freeze-${sub.id}`} onClick={() => handleSubscriberQuickAction(sub, "freeze")}>Freeze</Button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </Card>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <Card className="border-cyan-300/10 bg-white/[0.03]">
-          <h2 className="text-lg font-semibold text-white">Revenue / Production</h2>
-          <p className="mt-1 text-xs text-navy-500">{revenue?.source || "Loading revenue source..."}</p>
-          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-            {revenueCards.map(([label, value]) => <ActivityCard key={label} label={label} value={value} />)}
-          </div>
-          <div className="mt-5 rounded-xl border border-white/10 bg-navy-950/50 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Payment Health</h3>
-              <Badge variant={statusVariant(revenue?.paymentHealth?.webhookStatus)}>{revenue?.paymentHealth?.webhookStatus || "Unknown"}</Badge>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <ActivityCard label="Successful Payments" value={revenue?.paymentHealth?.successfulPayments} />
-              <ActivityCard label="Webhook Failures" value={revenue?.paymentHealth?.failedPayments} />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="border-cyan-300/10 bg-white/[0.03]">
-          <h2 className="text-lg font-semibold text-white">Lead Platform Activity</h2>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <ActivityCard label="Lead Searches Today" value={activity?.leadSearchesToday} />
-            <ActivityCard label="Lead Searches This Month" value={activity?.leadSearchesThisMonth} />
-            <ActivityCard label="New DOT Leads Imported" value={activity?.newDotLeadsImported} />
-            <ActivityCard label="Renewal Leads Available" value={activity?.renewalLeadsAvailable} />
-            <ActivityCard label="Carriers Saved to CRM" value={activity?.carriersSavedToCrm} />
-            <ActivityCard label="Exports This Month" value={activity?.exportsThisMonth} />
-            <ActivityCard label="Copy Email Actions" value={activity?.copyEmailActions} />
-            <ActivityCard label="Email Outreach Sent" value={activity?.emailOutreachSent} />
-            <ActivityCard label="Marketplace Leads Sold" value={activity?.marketplaceLeadsSold} />
-            <ActivityCard label="Quote Requests Submitted" value={activity?.quoteRequestsSubmitted} />
-          </div>
-        </Card>
-      </div>
-
-      <Card className="border-cyan-300/10 bg-white/[0.03]">
-        <h2 className="text-lg font-semibold text-white">Data Freshness</h2>
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <ActivityCard label="Last FMCSA Carrier Lookup" value={dateValue(freshness?.lastFmcsaCarrierLookup)} />
-          <ActivityCard label="Last Motus/Public Import" value={dateValue(freshness?.lastMotusPublicDataImport)} />
-          <ActivityCard label="Last New DOT Import" value={dateValue(freshness?.lastNewDotImport)} />
-          <ActivityCard label="Last Renewal Refresh" value={dateValue(freshness?.lastRenewalRefresh)} />
-          <ActivityCard label="Last Safety/SMS Check" value={dateValue(freshness?.lastSafetySmsDataCheck)} />
-          <ActivityCard label="Total Carriers Cached" value={freshness?.totalCarriersCached} />
-          <ActivityCard label="Total Carriers Enriched" value={freshness?.totalCarriersEnriched} />
-          <ActivityCard label="Failed Enrichment Count" value={freshness?.failedEnrichmentCount} />
+        <div className="space-y-3 p-4 md:hidden">
+          {subscribers.map((sub) => (
+            <button
+              key={`${sub.source}-${sub.id || sub.email}-mobile`}
+              type="button"
+              className={`w-full rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 text-left odd:bg-zinc-950/70 ${isCanceled(sub) ? "opacity-60" : ""}`}
+              onClick={() => openSubscriber(sub)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={`truncate text-sm font-semibold ${isCanceled(sub) ? "text-zinc-400" : "text-white"}`}>{sub.name}</p>
+                  <p className="mt-1 truncate text-xs text-zinc-500">{sub.email}</p>
+                </div>
+                <Badge variant={statusVariant(sub.status)}>{sub.status}</Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-zinc-500">
+                <p><span className="block text-zinc-300">{sub.plan}</span>{money(sub.monthlyPrice)}</p>
+                <p><span className="block text-zinc-300">{numberValue(sub.leadsUsed)}</span>Leads used</p>
+                <p><span className="block text-zinc-300">{numberValue(sub.emailsSent)}</span>Emails sent</p>
+                <p><span className="block text-zinc-300">{dateValue(sub.lastLogin)}</span>Last login</p>
+              </div>
+            </button>
+          ))}
         </div>
       </Card>
 
