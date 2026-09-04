@@ -12,6 +12,14 @@ function isMissingCacheTableError(err) {
   return err?.code === "42P01" || /fmcsa_cache/i.test(err?.message || "");
 }
 
+function serializeJsonbPayload(payload) {
+  const serialized = JSON.stringify(payload);
+  if (serialized === undefined) {
+    throw new Error("FMCSA cache payload is not JSON serializable");
+  }
+  return serialized;
+}
+
 export function buildCacheKey(source, identifier) {
   return `${String(source || "unknown").toLowerCase()}:${String(identifier || "").toLowerCase()}`;
 }
@@ -46,9 +54,10 @@ export async function setCachedFmcsaPayload({
   if (!cacheKey || payload === undefined || payload === null) return;
 
   try {
+    const jsonPayload = serializeJsonbPayload(payload);
     await query(
       `INSERT INTO fmcsa_cache (cache_key, source, dot_number, payload, expires_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
+       VALUES ($1, $2, $3, $4::jsonb, $5, NOW())
        ON CONFLICT (cache_key)
        DO UPDATE SET
          source = EXCLUDED.source,
@@ -56,7 +65,7 @@ export async function setCachedFmcsaPayload({
          payload = EXCLUDED.payload,
          expires_at = EXCLUDED.expires_at,
          updated_at = NOW()`,
-      [cacheKey, source, dotNumber, payload, toExpiresAt(ttlHours)]
+      [cacheKey, source, dotNumber, jsonPayload, toExpiresAt(ttlHours)]
     );
   } catch (err) {
     if (!isMissingCacheTableError(err)) {
