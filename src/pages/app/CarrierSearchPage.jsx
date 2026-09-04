@@ -98,9 +98,10 @@ export default function CarrierSearchPage() {
 
     try {
       const value = nextQuery.trim();
-      const data = nextType === "name"
-        ? await api.searchCarrierIntelligence({ query: value, name: value, limit: 100 })
-        : await api.searchFmcsaCarrier({ [nextType]: value });
+      const searchPayload = nextType === "name"
+        ? { query: value, name: value, limit: 100 }
+        : { query: value, [nextType]: value, limit: 1 };
+      const data = await api.searchCarrierIntelligence(searchPayload);
       const carriers = data.results || data.carriers || (data.carrier ? [data.carrier] : []);
       setResults(carriers);
       setPage(1);
