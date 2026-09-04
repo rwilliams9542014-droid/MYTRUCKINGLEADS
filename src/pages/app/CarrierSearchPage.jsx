@@ -53,6 +53,37 @@ function carrierInsuranceDate(carrier) {
   ]);
 }
 
+function carrierPhone(carrier) {
+  return pickCarrierValue(carrier, ["phoneNumber", "phone", "telephone", "cellPhone"]);
+}
+
+function carrierLastUpdated(carrier) {
+  return pickCarrierValue(carrier, ["lastUpdated", "updatedAt", "sourceLastSeenAt", "mcs150Date", "mcs150_date"]);
+}
+
+function formatDisplayDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function carrierSourceLabel(carrier) {
+  const source = String(pickCarrierValue(carrier, ["sourceType", "source"]) || "").toLowerCase();
+  if (source.includes("live")) return "Live FMCSA";
+  if (source.includes("fallback")) return "Saved fallback";
+  if (source.includes("database")) return "Carrier database";
+  return "Carrier data";
+}
+
+function statusBadgeVariant(statusValue) {
+  const status = String(statusValue || "").toUpperCase();
+  if (status.includes("AUTHORIZED") || status.includes("ACTIVE")) return "success";
+  if (status.includes("PENDING")) return "warning";
+  if (status.includes("INACTIVE") || status.includes("OUT")) return "danger";
+  return "outline";
+}
+
 function normalizeDate(value) {
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : 0;
@@ -314,32 +345,47 @@ export default function CarrierSearchPage() {
             {visibleResults.map((carrier) => (
               <div
                 key={carrierDot(carrier) || carrier.id || carrierName(carrier)}
-                className="flex items-center gap-6 px-6 py-4 hover:bg-white/[0.02] transition-colors group"
+                className="flex flex-col gap-4 px-6 py-4 hover:bg-white/[0.02] transition-colors group lg:flex-row lg:items-center lg:gap-6"
               >
-                <div className="w-12 h-12 bg-navy-800 rounded-xl flex items-center justify-center text-navy-300 flex-shrink-0">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white group-hover:text-brand-300 transition-colors">
-                    {carrierName(carrier)}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-navy-400">
-                    {carrierDot(carrier) && <span className="font-mono">DOT {carrierDot(carrier)}</span>}
-                    {carrierMc(carrier) && <><span>&middot;</span><span className="font-mono">MC-{carrierMc(carrier)}</span></>}
-                    {([carrier.city, carrier.state].filter(Boolean).length > 0) && <><span>&middot;</span><span>{[carrier.city, carrier.state].filter(Boolean).join(", ")}</span></>}
-                    {(carrierPowerUnits(carrier) || carrierDrivers(carrier)) && (
-                      <><span>&middot;</span><span>{[carrierPowerUnits(carrier) ? `${carrierPowerUnits(carrier)} power units` : "", carrierDrivers(carrier) ? `${carrierDrivers(carrier)} drivers` : ""].filter(Boolean).join(", ")}</span></>
-                    )}
-                    {carrierCargo(carrier) && (
-                      <><span>&middot;</span><span>{carrierCargo(carrier)}</span></>
+                <div className="flex min-w-0 flex-1 gap-4">
+                  <div className="w-12 h-12 bg-navy-800 rounded-xl flex items-center justify-center text-navy-300 flex-shrink-0">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white group-hover:text-brand-300 transition-colors">
+                      {carrierName(carrier)}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-navy-400">
+                      {carrierDot(carrier) && <span className="font-mono">DOT {carrierDot(carrier)}</span>}
+                      {carrierMc(carrier) && <><span>&middot;</span><span className="font-mono">MC-{carrierMc(carrier)}</span></>}
+                      {([carrier.city, carrier.state].filter(Boolean).length > 0) && <><span>&middot;</span><span>{[carrier.city, carrier.state].filter(Boolean).join(", ")}</span></>}
+                      {(carrierPowerUnits(carrier) || carrierDrivers(carrier)) && (
+                        <><span>&middot;</span><span>{[carrierPowerUnits(carrier) ? `${carrierPowerUnits(carrier)} power units` : "", carrierDrivers(carrier) ? `${carrierDrivers(carrier)} drivers` : ""].filter(Boolean).join(", ")}</span></>
+                      )}
+                      {carrierCargo(carrier) && (
+                        <><span>&middot;</span><span>{carrierCargo(carrier)}</span></>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-navy-500">
+                      <span>{carrierSourceLabel(carrier)}</span>
+                      {carrierLastUpdated(carrier) && <><span>&middot;</span><span>Updated {formatDisplayDate(carrierLastUpdated(carrier))}</span></>}
+                      {carrierPhone(carrier) && <><span>&middot;</span><span>{carrierPhone(carrier)}</span></>}
+                      {carrier.contactLockedReason && <><span>&middot;</span><span>{carrier.contactRevealLabel || carrier.contactLockedReason}</span></>}
+                      {carrier.liveFmcsaSuccess === false && carrier.fallbackReason && <><span>&middot;</span><span>{carrier.fallbackReason}</span></>}
+                      {carrier.officialLinks?.safer && (
+                        <><span>&middot;</span><a className="text-brand-400 hover:text-brand-300" href={carrier.officialLinks.safer} target="_blank" rel="noreferrer">FMCSA profile</a></>
+                      )}
+                    </div>
+                    {carrierInsuranceDate(carrier) && (
+                      <p className="mt-1 text-xs text-navy-500">Insurance date {formatDisplayDate(carrierInsuranceDate(carrier))}</p>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant={(carrier.operating_status || carrier.operatingStatus) === "AUTHORIZED" ? "success" : "danger"}>
-                    {carrier.operating_status || carrier.operatingStatus || "Unknown"}
+                <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+                  <Badge variant={statusBadgeVariant(carrier.operating_status || carrier.operatingStatus || carrier.authorityStatus)}>
+                    {carrier.operating_status || carrier.operatingStatus || carrier.authorityStatus || "Unknown"}
                   </Badge>
                   {carrier.safety_rating && carrier.safety_rating !== "None" && (
                     <Badge variant={

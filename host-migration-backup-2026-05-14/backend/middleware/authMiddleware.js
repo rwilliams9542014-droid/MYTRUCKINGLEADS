@@ -23,7 +23,7 @@ function extractToken(req) {
   return null;
 }
 
-async function loadUserForRequest(userId) {
+async function loadUserForRequest(userId, req) {
   const userResult = await query(
     `SELECT id, plan, lead_state, lead_states, role, subscription_status, subscription_expires_at,
             account_status, frozen_at, frozen_by, frozen_reason,
@@ -151,7 +151,7 @@ async function authenticateRequest(req, res, { allowAnonymous = false } = {}) {
     return user;
   }
 
-  const user = await loadUserForRequest(payload.sub);
+  const user = await loadUserForRequest(payload.sub, req);
   if (!user) {
     if (allowAnonymous) return null;
     throw new AuthenticationError("User not found");

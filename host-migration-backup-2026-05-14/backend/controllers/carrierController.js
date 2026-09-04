@@ -1016,22 +1016,23 @@ export async function searchOTruckingAndEnrich(req, res) {
  * GET /api/carriers/otrucking/detail/:dot
  */
 export async function getOTruckingDetail(req, res) {
+  let requestedDot = "";
   try {
     if (!requirePremiumPlan(req, res)) return;
 
-    const { dot } = req.params;
-    if (!dot) {
+    requestedDot = req.params.dot;
+    if (!requestedDot) {
       return res.status(400).json({ error: "DOT number is required" });
     }
 
-    const carrierDetail = await getOTruckingCarrierDetail(dot);
+    const carrierDetail = await getOTruckingCarrierDetail(requestedDot);
     res.json({
       source: "otrucking.com",
       carrier: carrierDetail
     });
   } catch (err) {
     console.error("OTrucking detail error:", err);
-    res.status(404).json({ error: `Carrier with DOT ${dot} not found on otrucking.com` });
+    res.status(404).json({ error: `Carrier with DOT ${requestedDot || "unknown"} not found on otrucking.com` });
   }
 }
 
