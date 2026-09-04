@@ -346,8 +346,8 @@ function freshnessStatus(dateValue, staleHours) {
 async function loadActivity() {
   const searchRows = await safeQuery(
     `SELECT
-       COUNT(*) FILTER (WHERE searched_at >= date_trunc('day', NOW()))::int AS searches_today,
-       COUNT(*) FILTER (WHERE searched_at >= date_trunc('month', NOW()))::int AS searches_month
+       COUNT(*) FILTER (WHERE created_at >= date_trunc('day', NOW()))::int AS searches_today,
+       COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW()))::int AS searches_month
      FROM search_history`,
     [],
     [{ searches_today: null, searches_month: null }]
