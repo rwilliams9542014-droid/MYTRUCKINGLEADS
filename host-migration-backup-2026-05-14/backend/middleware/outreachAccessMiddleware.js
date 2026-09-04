@@ -13,19 +13,9 @@ export function requireEmailAccess(req, res, next) {
   }
 }
 
-export function requireSmsAccess(req, res, next) {
-  try {
-    assertOutreachAccess(req.user, "sms");
-    next();
-  } catch (err) {
-    res.status(err.status || 403).json({ error: err.message });
-  }
-}
-
 export function requireBulkMessagingAccess(req, res, next) {
   try {
-    const channel = req.path.includes("/sms/") ? "sms" : "email";
-    assertOutreachAccess(req.user, channel, countFromBody(req), { bulk: channel === "sms" });
+    assertOutreachAccess(req.user, "email", countFromBody(req));
     next();
   } catch (err) {
     res.status(err.status || 403).json({ error: err.message });

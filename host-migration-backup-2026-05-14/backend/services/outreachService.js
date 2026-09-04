@@ -82,20 +82,6 @@ Thank you,
 
 To stop receiving emails, click here:
 {{unsubscribeLink}}`
-  },
-  {
-    id: "renewal-sms",
-    channel: "sms",
-    name: "Renewal SMS",
-    subject: "",
-    body: "Hi {{contactName}}, this is {{agentName}} with {{agencyName}}. Can I help quote trucking coverage for {{carrierName}} around {{renewalDate}}? Reply STOP to opt out."
-  },
-  {
-    id: "new-dot-sms",
-    channel: "sms",
-    name: "New DOT SMS",
-    subject: "",
-    body: "Hi {{contactName}}, this is {{agentName}} with {{agencyName}}. Need help with commercial trucking coverage for {{carrierName}}? Reply STOP to opt out."
   }
 ];
 
@@ -114,15 +100,6 @@ function cleanFallback(value) {
 
 function normalizePhone(value) {
   return clean(value).replace(/[^\d+]/g, "");
-}
-
-function selectSmsPhone(lead = {}, explicitPhone = "") {
-  if (explicitPhone) return normalizePhone(explicitPhone);
-  const contactNumbers = Array.isArray(lead.contactNumbers) ? lead.contactNumbers : [];
-  const nonFax = contactNumbers.filter((entry) => String(entry?.type || entry?.label || "").toLowerCase() !== "fax");
-  const mobile = nonFax.find((entry) => /mobile|cell/i.test(`${entry?.type || ""} ${entry?.label || ""}`));
-  const business = nonFax.find((entry) => /business|contact|primary|secondary|unknown/i.test(`${entry?.type || ""} ${entry?.label || ""}`));
-  return normalizePhone(mobile?.number || business?.number || lead.phone || "");
 }
 
 function userDisplay(user = {}) {
@@ -318,29 +295,6 @@ async function logOutreach({ userId, channel, lead, recipientEmail, recipientPho
   );
 }
 
-async function sendTwilioSms({ to, body }) {
-  const sid = clean(process.env.TWILIO_ACCOUNT_SID);
-  const token = clean(process.env.TWILIO_AUTH_TOKEN);
-  const from = clean(process.env.TWILIO_PHONE_NUMBER);
-  if (!sid || !token || !from) {
-    return { success: false, message: "SMS provider is not configured yet." };
-  }
-
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({ To: to, From: from, Body: body })
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    return { success: false, message: data?.message || "SMS provider rejected the message." };
-  }
-  return { success: true, messageId: data?.sid || "" };
-}
-
 export async function sendEmailOutreach({ user, lead = {}, to, subject, body }) {
   const recipientEmail = clean(to || lead.email);
   const replyTo = replyToForUser(user);
@@ -445,38 +399,6 @@ export async function sendEmailOutreach({ user, lead = {}, to, subject, body }) 
   };
 }
 
-export async function sendSmsOutreach({ user, lead = {}, to, body }) {
-  const recipientPhone = selectSmsPhone(lead, to);
-  assertOutreachAccess(user, "sms");
-  await assertUsageAvailable(user, "sms", 1);
-  if (!recipientPhone) throw Object.assign(new Error("Recipient phone number is required."), { status: 400 });
-  if (await isSuppressed({ channel: "sms", phone: recipientPhone })) {
-    await logOutreach({ userId: user.id, channel: "sms", lead, recipientPhone, body, status: "skipped", errorMessage: "Recipient opted out." });
-    return { skipped: 1, sent: 0, message: "Recipient is opted out." };
-  }
-
-  const fields = {
-    ...userDisplay(user),
-    ...lead,
-    carrierName: lead.carrierName || lead.name || "",
-    contactName: lead.contactName || lead.carrierName || lead.name || "",
-    dotNumber: lead.dotNumber || lead.dot || "",
-    mcNumber: lead.mcNumber || lead.mc || ""
-  };
-  let renderedBody = renderTemplate(body, fields);
-  if (!/reply stop/i.test(renderedBody)) renderedBody = `${renderedBody.trim()} Reply STOP to opt out.`;
-  const result = await sendTwilioSms({ to: recipientPhone, body: renderedBody });
-
-  if (!result.success) {
-    await logOutreach({ userId: user.id, channel: "sms", lead, recipientPhone, body: renderedBody, status: "failed", errorMessage: result.message });
-    throw Object.assign(new Error(result.message || "SMS provider failed."), { status: 503 });
-  }
-
-  await incrementUsage(user.id, "sms", 1);
-  await logOutreach({ userId: user.id, channel: "sms", lead, recipientPhone, body: renderedBody, status: "sent", providerMessageId: result.messageId });
-  return { sent: 1, skipped: 0, providerMessageId: result.messageId || "" };
-}
-
 export async function sendBulkEmailOutreach({ user, leads = [], subject, body }) {
   assertOutreachAccess(user, "email", leads.length, { bulk: true });
   const plan = getUserPlan(user);
@@ -510,25 +432,6 @@ export async function sendBulkEmailOutreach({ user, leads = [], subject, body })
     skippedNoEmail: results.reduce((sum, item) => sum + Number(item.skippedNoEmail || 0), 0),
     suppressed: results.reduce((sum, item) => sum + Number(item.suppressed || 0), 0),
     failed: results.reduce((sum, item) => sum + Number(item.failed || (item.error ? 1 : 0)), 0),
-    results
-  };
-}
-
-export async function sendBulkSmsOutreach({ user, leads = [], body }) {
-  assertOutreachAccess(user, "sms", leads.length, { bulk: true });
-  await assertUsageAvailable(user, "sms", leads.length);
-  const results = [];
-  for (const lead of leads) {
-    try {
-      results.push(await sendSmsOutreach({ user, lead, body }));
-    } catch (err) {
-      results.push({ sent: 0, skipped: 0, error: err.message });
-    }
-  }
-  return {
-    sent: results.reduce((sum, item) => sum + Number(item.sent || 0), 0),
-    skipped: results.reduce((sum, item) => sum + Number(item.skipped || 0), 0),
-    failed: results.filter((item) => item.error).length,
     results
   };
 }

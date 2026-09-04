@@ -240,15 +240,7 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload),
   }),
-  sendOutreachSms: (payload) => apiRequest("/api/outreach/sms/send", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  }),
   sendBulkOutreachEmail: (payload) => apiRequest("/api/outreach/email/send-bulk", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  }),
-  sendBulkOutreachSms: (payload) => apiRequest("/api/outreach/sms/send-bulk", {
     method: "POST",
     body: JSON.stringify(payload),
   }),

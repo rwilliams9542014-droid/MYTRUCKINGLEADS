@@ -150,20 +150,6 @@ function buildHealth(name, status, message, action = "View Details", lastChecked
   return { name, status, message, action, lastChecked };
 }
 
-function buildTwilioHealth() {
-  const required = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"];
-  const missing = required.filter((key) => !process.env[key]);
-  if (missing.length === 0) {
-    return buildHealth("SMS Provider / Twilio Status", "healthy", "Configured for SMS sending", "View SMS");
-  }
-  return buildHealth(
-    "SMS Provider / Twilio Status",
-    "not_configured",
-    `Missing ${missing.join(", ")}`,
-    "Configure Twilio"
-  );
-}
-
 async function safeQuery(sql, params = [], fallback = []) {
   try {
     return (await query(sql, params)).rows;
@@ -504,7 +490,6 @@ async function getOwnerHealthPayload() {
     buildHealth("Motus/Public Data Import Status", freshnessStatus(freshness.lastMotusPublicDataImport, 48), freshness.lastMotusPublicDataImport ? `Last import ${new Date(freshness.lastMotusPublicDataImport).toLocaleString()}` : "No Motus import timestamp found"),
     buildHealth("Stripe Connection", process.env.STRIPE_SECRET_KEY ? "healthy" : "not_configured", process.env.STRIPE_SECRET_KEY ? "Configured" : "Not configured"),
     buildHealth("Email Provider / Resend Status", process.env.RESEND_API_KEY ? "healthy" : "not_configured", process.env.RESEND_API_KEY ? "Configured" : "Not configured"),
-    buildTwilioHealth(),
     buildHealth("Quote Upload Storage", storageStatus, storageMessage),
     buildHealth("Lead Import Cron / Scheduled Job", process.env.CARRIER_CRON_ENABLED === "false" ? "warning" : "healthy", process.env.CARRIER_CRON_ENABLED === "false" ? "New DOT cron disabled" : `Daily schedule ${process.env.CARRIER_CRON_SCHEDULE || "0 2 * * *"}`),
     buildHealth("Last Successful New DOT Import", freshnessStatus(freshness.lastNewDotImport, 24), freshness.lastNewDotImport ? `Last import ${new Date(freshness.lastNewDotImport).toLocaleString()}` : "No New DOT import timestamp found"),

@@ -126,7 +126,6 @@ function DetailDrawer({ detail, loading, note, setNote, onClose, onAction, actio
               <ActivityCard label="Lead Searches This Month" value={detail.usage?.leadSearchesThisMonth} />
               <ActivityCard label="Exports This Month" value={detail.usage?.exportsThisMonth} />
               <ActivityCard label="Emails Sent This Month" value={detail.usage?.emailsSentThisMonth} />
-              <ActivityCard label="SMS Sent This Month" value={detail.usage?.smsSentThisMonth} />
               <ActivityCard label="Marketplace Leads Purchased" value={detail.usage?.marketplaceLeadsPurchased} />
               <ActivityCard label="Quote Requests Claimed" value={detail.usage?.quoteRequestsClaimed} />
             </div>
@@ -320,7 +319,6 @@ export default function AdminPage() {
   const ownerView = useMemo(() => {
     const healthChecks = health?.checks || [];
     const pastDueSubscriber = subscribers.find((sub) => String(sub.status || "").toLowerCase() === "past due");
-    const twilioCheck = healthChecks.find((item) => /twilio|sms provider/i.test(item.name || ""));
     const newSignupsMetric = (summary?.metrics || []).find((metric) => /new signups/i.test(metric.label || ""));
     const quoteRequestsMetric = (summary?.metrics || []).find((metric) => /quote requests/i.test(metric.label || ""));
     const newDotLeadsMetric = (summary?.metrics || []).find((metric) => /new dot/i.test(metric.label || ""));
@@ -334,15 +332,6 @@ export default function AdminPage() {
         detail: pastDueSubscriber ? `${pastDueSubscriber.name} (${pastDueSubscriber.email})` : "Review subscriber billing status.",
         action: "Review Account",
         subscriber: pastDueSubscriber,
-      });
-    }
-    if (twilioCheck && statusVariant(twilioCheck.status) !== "success") {
-      attention.push({
-        tone: "warning",
-        badge: "Setup",
-        title: "SMS Gateway Offline",
-        detail: twilioCheck.message || "Twilio is not configured.",
-        action: "Setup SMS",
       });
     }
     alerts.slice(0, 4).forEach((alert) => {

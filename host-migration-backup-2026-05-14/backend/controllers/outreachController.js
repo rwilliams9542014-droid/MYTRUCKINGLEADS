@@ -5,9 +5,7 @@ import {
   listOutreachLogs,
   renderTemplate,
   sendBulkEmailOutreach,
-  sendBulkSmsOutreach,
   sendEmailOutreach,
-  sendSmsOutreach,
   suppressContact,
   verifyUnsubscribeToken
 } from "../services/outreachService.js";
@@ -122,36 +120,11 @@ export async function sendEmail(req, res) {
   }
 }
 
-export async function sendSms(req, res) {
-  try {
-    const user = await hydrateUser(req.user);
-    const result = await sendSmsOutreach({
-      user,
-      lead: normalizeLead(req.body),
-      to: req.body.to,
-      body: req.body.body
-    });
-    res.json(result);
-  } catch (err) {
-    sendError(res, err);
-  }
-}
-
 export async function sendBulkEmail(req, res) {
   try {
     const user = await hydrateUser(req.user);
     const leads = Array.isArray(req.body.leads) ? req.body.leads.map(normalizeLead) : [];
     res.json(await sendBulkEmailOutreach({ user, leads, subject: req.body.subject, body: req.body.body }));
-  } catch (err) {
-    sendError(res, err);
-  }
-}
-
-export async function sendBulkSms(req, res) {
-  try {
-    const user = await hydrateUser(req.user);
-    const leads = Array.isArray(req.body.leads) ? req.body.leads.map(normalizeLead) : [];
-    res.json(await sendBulkSmsOutreach({ user, leads, body: req.body.body }));
   } catch (err) {
     sendError(res, err);
   }
@@ -169,19 +142,6 @@ export async function optOutContact(req, res) {
     res.json({ success: true });
   } catch (err) {
     sendError(res, err);
-  }
-}
-
-export async function smsWebhook(req, res) {
-  try {
-    const body = String(req.body.Body || req.body.body || "").trim();
-    const from = String(req.body.From || req.body.from || "").trim();
-    if (/^(stop|stopall|unsubscribe|cancel|end|quit)$/i.test(body) && from) {
-      await suppressContact({ channel: "sms", phone: from, reason: "sms_stop", source: "twilio_webhook" });
-    }
-    res.type("text/xml").send("<Response></Response>");
-  } catch {
-    res.type("text/xml").status(500).send("<Response></Response>");
   }
 }
 

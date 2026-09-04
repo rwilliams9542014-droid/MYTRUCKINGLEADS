@@ -90,15 +90,6 @@ export default function TermsPage() {
                   <li>Do Not Call requests must be honored for a minimum of 5 years</li>
                 </ul>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-white mb-1">SMS/Text Messaging Compliance</h3>
-                <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
-                  <li>You must obtain explicit written consent before sending any promotional text messages</li>
-                  <li>All text messages must include opt-out instructions (e.g., "Reply STOP to unsubscribe")</li>
-                  <li>STOP requests must be processed immediately and automatically</li>
-                  <li>You must comply with carrier-specific messaging guidelines and throughput limits</li>
-                </ul>
-              </div>
             </div>
             <p className="mt-3 text-xs text-navy-400">Violation of these communication compliance terms may result in immediate account termination without refund. MyTruckingLeads LLC is not liable for any fines, penalties, or legal actions resulting from your non-compliance.</p>
           </section>

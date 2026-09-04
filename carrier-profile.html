@@ -626,13 +626,6 @@
       return String(plan || "basic").toLowerCase();
     }
 
-    function canUseTextMessagingPlan(user = currentUser) {
-      if (user?.canUseTextMessaging === true) return true;
-      const plan = normalizePlan(user?.plan);
-      const status = String(user?.subscription_status || user?.subscriptionStatus || "").toLowerCase();
-      return ["pro", "premium"].includes(plan) && ["active", "trialing"].includes(status);
-    }
-
     function field(label, value, full = false) {
       return `<div class="profile-field${full ? " full" : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(safeText(value))}</strong></div>`;
     }
@@ -665,12 +658,10 @@
         return `<div class="status warn">Free trial limit reached. <a class="upgrade-link" href="/pricing.html">Upgrade now</a> to reveal phone and email.</div>`;
       }
       const phone = carrier.phoneNumber || carrier.cellPhone || "";
-      const textPhone = carrier.cellPhone || carrier.phoneNumber || "";
       const email = carrier.email || "";
       const address = carrier.physicalAddress || carrier.mailingAddress || "";
       const links = [
         phone ? ["Call Carrier", `tel:${String(phone).replace(/[^\d+]/g, "")}`] : null,
-        canUseTextMessagingPlan() && textPhone ? ["Text Carrier", `sms:${String(textPhone).replace(/[^\d+]/g, "")}`] : null,
         email ? ["Email Carrier", `mailto:${String(email).trim()}`] : null,
         address ? ["Open Map", `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`] : null
       ].filter(Boolean);
