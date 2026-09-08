@@ -440,24 +440,31 @@ export async function syncUserStripe(req, res, next) {
 
 export async function grantUserTemporaryAccess(req, res, next) {
   try {
-    const userId = Number.parseInt(req.params.id, 10);
-    if (!Number.isFinite(userId) || userId <= 0) {
-      return res.status(400).json({ error: "Valid user id required" });
+    const userIdentifier = String(req.params.id || req.body?.identifier || req.body?.email || req.body?.username || "").trim();
+    if (!userIdentifier) {
+      return res.status(400).json({ error: "User email, username, or id is required" });
     }
 
     const days = temporaryAccessDays(req.body?.days);
     const plan = String(req.body?.plan || "pro").trim().toLowerCase() || "pro";
+    const userId = Number.parseInt(userIdentifier, 10);
+    const params = [plan, days];
+    const where = Number.isFinite(userId) && String(userId) === userIdentifier
+      ? `id = $3`
+      : `(lower(email) = lower($3) OR lower(username) = lower($3))`;
+    params.push(Number.isFinite(userId) && String(userId) === userIdentifier ? userId : userIdentifier);
+
     const result = await query(
       `UPDATE users
-       SET plan = $2,
+       SET plan = $1,
            subscription_status = 'active',
-           subscription_expires_at = NOW() + ($3::int * INTERVAL '1 day'),
+           subscription_expires_at = NOW() + ($2::int * INTERVAL '1 day'),
            updated_at = NOW()
-       WHERE id = $1
+       WHERE ${where}
        RETURNING id, name, username, email, plan, lead_state, role, stripe_customer_id,
                  stripe_subscription_id, subscription_status, subscription_expires_at,
                  created_at, updated_at`,
-      [userId, plan, days]
+      params
     );
 
     if (result.rows.length === 0) {

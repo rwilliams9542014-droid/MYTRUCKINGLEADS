@@ -208,6 +208,45 @@
     }
   }
 
+  async function grantTemporaryAccessByIdentifier(event) {
+    event.preventDefault();
+    const identifier = $("tempAccessIdentifier")?.value.trim();
+    const days = Number.parseInt($("tempAccessDays")?.value, 10);
+    const reason = $("tempAccessReason")?.value.trim() || "Payment/subscription issue";
+    const button = $("tempAccessSubmit");
+    const message = $("tempAccessMessage");
+
+    if (message) message.textContent = "";
+    if (!identifier) {
+      $("adminStatus").textContent = "Enter the user's email or username.";
+      return;
+    }
+    if (!Number.isFinite(days) || days <= 0) {
+      $("adminStatus").textContent = "Temporary access days must be a positive number.";
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Granting...";
+    try {
+      const result = await api("/admin/users/temporary-access", {
+        method: "POST",
+        body: JSON.stringify({ identifier, days, reason })
+      });
+      await loadUsers();
+      $("tempAccessIdentifier").value = "";
+      const user = result.user || {};
+      const accessEnds = formatDate(user.subscription_expires_at);
+      if (message) message.textContent = `${user.email || identifier} has temporary access until ${accessEnds}.`;
+      $("adminStatus").textContent = "Temporary access granted.";
+    } catch (err) {
+      $("adminStatus").textContent = err.message;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Grant Access";
+    }
+  }
+
   async function logout() {
     try {
       await api("/auth/logout", { method: "POST" });
@@ -230,6 +269,7 @@
       window.__adminSearchTimer = setTimeout(loadUsers, 300);
     });
     $("logoutBtn").addEventListener("click", logout);
+    $("tempAccessForm")?.addEventListener("submit", grantTemporaryAccessByIdentifier);
     $("usersBody").addEventListener("click", (event) => {
       const tempButton = event.target.closest(".temp-access-btn");
       if (tempButton) {

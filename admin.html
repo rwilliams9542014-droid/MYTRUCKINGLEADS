@@ -174,6 +174,42 @@
     .sync-user-btn + .sync-user-btn {
       margin-left: 0.35rem;
     }
+    .temp-access-panel {
+      display: grid;
+      gap: 0.9rem;
+      grid-template-columns: minmax(220px, 1.4fr) minmax(90px, 0.45fr) minmax(180px, 1fr) auto;
+      padding: 1rem;
+    }
+    .temp-access-panel label {
+      color: #64748b;
+      display: grid;
+      font-size: 0.72rem;
+      font-weight: 900;
+      gap: 0.35rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .temp-access-panel input {
+      background: #FFFFFF;
+      border: 1px solid var(--owner-line);
+      border-radius: 12px;
+      color: #0B0F17;
+      font-size: 0.95rem;
+      font-weight: 800;
+      min-height: 44px;
+      padding: 0.65rem 0.85rem;
+      text-transform: none;
+    }
+    .temp-access-panel .owner-btn {
+      align-self: end;
+      min-height: 44px;
+    }
+    .temp-access-message {
+      color: #166534;
+      font-size: 0.88rem;
+      font-weight: 800;
+      padding: 0 1rem 1rem;
+    }
     .owner-btn.secondary {
       background: #111827;
       border: 1px solid var(--owner-line);
@@ -219,6 +255,9 @@
     }
     @media (max-width: 1080px) {
       .owner-grid {
+        grid-template-columns: 1fr;
+      }
+      .temp-access-panel {
         grid-template-columns: 1fr;
       }
     }
@@ -269,6 +308,31 @@
         <div class="owner-card-header"><div><h2>Recent Activity</h2><p>Signups, requests, purchases, and sync issues.</p></div></div>
         <div id="recentActivity" class="health-summary"></div>
       </article>
+    </section>
+
+    <section class="owner-card">
+      <div class="owner-card-header">
+        <div>
+          <h2>Grant Temporary Access</h2>
+          <p>Use this when payment or subscription sync issues are blocking a valid user.</p>
+        </div>
+      </div>
+      <form id="tempAccessForm" class="temp-access-panel">
+        <label>
+          Email or username
+          <input id="tempAccessIdentifier" type="text" placeholder="user@agency.com" autocomplete="off" />
+        </label>
+        <label>
+          Days
+          <input id="tempAccessDays" type="number" min="1" max="365" value="7" />
+        </label>
+        <label>
+          Reason
+          <input id="tempAccessReason" type="text" value="Payment/subscription issue" />
+        </label>
+        <button id="tempAccessSubmit" class="owner-btn" type="submit">Grant Access</button>
+      </form>
+      <div id="tempAccessMessage" class="temp-access-message"></div>
     </section>
 
     <main class="owner-grid">
@@ -328,7 +392,7 @@
     </main>
   </div>
 
-  <script src="assets/js/admin.js?v=owner-tools-1"></script>
+  <script src="assets/js/admin.js?v=owner-tools-2"></script>
   <script src="assets/js/global-copilot.js?v=ai-1"></script>
 </body>
 </html>

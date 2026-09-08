@@ -645,28 +645,40 @@ export async function unfreezeOwnerSubscriber(req, res, next) {
 
 export async function grantTemporaryAccess(req, res, next) {
   try {
-    const userId = toInt(req.params.id, 0);
+    const identifier = String(req.params.id || req.body?.identifier || req.body?.email || req.body?.username || "").trim();
+    if (!identifier) {
+      return res.status(400).json({ error: "User email, username, or id is required" });
+    }
+
     const days = accessDays(req.body?.days);
     const plan = String(req.body?.plan || "pro").trim().toLowerCase() || "pro";
     const reason = String(req.body?.reason || `Temporary access granted for ${days} day${days === 1 ? "" : "s"}`).slice(0, 500);
+    const userId = toInt(identifier, 0);
+    const params = [plan, days];
+    const where = userId > 0 && String(userId) === identifier
+      ? "id = $3"
+      : "(lower(email) = lower($3) OR lower(username) = lower($3))";
+    params.push(userId > 0 && String(userId) === identifier ? userId : identifier);
+
     const result = await query(
       `UPDATE users
-       SET plan = $2,
+       SET plan = $1,
            subscription_status = 'active',
-           subscription_expires_at = NOW() + ($3::int * INTERVAL '1 day'),
+           subscription_expires_at = NOW() + ($2::int * INTERVAL '1 day'),
            account_status = 'active',
            frozen_at = NULL,
            frozen_by = NULL,
            frozen_reason = NULL,
            updated_at = NOW()
-       WHERE id = $1
+       WHERE ${where}
        RETURNING id, name, email, plan, subscription_status, subscription_expires_at, account_status`,
-      [userId, plan, days]
+      params
     );
 
     if (!result.rows[0]) return res.status(404).json({ error: "Subscriber not found" });
+    const targetUserId = result.rows[0].id;
 
-    await logOwnerAction(req.owner.id, userId, "grant_temporary_access", reason, {
+    await logOwnerAction(req.owner.id, targetUserId, "grant_temporary_access", reason, {
       days,
       plan,
       expiresAt: result.rows[0].subscription_expires_at

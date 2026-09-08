@@ -220,6 +220,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [healthOpen, setHealthOpen] = useState(false);
+  const [temporaryAccess, setTemporaryAccess] = useState({
+    identifier: "",
+    days: "7",
+    reason: "Payment/subscription issue"
+  });
+  const [temporaryAccessMessage, setTemporaryAccessMessage] = useState("");
 
   const isOwner = user?.isOwner || user?.role === "owner" || user?.role === "admin" || user?.email === OWNER_EMAIL;
 
@@ -359,6 +365,44 @@ export default function AdminPage() {
     }
   };
 
+  const handleTemporaryAccessSubmit = async (event) => {
+    event.preventDefault();
+    const identifier = temporaryAccess.identifier.trim();
+    const days = Number.parseInt(temporaryAccess.days, 10);
+
+    setError("");
+    setTemporaryAccessMessage("");
+
+    if (!identifier) {
+      setError("Enter the user's email or username.");
+      return;
+    }
+
+    if (!Number.isFinite(days) || days <= 0) {
+      setError("Temporary access days must be a positive number.");
+      return;
+    }
+
+    setActionLoading("temporary-access-direct");
+    try {
+      const result = await api.grantTemporaryAccess(null, {
+        identifier,
+        days,
+        reason: temporaryAccess.reason.trim() || "Payment/subscription issue"
+      });
+      const subscriber = result?.subscriber || {};
+      setTemporaryAccessMessage(
+        `${subscriber.email || identifier} has temporary access until ${dateValue(subscriber.currentPeriodEnds || subscriber.subscription_expires_at)}.`
+      );
+      setTemporaryAccess((current) => ({ ...current, identifier: "" }));
+      await loadAll();
+    } catch (err) {
+      setError(err.message || "Temporary access could not be granted.");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
   const ownerView = useMemo(() => {
     const healthChecks = health?.checks || [];
     const pastDueSubscriber = subscribers.find((sub) => String(sub.status || "").toLowerCase() === "past due");
@@ -455,6 +499,54 @@ export default function AdminPage() {
       </div>
 
       {error && <div className="rounded-xl border border-danger-500/20 bg-danger-500/10 p-3 text-sm text-danger-300">{error}</div>}
+
+      <Card className="border-amber-400/20 bg-amber-500/10">
+        <div className="grid gap-4 xl:grid-cols-[1fr_2fr] xl:items-end">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-amber-200">Payment Exception</p>
+            <h2 className="mt-2 text-lg font-semibold text-white">Grant Temporary Access</h2>
+            <p className="mt-1 text-sm text-amber-100/80">Use this when billing or subscription sync is blocking a valid user.</p>
+          </div>
+          <form className="grid gap-3 md:grid-cols-[1.4fr_0.55fr_1.3fr_auto]" onSubmit={handleTemporaryAccessSubmit}>
+            <label className="min-w-0">
+              <span className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-amber-100/70">Email or Username</span>
+              <input
+                value={temporaryAccess.identifier}
+                onChange={(event) => setTemporaryAccess((current) => ({ ...current, identifier: event.target.value }))}
+                className="h-11 w-full rounded-lg border border-amber-200/20 bg-zinc-950/60 px-3 text-sm text-white outline-none focus:border-amber-200"
+                placeholder="user@agency.com"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-amber-100/70">Days</span>
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={temporaryAccess.days}
+                onChange={(event) => setTemporaryAccess((current) => ({ ...current, days: event.target.value }))}
+                className="h-11 w-full rounded-lg border border-amber-200/20 bg-zinc-950/60 px-3 text-sm text-white outline-none focus:border-amber-200"
+              />
+            </label>
+            <label className="min-w-0">
+              <span className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-amber-100/70">Reason</span>
+              <input
+                value={temporaryAccess.reason}
+                onChange={(event) => setTemporaryAccess((current) => ({ ...current, reason: event.target.value }))}
+                className="h-11 w-full rounded-lg border border-amber-200/20 bg-zinc-950/60 px-3 text-sm text-white outline-none focus:border-amber-200"
+              />
+            </label>
+            <Button className="h-11 self-end" type="submit" variant="secondary" loading={actionLoading === "temporary-access-direct"}>
+              Grant Access
+            </Button>
+          </form>
+        </div>
+        {temporaryAccessMessage && (
+          <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+            {temporaryAccessMessage}
+          </div>
+        )}
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-10">
         <div className="space-y-6 lg:col-span-7">
