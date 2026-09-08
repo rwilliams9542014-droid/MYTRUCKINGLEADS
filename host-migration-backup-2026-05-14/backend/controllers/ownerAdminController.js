@@ -20,6 +20,12 @@ function toInt(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function accessDays(value, fallback = 7) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, 365);
+}
+
 function maskId(value) {
   const text = String(value || "");
   if (!text) return null;
@@ -632,6 +638,41 @@ export async function unfreezeOwnerSubscriber(req, res, next) {
     if (!result.rows[0]) return res.status(404).json({ error: "Subscriber not found" });
     await logOwnerAction(req.owner.id, userId, "unfreeze", reason);
     res.json({ subscriber: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function grantTemporaryAccess(req, res, next) {
+  try {
+    const userId = toInt(req.params.id, 0);
+    const days = accessDays(req.body?.days);
+    const plan = String(req.body?.plan || "pro").trim().toLowerCase() || "pro";
+    const reason = String(req.body?.reason || `Temporary access granted for ${days} day${days === 1 ? "" : "s"}`).slice(0, 500);
+    const result = await query(
+      `UPDATE users
+       SET plan = $2,
+           subscription_status = 'active',
+           subscription_expires_at = NOW() + ($3::int * INTERVAL '1 day'),
+           account_status = 'active',
+           frozen_at = NULL,
+           frozen_by = NULL,
+           frozen_reason = NULL,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, name, email, plan, subscription_status, subscription_expires_at, account_status`,
+      [userId, plan, days]
+    );
+
+    if (!result.rows[0]) return res.status(404).json({ error: "Subscriber not found" });
+
+    await logOwnerAction(req.owner.id, userId, "grant_temporary_access", reason, {
+      days,
+      plan,
+      expiresAt: result.rows[0].subscription_expires_at
+    });
+
+    res.json({ subscriber: safeUser(result.rows[0]) });
   } catch (err) {
     next(err);
   }

@@ -4,6 +4,7 @@ import {
   getFmcsaDiagnostics,
   getOwnerOverview,
   getWebhookHealth,
+  grantUserTemporaryAccess,
   listUsers,
   setOwnerPreviewSession,
   syncUserStripe,
@@ -13,6 +14,7 @@ import {
   addOwnerSubscriberNote,
   cancelOwnerSubscriber,
   freezeOwnerSubscriber,
+  grantTemporaryAccess,
   getOwnerActivity,
   getOwnerAlerts,
   getOwnerDataFreshness,
@@ -39,6 +41,7 @@ router.get("/owner/subscribers", getOwnerSubscribers);
 router.get("/owner/subscribers/:id", getOwnerSubscriber);
 router.patch("/owner/subscribers/:id/freeze", freezeOwnerSubscriber);
 router.patch("/owner/subscribers/:id/unfreeze", unfreezeOwnerSubscriber);
+router.post("/owner/subscribers/:id/temporary-access", grantTemporaryAccess);
 router.post("/owner/subscribers/:id/cancel", cancelOwnerSubscriber);
 router.post("/owner/subscribers/:id/note", addOwnerSubscriberNote);
 router.get("/owner/revenue", getOwnerRevenue);
@@ -46,6 +49,7 @@ router.get("/owner/activity", getOwnerActivity);
 router.get("/owner/data-freshness", getOwnerDataFreshness);
 router.get("/owner/alerts", getOwnerAlerts);
 router.get("/fmcsa-diagnostics/:dotNumber", getFmcsaDiagnostics);
+router.post("/users/:id/temporary-access", grantUserTemporaryAccess);
 router.post("/users/:id/sync-stripe", syncUserStripe);
 router.post("/preview-session", setOwnerPreviewSession);
 router.delete("/preview-session", clearOwnerPreviewSession);

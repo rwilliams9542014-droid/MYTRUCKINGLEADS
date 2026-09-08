@@ -135,6 +135,7 @@ function DetailDrawer({ detail, loading, note, setNote, onClose, onAction, actio
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button size="sm" variant="secondary" loading={actionLoading === "freeze"} onClick={() => onAction("freeze")}>Freeze Account</Button>
                 <Button size="sm" variant="secondary" loading={actionLoading === "unfreeze"} onClick={() => onAction("unfreeze")}>Unfreeze Account</Button>
+                <Button size="sm" variant="secondary" loading={actionLoading === "temporary-access"} onClick={() => onAction("temporary-access")}>Grant Temporary Access</Button>
                 <Button size="sm" variant="danger" loading={actionLoading === "cancel"} onClick={() => onAction("cancel")}>Cancel Subscription</Button>
               </div>
               <div className="mt-4">
@@ -273,13 +274,27 @@ export default function AdminPage() {
   const handleAction = async (action) => {
     const subscriberId = detail?.subscriber?.id;
     if (!subscriberId) return;
-    const reason = action === "note" ? note : window.prompt(`Reason for ${action}?`, "");
+    let temporaryAccessPayload = null;
+    if (action === "temporary-access") {
+      const daysValue = window.prompt("Temporary access length in days:", "7");
+      if (daysValue == null) return;
+      const days = Number.parseInt(daysValue, 10);
+      if (!Number.isFinite(days) || days <= 0) {
+        setError("Temporary access days must be a positive number.");
+        return;
+      }
+      const reasonValue = window.prompt("Reason for temporary access?", `Temporary access for ${days} day${days === 1 ? "" : "s"}`);
+      if (reasonValue == null) return;
+      temporaryAccessPayload = { days, reason: reasonValue || `Temporary access for ${days} day${days === 1 ? "" : "s"}` };
+    }
+    const reason = action === "note" ? note : action === "temporary-access" ? temporaryAccessPayload.reason : window.prompt(`Reason for ${action}?`, "");
     if (action !== "note" && reason == null) return;
     if (action === "cancel" && !window.confirm("Cancel this subscriber's Stripe subscription/access?")) return;
     setActionLoading(action);
     try {
       if (action === "freeze") await api.freezeOwnerSubscriber(subscriberId, reason || "Frozen by owner");
       if (action === "unfreeze") await api.unfreezeOwnerSubscriber(subscriberId, reason || "Unfrozen by owner");
+      if (action === "temporary-access") await api.grantTemporaryAccess(subscriberId, temporaryAccessPayload);
       if (action === "cancel") await api.cancelOwnerSubscriber(subscriberId, reason || "Canceled by owner");
       if (action === "note") {
         if (!note.trim()) return;
@@ -298,6 +313,34 @@ export default function AdminPage() {
 
   const handleSubscriberQuickAction = async (subscriber, action) => {
     if (!subscriber?.id) return;
+    if (action === "temporary-access") {
+      const daysValue = window.prompt("Temporary access length in days:", "7");
+      if (daysValue == null) return;
+      const days = Number.parseInt(daysValue, 10);
+      if (!Number.isFinite(days) || days <= 0) {
+        setError("Temporary access days must be a positive number.");
+        return;
+      }
+      const reason = window.prompt("Reason for temporary access?", `Temporary access for ${days} day${days === 1 ? "" : "s"}`);
+      if (reason == null) return;
+      const loadingKey = `${action}-${subscriber.id}`;
+      setActionLoading(loadingKey);
+      try {
+        await api.grantTemporaryAccess(subscriber.id, {
+          days,
+          reason: reason || `Temporary access for ${days} day${days === 1 ? "" : "s"}`
+        });
+        await loadAll();
+        if (detail?.subscriber?.id === subscriber.id) {
+          setDetail(await api.getOwnerSubscriber(subscriber.id));
+        }
+      } catch (err) {
+        setError(err.message || "Owner action failed.");
+      } finally {
+        setActionLoading("");
+      }
+      return;
+    }
     const reason = window.prompt(`Reason for ${action}?`, "");
     if (reason == null) return;
     const loadingKey = `${action}-${subscriber.id}`;
@@ -524,6 +567,7 @@ export default function AdminPage() {
                   <td className="px-5 py-4 align-top" onClick={(event) => event.stopPropagation()}>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="ghost" onClick={() => openSubscriber(sub)}>View</Button>
+                      <Button size="sm" variant="secondary" loading={actionLoading === `temporary-access-${sub.id}`} onClick={() => handleSubscriberQuickAction(sub, "temporary-access")}>Temp Access</Button>
                       {sub.accountStatus === "frozen" ? (
                         <Button size="sm" variant="secondary" loading={actionLoading === `unfreeze-${sub.id}`} onClick={() => handleSubscriberQuickAction(sub, "unfreeze")}>Unfreeze</Button>
                       ) : (

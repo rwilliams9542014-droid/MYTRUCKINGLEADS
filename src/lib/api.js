@@ -183,6 +183,10 @@ export const api = {
     method: "PATCH",
     body: JSON.stringify({ reason }),
   }),
+  grantTemporaryAccess: (id, payload) => apiRequest(`/api/admin/owner/subscribers/${encodeURIComponent(id)}/temporary-access`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
   cancelOwnerSubscriber: (id, reason) => apiRequest(`/api/admin/owner/subscribers/${encodeURIComponent(id)}/cancel`, {
     method: "POST",
     body: JSON.stringify({ reason }),

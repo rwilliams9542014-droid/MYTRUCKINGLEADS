@@ -92,7 +92,11 @@ export function hasActiveSubscription(user) {
   if (process.env.LOCAL_DEV_FREE_ACCESS === "true" && process.env.NODE_ENV !== "production") {
     return true;
   }
-  return ["active", "trialing"].includes(status);
+  if (!["active", "trialing"].includes(status)) return false;
+  const expiresAt = user?.subscription_expires_at || user?.subscriptionExpiresAt || user?.currentPeriodEnds;
+  if (!expiresAt) return true;
+  const timestamp = new Date(expiresAt).getTime();
+  return Number.isFinite(timestamp) && timestamp > Date.now();
 }
 
 export function isPaidPlan(user) {

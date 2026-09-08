@@ -101,6 +101,9 @@
       const syncAction = isLocalUser
         ? `<button class="sync-user-btn" type="button" data-user-id="${user.id}">Sync Stripe</button>`
         : `<button class="sync-user-btn" type="button" disabled title="This signup is currently visible from Stripe only.">Stripe Only</button>`;
+      const temporaryAccessAction = isLocalUser
+        ? `<button class="sync-user-btn temp-access-btn" type="button" data-user-id="${user.id}">Temp Access</button>`
+        : "";
 
       return `
         <tr>
@@ -122,7 +125,7 @@
             <span>${user.has_access ? "Access allowed" : "Access limited"}</span>
           </td>
           <td>${formatDate(user.created_at)}</td>
-          <td>${syncAction}</td>
+          <td>${temporaryAccessAction}${syncAction}</td>
         </tr>
       `;
     }).join("");
@@ -179,6 +182,32 @@
     }
   }
 
+  async function grantTemporaryAccess(userId, button) {
+    const daysValue = window.prompt("Temporary access length in days:", "7");
+    if (daysValue === null) return;
+    const days = Number.parseInt(daysValue, 10);
+    if (!Number.isFinite(days) || days <= 0) {
+      $("adminStatus").textContent = "Temporary access days must be a positive number.";
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Granting...";
+    try {
+      await api(`/admin/users/${encodeURIComponent(userId)}/temporary-access`, {
+        method: "POST",
+        body: JSON.stringify({ days })
+      });
+      await loadUsers();
+      $("adminStatus").textContent = `Temporary access granted for ${days} day${days === 1 ? "" : "s"}.`;
+    } catch (err) {
+      $("adminStatus").textContent = err.message;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Temp Access";
+    }
+  }
+
   async function logout() {
     try {
       await api("/auth/logout", { method: "POST" });
@@ -202,6 +231,12 @@
     });
     $("logoutBtn").addEventListener("click", logout);
     $("usersBody").addEventListener("click", (event) => {
+      const tempButton = event.target.closest(".temp-access-btn");
+      if (tempButton) {
+        grantTemporaryAccess(tempButton.dataset.userId, tempButton);
+        return;
+      }
+
       const button = event.target.closest(".sync-user-btn");
       if (!button) return;
       syncUser(button.dataset.userId, button);

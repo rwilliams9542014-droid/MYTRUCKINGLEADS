@@ -17,6 +17,12 @@ function toPositiveInt(value, fallback, max) {
   return Math.min(parsed, max);
 }
 
+function temporaryAccessDays(value, fallback = 7) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, 365);
+}
+
 function normalizeSearch(value) {
   const text = String(value || "").trim();
   return text ? `%${text.toLowerCase()}%` : null;
@@ -420,6 +426,38 @@ export async function syncUserStripe(req, res, next) {
        FROM users
        WHERE id = $1`,
       [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function grantUserTemporaryAccess(req, res, next) {
+  try {
+    const userId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ error: "Valid user id required" });
+    }
+
+    const days = temporaryAccessDays(req.body?.days);
+    const plan = String(req.body?.plan || "pro").trim().toLowerCase() || "pro";
+    const result = await query(
+      `UPDATE users
+       SET plan = $2,
+           subscription_status = 'active',
+           subscription_expires_at = NOW() + ($3::int * INTERVAL '1 day'),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, name, username, email, plan, lead_state, role, stripe_customer_id,
+                 stripe_subscription_id, subscription_status, subscription_expires_at,
+                 created_at, updated_at`,
+      [userId, plan, days]
     );
 
     if (result.rows.length === 0) {
